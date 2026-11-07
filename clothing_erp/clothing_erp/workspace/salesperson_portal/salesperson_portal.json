@@ -36,7 +36,7 @@
   },
   {
    "label": "+ Register Retailer",
-   "link_to": "Customer",
+   "link_to": "Retailer Application",
    "type": "DocType"
   },
   {
@@ -89,6 +89,26 @@
    "link_count": 0,
    "link_to": "clothing-catalogue",
    "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Retailer Applications",
+   "link_count": 0,
+   "link_to": "Retailer Application",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Retailer Visits",
+   "link_count": 0,
+   "link_to": "Retailer Visit",
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   }

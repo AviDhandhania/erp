@@ -1,9 +1,11 @@
 """Database integration checks. Run through bench on a disposable test site."""
 import unittest
 import frappe
+from frappe.utils import add_days, now_datetime
 from frappe.tests import IntegrationTestCase
 from clothing_erp.roles import ROLE_SALESPERSON, ROLE_WAREHOUSE_OPERATOR
 from clothing_erp import api, catalogue, security
+from clothing_erp.clothing_erp.doctype.retailer_application.retailer_application import approve, reject
 
 
 @unittest.skipUnless(getattr(frappe.local, "site", None), "Requires bench site test runner")
@@ -133,3 +135,85 @@ class TestSitePermissions(IntegrationTestCase):
             {(value["attribute"], value["value"]) for value in row["attributes"]},
             {("TEST Clothing Colour", "Black"), ("TEST Clothing Size", "Medium")},
         )
+
+    def test_retailer_application_approval_creates_native_customer_and_assignment(self):
+        for doctype, field, value, parent_field, parent in (
+            ("Customer Group", "customer_group_name", "TEST Stage Four Retailers", "parent_customer_group", "All Customer Groups"),
+            ("Territory", "territory_name", "TEST Stage Four Territory", "parent_territory", "All Territories"),
+        ):
+            if not frappe.db.exists(doctype, value):
+                frappe.get_doc({"doctype": doctype, field: value, parent_field: parent, "is_group": 0}).insert()
+        frappe.set_user(self.email)
+        application = frappe.get_doc({
+            "doctype": "Retailer Application",
+            "shop_name": "TEST Stage Four Boutique",
+            "contact_person": "TEST Retail Contact",
+            "phone": "+91 90000 12345",
+            "email": "test-stage-four@example.invalid",
+            "gstin": "TESTGSTIN123",
+            "territory": "TEST Stage Four Territory",
+            "customer_group": "TEST Stage Four Retailers",
+            "salesperson": self.email,
+            "billing_address_line1": "TEST 10 Fictional Market Road",
+            "billing_city": "TEST City",
+            "country": "India",
+            "shipping_address_line1": "TEST 20 Fictional Warehouse Road",
+            "shipping_city": "TEST City",
+            "notes": "Fictional integration test application.",
+        }).insert()
+        self.assertEqual(application.status, "Pending")
+        frappe.set_user("Administrator")
+        result = approve(application.name)
+        application.reload()
+        self.assertEqual(result["status"], "Approved")
+        self.assertTrue(application.customer)
+        self.assertTrue(frappe.db.exists("Customer", application.customer))
+        self.assertTrue(frappe.db.exists("Contact", {"email_id": application.email}))
+        self.assertEqual(frappe.db.count("Address", {"address_title": application.shop_name}), 2)
+        self.assertTrue(frappe.db.exists("User Permission", {"user": self.email, "allow": "Customer", "for_value": application.customer}))
+        frappe.clear_cache(user=self.email)
+        frappe.set_user(self.email)
+        self.assertTrue(security.has_retailer_access(application.customer))
+        visit = frappe.get_doc({
+            "doctype": "Retailer Visit",
+            "customer": application.customer,
+            "salesperson": self.email,
+            "visit_date": now_datetime(),
+            "outcome": "Follow-up Required",
+            "notes": "TEST fictional retailer follow-up.",
+            "follow_up_date": add_days(now_datetime(), 7),
+        }).insert()
+        self.assertEqual(visit.salesperson, self.email)
+
+    def test_retailer_application_rejection_is_final(self):
+        for doctype, field, value, parent_field, parent in (
+            ("Customer Group", "customer_group_name", "TEST Stage Four Retailers", "parent_customer_group", "All Customer Groups"),
+            ("Territory", "territory_name", "TEST Stage Four Territory", "parent_territory", "All Territories"),
+        ):
+            if not frappe.db.exists(doctype, value):
+                frappe.get_doc({"doctype": doctype, field: value, parent_field: parent, "is_group": 0}).insert()
+        frappe.set_user(self.email)
+        application = frappe.get_doc({
+            "doctype": "Retailer Application",
+            "shop_name": "TEST Rejected Stage Four Boutique",
+            "contact_person": "TEST Rejected Contact",
+            "phone": "+91 90000 54321",
+            "email": "test-rejected-stage-four@example.invalid",
+            "territory": "TEST Stage Four Territory",
+            "customer_group": "TEST Stage Four Retailers",
+            "salesperson": self.email,
+            "billing_address_line1": "TEST 30 Fictional Market Road",
+            "billing_city": "TEST City",
+            "country": "India",
+        }).insert()
+        frappe.set_user("Administrator")
+        result = reject(application.name, "TEST duplicate registration")
+        application.reload()
+        self.assertEqual(result["status"], "Rejected")
+        self.assertEqual(application.rejection_reason, "TEST duplicate registration")
+        self.assertFalse(application.customer)
+        with self.assertRaises(frappe.ValidationError):
+            approve(application.name)
+        application.notes = "Attempted edit after review"
+        with self.assertRaises(frappe.ValidationError):
+            application.save()

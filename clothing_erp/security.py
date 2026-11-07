@@ -122,6 +122,32 @@ def pick_list_conditions(user=None):
     return _warehouse_document_conditions("Pick List", user)
 
 
+def retailer_application_conditions(user=None):
+    if is_sales_manager(user):
+        return ""
+    if ROLE_SALESPERSON in get_user_roles(user):
+        return f"`tabRetailer Application`.`owner` = {frappe.db.escape(get_current_user(user))}"
+    return "1=0"
+
+
+def retailer_visit_conditions(user=None):
+    if is_sales_manager(user):
+        return ""
+    if ROLE_SALESPERSON in get_user_roles(user):
+        return f"`tabRetailer Visit`.`salesperson` = {frappe.db.escape(get_current_user(user))}"
+    return "1=0"
+
+
+def retailer_record_has_permission(doc, user=None, ptype=None, **kwargs):
+    if is_sales_manager(user):
+        return True
+    if ROLE_SALESPERSON not in get_user_roles(user):
+        return False
+    if doc.doctype == "Retailer Application":
+        return doc.owner == get_current_user(user)
+    return doc.salesperson == get_current_user(user) and has_retailer_access(doc.customer, user)
+
+
 def operational_document_has_permission(doc, user=None, ptype=None, **kwargs):
     roles = get_user_roles(user)
     if doc.doctype in ("Sales Order", "Delivery Note") and ROLE_SALESPERSON in roles and not is_sales_manager(user):

@@ -34,8 +34,9 @@ in for them now.
 1. Complete the salesperson catalogue with style/collection/fabric/fit/season custom
    fields and customer-specific pricing context. The native catalogue foundation,
    images, filters, variant matrix, generic selling prices and stock visibility are done.
-2. Retailer management: registration, duplicate checks, approval, customer linkage,
-   visit tracking and assignment management.
+2. Extend retailer management with reassignment history, visit reporting and bulk
+   administration. Registration, duplicate checks, approval, customer linkage,
+   salesperson assignment and visit follow-ups are complete.
 3. Salesperson ordering: matrix cart, authoritative pricing, discounts/credit checks,
    stock handling, idempotency, standard Sales Orders and lifecycle status.
 4. Warehouse operations: assigned picking, barcode verification, shortages, packing,
@@ -76,19 +77,24 @@ submitted. The catalogue intentionally creates no Sales Order or stock transacti
 
 - [x] Permission-aware assigned-retailer directory API with search and bounded pagination.
 - [x] Retailer detail API with contact fields and authorized recent Sales Order history.
-- [ ] Simplified Retailer Application DocType and submission form.
-- [ ] Duplicate detection across shop name, phone, email and GSTIN.
-- [ ] Manager approval/rejection and native Customer/contact/address creation.
-- [ ] Retailer Visit and follow-up records.
+- [x] Simplified Retailer Application DocType and submission form.
+- [x] Duplicate detection across normalized shop name, phone, email and GSTIN.
+- [x] Manager-only approval/rejection with immutable review results.
+- [x] Approval creates native Customer, Contact and billing/shipping Address records.
+- [x] Approval assigns the Customer through a native User Permission for the salesperson.
+- [x] Retailer Visit records with outcomes, notes and required future follow-up dates.
+- [x] Database integration coverage for application, approval, native records, assignment
+  visibility and visit creation.
 
-Stage 4 is in progress; directory access is usable, but registration and approval are
-not marked complete until their document workflow and database tests exist.
+Stage 4 is complete. Retailer applications and visits are app-owned workflow records;
+approved commercial masters remain native ERPNext documents. No ERPNext source was
+modified.
 
 All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 33 app tests passed through the real site runner, 8 installer/package
+Verification: 37 app tests passed through the real site runner, 8 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
 checks passed with all three icons and the Clothing ERP workspace. Current local
 testing is intentionally direct on port 8000; nginx is deferred from this phase.

@@ -43,6 +43,8 @@ has_permission = {
 	"Sales Order": "clothing_erp.security.operational_document_has_permission",
 	"Delivery Note": "clothing_erp.security.operational_document_has_permission",
 	"Pick List": "clothing_erp.security.operational_document_has_permission",
+	"Retailer Application": "clothing_erp.security.retailer_record_has_permission",
+	"Retailer Visit": "clothing_erp.security.retailer_record_has_permission",
 }
 
 permission_query_conditions = {
@@ -51,4 +53,6 @@ permission_query_conditions = {
 	"Sales Order": "clothing_erp.security.sales_order_conditions",
 	"Delivery Note": "clothing_erp.security.delivery_note_conditions",
 	"Pick List": "clothing_erp.security.pick_list_conditions",
+	"Retailer Application": "clothing_erp.security.retailer_application_conditions",
+	"Retailer Visit": "clothing_erp.security.retailer_visit_conditions",
 }

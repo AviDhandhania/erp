@@ -1,0 +1,18 @@
+{
+ "autoname":"format:RET-VIS-{YYYY}-{#####}","doctype":"DocType","engine":"InnoDB","module":"Clothing ERP","name":"Retailer Visit","track_changes":1,
+ "field_order":["customer","salesperson","visit_date","outcome","notes","follow_up_date"],
+ "fields":[
+  {"fieldname":"customer","fieldtype":"Link","label":"Retailer","options":"Customer","reqd":1,"in_list_view":1},
+  {"fieldname":"salesperson","fieldtype":"Link","label":"Salesperson User","options":"User","reqd":1,"in_list_view":1},
+  {"fieldname":"visit_date","fieldtype":"Datetime","label":"Visit Date","reqd":1,"in_list_view":1},
+  {"fieldname":"outcome","fieldtype":"Select","label":"Outcome","options":"Order Expected\nFollow-up Required\nNo Requirement\nIssue Reported\nClosed","reqd":1,"in_list_view":1},
+  {"fieldname":"notes","fieldtype":"Text","label":"Notes","reqd":1},
+  {"fieldname":"follow_up_date","fieldtype":"Date","label":"Follow-up Date"}
+ ],
+ "permissions":[
+  {"role":"Clothing Salesperson","create":1,"read":1,"write":1,"if_owner":1},
+  {"role":"Clothing Sales Manager","create":1,"read":1,"write":1,"report":1},
+  {"role":"Clothing Business Administrator","create":1,"read":1,"write":1,"delete":1,"report":1},
+  {"role":"System Manager","create":1,"read":1,"write":1,"delete":1,"report":1}
+ ],"sort_field":"visit_date","sort_order":"DESC"
+}

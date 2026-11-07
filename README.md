@@ -103,8 +103,8 @@ installable only when its verified assets exist. Details: [release guide](docs/r
 
 The native launcher, three clothing workspaces, five clothing roles, read-only
 operational APIs, assignment restrictions, responsive native Item/Variant clothing
-catalogue, installer, release pipeline, and update/recovery tooling. Customer-aware
-pricing, retailer approval, garment ordering and warehouse workflows remain on the
+catalogue, retailer application/approval/visit workflow, installer, release pipeline,
+and update/recovery tooling. Customer-aware pricing, garment ordering and warehouse workflows remain on the
 [roadmap](work.md).
 
 The five clothing roles use native User Permissions for assigned Customers and
@@ -139,6 +139,24 @@ To add a product gallery without changing ERPNext core, open the colour-specific
 template in ERPNext, find **Clothing Product Gallery** beside the primary image, and add
 ordered image rows with optional captions. Save the Item. The catalogue shows a
 **View photos** action and opens the images in a responsive previous/next viewer.
+
+### Retailer workflow
+
+1. A salesperson opens **Salesperson Portal → Register Retailer**, completes the
+   Retailer Application and saves it. The salesperson is set from the logged-in user.
+2. Duplicate shop names, phone numbers, email addresses and GSTINs are rejected before
+   submission, including common phone-prefix and letter-case differences.
+3. A Clothing Manager, Clothing Business Administrator or System Manager opens
+   **Retailer Applications**, then uses **Review → Approve** or **Review → Reject**.
+4. Approval creates the standard ERPNext Customer, Contact and Address records and a
+   native User Permission assigning that Customer to the salesperson. Rejection requires
+   a reason. A reviewed application cannot be edited or reviewed again.
+5. The salesperson records meetings from **Retailer Visits**. Choosing
+   **Follow-up Required** requires a non-past follow-up date.
+
+Salespeople only see their own applications and visits and can only select assigned
+Customers. Managers can review all application and visit records. The workflow does
+not duplicate ERPNext customer, address or contact masters.
 
 **Validation limits:** automated app/database/recovery tests run locally and in CI.
 Host-command tests simulate Proxmox. A complete install/update/reboot/restore on an
