@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 import frappe
-from clothing_erp import api, security
+from clothing_erp import api
 
 
 class TestOperationalInterfaces(unittest.TestCase):

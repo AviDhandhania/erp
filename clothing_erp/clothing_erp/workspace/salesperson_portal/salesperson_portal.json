@@ -41,8 +41,8 @@
   },
   {
    "label": "Apparel Catalog",
-   "link_to": "Item",
-   "type": "DocType"
+   "link_to": "clothing-catalogue",
+   "type": "Page"
   }
  ],
  "links": [
@@ -85,10 +85,10 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Garment Items",
+   "label": "Clothing Catalogue",
    "link_count": 0,
-   "link_to": "Item",
-   "link_type": "DocType",
+   "link_to": "clothing-catalogue",
+   "link_type": "Page",
    "onboard": 0,
    "type": "Link"
   }

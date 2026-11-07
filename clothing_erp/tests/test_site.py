@@ -3,7 +3,7 @@ import unittest
 import frappe
 from frappe.tests import IntegrationTestCase
 from clothing_erp.roles import ROLE_SALESPERSON, ROLE_WAREHOUSE_OPERATOR
-from clothing_erp import api, security
+from clothing_erp import api, catalogue, security
 
 
 @unittest.skipUnless(getattr(frappe.local, "site", None), "Requires bench site test runner")
@@ -25,6 +25,7 @@ class TestSitePermissions(IntegrationTestCase):
 
     def test_unassigned_salesperson_cannot_list_any_retailers(self):
         frappe.set_user(self.email)
+        self.assertTrue(frappe.db.exists("Page", "clothing-catalogue"))
         self.assertEqual(frappe.get_list("Customer", pluck="name"), [])
         self.assertEqual(frappe.get_list("Sales Order", pluck="name"), [])
         self.assertEqual(api.get_salesperson_dashboard()["metrics"]["assigned_retailers_count"], 0)
@@ -58,3 +59,75 @@ class TestSitePermissions(IntegrationTestCase):
         self.assertEqual(frappe.get_list("Pick List", pluck="name"), [])
         self.assertEqual(frappe.get_list("Delivery Note", pluck="name"), [])
         self.assertEqual(api.get_warehouse_dashboard()["pick_tasks"], [])
+
+    def test_catalogue_reads_real_erpnext_variants_prices_and_stock(self):
+        from erpnext.controllers.item_variant import create_variant
+
+        frappe.set_user("Administrator")
+        for attribute, values in (
+            ("TEST Clothing Colour", (("Black", "BLK"),)),
+            ("TEST Clothing Size", (("Medium", "M"),)),
+        ):
+            frappe.get_doc({
+                "doctype": "Item Attribute",
+                "attribute_name": attribute,
+                "item_attribute_values": [
+                    {"attribute_value": value, "abbr": abbreviation}
+                    for value, abbreviation in values
+                ],
+            }).insert()
+
+        template = frappe.get_doc({
+            "doctype": "Item",
+            "item_code": "TEST-CLOTHING-CATALOGUE",
+            "item_name": "TEST Clothing Catalogue Shirt",
+            "description": "Fictional integration-test garment",
+            "item_group": "Products",
+            "stock_uom": "Nos",
+            "has_variants": 1,
+            "variant_based_on": "Item Attribute",
+            "attributes": [
+                {"attribute": "TEST Clothing Colour"},
+                {"attribute": "TEST Clothing Size"},
+            ],
+        }).insert()
+        variant = create_variant(template.name, {
+            "TEST Clothing Colour": "Black",
+            "TEST Clothing Size": "Medium",
+        })
+        variant.item_code = "TEST-CLOTHING-CATALOGUE-BLK-M"
+        variant.item_name = "TEST Clothing Catalogue Shirt Black Medium"
+        variant.insert()
+
+        price_list = frappe.db.get_single_value("Selling Settings", "selling_price_list")
+        frappe.get_doc({
+            "doctype": "Item Price",
+            "price_list": price_list,
+            "item_code": variant.name,
+            "uom": variant.stock_uom,
+            "price_list_rate": 749,
+        }).insert()
+        warehouse = frappe.get_doc({
+            "doctype": "Warehouse",
+            "warehouse_name": "TEST Catalogue Warehouse",
+            "is_group": 0,
+        })
+        warehouse.db_insert()
+        frappe.get_doc({
+            "doctype": "Bin",
+            "item_code": variant.name,
+            "warehouse": warehouse.name,
+            "stock_uom": variant.stock_uom,
+            "actual_qty": 17,
+        }).db_insert()
+
+        result = catalogue.get_catalogue(search="Catalogue Shirt")
+        self.assertEqual(len(result["products"]), 1)
+        row = result["products"][0]["variants"][0]
+        self.assertEqual(row["item_code"], variant.name)
+        self.assertEqual(row["price"], 749)
+        self.assertEqual(row["actual_qty"], 17)
+        self.assertEqual(
+            {(value["attribute"], value["value"]) for value in row["attributes"]},
+            {("TEST Clothing Colour", "Black"), ("TEST Clothing Size", "Medium")},
+        )

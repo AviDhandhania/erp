@@ -31,8 +31,9 @@ in for them now.
 
 ## Apparel features still to build
 
-1. Salesperson catalogue: native Items/variants, style/collection/fabric/fit/season,
-   images, size-colour matrix, stock visibility and permitted customer pricing.
+1. Complete the salesperson catalogue with style/collection/fabric/fit/season custom
+   fields and customer-specific pricing context. The native catalogue foundation,
+   images, filters, variant matrix, generic selling prices and stock visibility are done.
 2. Retailer management: registration, duplicate checks, approval, customer linkage,
    visit tracking and assignment management.
 3. Salesperson ordering: matrix cart, authoritative pricing, discounts/credit checks,
@@ -45,11 +46,31 @@ in for them now.
 8. Release CI, reproducible release manifests and supported-host installation trials.
 9. Backup restore drills, upgrades and rollback tooling.
 
+## Stage 3 — salesperson catalogue
+
+- [x] Role-restricted Clothing Catalogue Desk page linked from the salesperson workspace.
+- [x] Responsive product cards and horizontally safe mobile variant tables.
+- [x] Native ERPNext Item templates and Item Variants; no duplicate product model.
+- [x] Search, leaf-category and brand filters with bounded server-side pagination.
+- [x] Product images, colour/size attributes, stock UOM and aggregate on-hand visibility.
+- [x] Active generic selling-price lookup with future, expired, batch, supplier and
+  customer-specific records excluded from the generic view.
+- [x] Touch-friendly quantity selection with an in-browser draft units/value summary.
+- [x] Backend role enforcement and native Item permission-aware template/variant queries.
+- [x] Real database integration test covering template, variant attributes, Item Price and Bin.
+- [ ] Add clothing metadata fields after confirming the exact naming and reporting needs.
+- [ ] Add an assigned-retailer context and ERPNext pricing-rule/customer-specific calculation.
+- [ ] Persist selected quantities only as part of the separately tested Stage 5 cart/order flow.
+
+The displayed stock is informational on-hand quantity, not a reservation or promise.
+Stage 5 must recalculate prices, permissions and stock on the server when an order is
+submitted. The catalogue intentionally creates no Sales Order or stock transaction.
+
 All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 22 app tests passed through the real site runner, 8 installer/package
+Verification: 28 app tests passed through the real site runner, 8 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
 checks passed with all three icons and the Clothing ERP workspace. Current local
 testing is intentionally direct on port 8000; nginx is deferred from this phase.

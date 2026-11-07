@@ -102,9 +102,10 @@ installable only when its verified assets exist. Details: [release guide](docs/r
 ## What is implemented
 
 The native launcher, three clothing workspaces, five clothing roles, read-only
-operational APIs, assignment restrictions, installer, release pipeline, and update/
-recovery tooling. Catalogue, retailer approval, garment ordering and warehouse
-workflows remain on the [roadmap](work.md).
+operational APIs, assignment restrictions, responsive native Item/Variant clothing
+catalogue, installer, release pipeline, and update/recovery tooling. Customer-aware
+pricing, retailer approval, garment ordering and warehouse workflows remain on the
+[roadmap](work.md).
 
 The five clothing roles use native User Permissions for assigned Customers and
 Warehouses; pick lists additionally require an open ToDo assignment. All access is
