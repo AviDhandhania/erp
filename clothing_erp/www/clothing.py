@@ -1,7 +1,12 @@
 """Clothing ERP portal homepage context provider."""
 
-import frappe
-from frappe import _
+try:
+	import frappe
+	from frappe import _
+except ImportError:
+	# Fallback for standalone unit testing outside active Frappe environment
+	frappe = None
+	_ = lambda x: x
 
 
 def get_navigation_items():
@@ -75,7 +80,7 @@ def get_navigation_items():
 
 def get_context(context):
 	"""Populate context for the Clothing ERP homepage."""
-	user = frappe.session.user
+	user = frappe.session.user if frappe else "Guest"
 	is_authenticated = user and user != "Guest"
 
 	context.title = _("Clothing ERP")
@@ -87,7 +92,7 @@ def get_context(context):
 
 	all_items = get_navigation_items()
 
-	if is_authenticated:
+	if is_authenticated and frappe:
 		roles = set(frappe.get_roles(user))
 		is_admin = user == "Administrator" or "System Manager" in roles or "Clothing ERP User" in roles
 		# Filter links by read permission if authenticated, Administrator sees all

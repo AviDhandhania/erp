@@ -9,7 +9,7 @@ class TestClothingERPHomepageUnit(unittest.TestCase):
 
 	def test_required_placeholders_present(self):
 		"""Verify that all 7 required navigation placeholders are registered."""
-		clothing_module = import_module("clothing_erp.clothing_erp.www.clothing")
+		clothing_module = import_module("clothing_erp.www.clothing")
 		items = clothing_module.get_navigation_items()
 		labels = {item["label"] for item in items}
 		expected = {"Admin", "Products", "Sales", "Retailers", "Warehouse", "Suppliers", "Reports"}
@@ -17,7 +17,7 @@ class TestClothingERPHomepageUnit(unittest.TestCase):
 
 	def test_placeholder_attributes(self):
 		"""Verify each navigation placeholder has required attributes."""
-		clothing_module = import_module("clothing_erp.clothing_erp.www.clothing")
+		clothing_module = import_module("clothing_erp.www.clothing")
 		items = clothing_module.get_navigation_items()
 		for item in items:
 			self.assertIn("id", item)
@@ -37,7 +37,7 @@ class TestClothingERPHomepageIntegration(unittest.TestCase):
 		except ImportError:
 			self.skipTest("Frappe framework not imported in current process")
 
-		clothing_module = import_module("clothing_erp.clothing_erp.www.clothing")
+		clothing_module = import_module("clothing_erp.www.clothing")
 		context = frappe._dict()
 		res = clothing_module.get_context(context)
 		self.assertEqual(res.title, "Clothing ERP")
