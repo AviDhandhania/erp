@@ -80,6 +80,30 @@ Restart=on-failure
 WantedBy=multi-user.target
 UNIT
 nginx -t -c /etc/clothing-erp/nginx.conf
+# Hand over an existing foreground instance of this project to systemd.
+# Match both its working directory and WSGI entry point; never pkill other benches.
+if ! systemctl is-active --quiet clothing-erp-local; then
+    python3 - "$ROOT" <<'PYTHON'
+import os
+from pathlib import Path
+import signal
+import sys
+import time
+root = Path(sys.argv[1]).resolve()
+for entry in Path("/proc").iterdir():
+    if not entry.name.isdigit():
+        continue
+    try:
+        args = (entry / "cmdline").read_bytes()
+        cwd = (entry / "cwd").resolve()
+        if cwd == root / "frappe-bench/sites" and b"clothing_erp.wsgi:" in args and b"gunicorn" in args:
+            os.kill(int(entry.name), signal.SIGTERM)
+    except (OSError, ProcessLookupError):
+        continue
+# The foreground supervisor shuts down its realtime and worker children as well.
+time.sleep(2)
+PYTHON
+fi
 systemctl daemon-reload
 systemctl enable --now clothing-erp-local clothing-erp-http
 curl --retry 15 --retry-connrefused --retry-delay 2 -fsS http://127.0.0.1/api/method/ping
