@@ -15,6 +15,7 @@ This is the canonical roadmap. The workspace-level work.md points here.
 - [x] Regression unit tests and real database permission tests.
 - [x] Desktop launcher verified in Chromium against the real local site.
 - [x] Direct local development server at `http://localhost:8000`, without nginx.
+- [x] Local web workers reload app-owned Python changes automatically during development.
 - [x] Stable deployment release pins; native services and nginx for an IP-based LXC.
 - [x] Proxmox installer with preflight checks, new CT only, generated passwords, health check.
 - [x] Portable single-file installer and tests for packaging and host command flow.
