@@ -72,7 +72,7 @@ test ports; activating port 80 still requires the local sudo setup command.
 - [x] Previous native-installer adoption without downgrading developer benches.
 - [x] Release contract, archive safety, checksum, fault recovery and packaging tests.
 - [x] Full GitHub compatibility workflow passed, including the exact staging builder and native SQL restore.
-- [ ] Publish and download the first generated stable release artifacts.
+- [x] Published v0.3.0 and verified customer downloads of the source and portable installer.
 - [ ] Real Proxmox install/update/reboot/restore trial remains outstanding.
 
 The release updater manages the application stack's declared runtime versions.
@@ -82,3 +82,13 @@ See docs/releasing.md and docs/operations.md for the simple maintainer/customer 
 Additional verification: isolated native queue RDB snapshot and integrity checks passed.
 Recovery points include pending jobs so abandoned migration jobs cannot run against
 a restored old schema. Code, database, attachments, config and queue are recovered together.
+
+
+Release completion evidence:
+- Stable release: https://github.com/AviDhandhania/erp/releases/tag/v0.3.0
+- Full release gate and publish: https://github.com/AviDhandhania/erp/actions/runs/42385415031
+- 32 deployment/contract/recovery checks and 22 app/site checks passed.
+- CI resolves runtime dependencies, then builds and tests a second fresh environment using the frozen locks.
+- Published source checksums, dependency locks, portable payload and embedded checksum were verified through the customer download path.
+- Isolated native MariaDB schema/data/config/attachment recovery and queue RDB integrity checks passed.
+- Physical Proxmox guest creation, real systemd cutover, reboot and end-to-end guest rollback remain a deployment trial, not a completed claim.
