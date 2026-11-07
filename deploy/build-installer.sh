@@ -6,9 +6,11 @@ OUT="${1:-$ROOT/dist/clothing-erp-lxc.run}"
 mkdir -p "$(dirname "$OUT")"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+[[ -f $ROOT/release.json ]] || { echo 'Build a verified release envelope first (release.json is required).' >&2; exit 1; }
+EXTRA=(release.json)
 # Explicit allowlist excludes local bench, databases, credentials and history.
 tar -C "$ROOT" --exclude=__pycache__ --exclude='*.pyc' -czf "$WORK/source.tar.gz" \
-    clothing_erp deploy pyproject.toml README.md AGENTS.md license.txt work.md
+    clothing_erp deploy pyproject.toml README.md AGENTS.md license.txt work.md "${EXTRA[@]}"
 DIGEST="$(sha256sum "$WORK/source.tar.gz" | awk '{print $1}')"
 cat > "$OUT" <<'HEADER'
 #!/usr/bin/env bash

@@ -1,0 +1,85 @@
+name: Release verification
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: astral-sh/setup-uv@v6
+      - run: sudo apt-get update && sudo apt-get install -y libmariadb-dev pkg-config shellcheck
+      - run: |
+          . deploy/versions.env
+          uv python install "$PYTHON_VERSION"
+          uv venv --python "$PYTHON_VERSION"
+          git clone --depth 1 --branch "$FRAPPE_REF" https://github.com/frappe/frappe.git /tmp/frappe
+          uv pip install -e /tmp/frappe -e .
+      - run: uv run python -m unittest discover -s clothing_erp/tests -v
+      - run: uv run python -m unittest discover -s deploy/tests -v
+      - run: |
+          find deploy -name '*.sh' -print0 | xargs -0 -n1 bash -n
+          shellcheck -x deploy/*.sh deploy/proxmox/*.sh deploy/local/*.sh
+          uvx ruff check --select E9,F63,F7,F82 clothing_erp deploy
+  integration:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_ROOT_PASSWORD: test-only-ephemeral-password
+        volumes:
+          - /tmp/clothing-mariadb-socket:/run/mysqld
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+      redis:
+        image: redis:7.4
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: sudo apt-get update && sudo apt-get install -y libmariadb-dev mariadb-client pkg-config
+      - name: Build exact native app combination and run database tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE="$GITHUB_WORKSPACE"
+          . deploy/versions.env
+          uv python install "$PYTHON_VERSION"
+          uv venv --python "$PYTHON_VERSION" /tmp/bench-tools
+          uv pip install --python /tmp/bench-tools/bin/python "frappe-bench==$BENCH_VERSION"
+          export PATH="/tmp/bench-tools/bin:$PATH"
+          npm install -g yarn@1.22.22
+          cd /tmp
+          bench init --python /tmp/bench-tools/bin/python --frappe-branch "$FRAPPE_REF" --skip-assets --skip-redis-config-generation --no-backups test-bench
+          cd test-bench
+          bench get-app --skip-assets --branch "$ERPNEXT_REF" https://github.com/frappe/erpnext.git
+          bench get-app --skip-assets "$SOURCE"
+          bench set-config -g redis_cache redis://127.0.0.1:6379/0
+          bench set-config -g redis_queue redis://127.0.0.1:6379/1
+          bench new-site test.local --db-host 127.0.0.1 --db-port 3306 --db-root-password test-only-ephemeral-password --admin-password test-only-admin --mariadb-user-host-login-scope '%'
+          bench --site test.local install-app erpnext
+          bench --site test.local install-app clothing_erp
+          bench --site test.local set-config -p allow_tests True
+          bench --site test.local migrate
+          bench build --production
+          bench --site test.local run-tests --app clothing_erp --test-category all
+          MYSQL_PWD=test-only-ephemeral-password /tmp/bench-tools/bin/python "$SOURCE/deploy/tests/native_recovery.py" --socket /tmp/clothing-mariadb-socket/mysqld.sock

@@ -39,3 +39,6 @@ venv.bak/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Generated, verified release envelope (not app source)
+/release.json

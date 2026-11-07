@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "platform": "debian13-native-v1",
+  "version": "v0.3.0",
+  "repository": "AviDhandhania/erp",
+  "source_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "frappe": {
+    "ref": "v16.55.2",
+    "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "erpnext": {
+    "ref": "v16.54.0",
+    "commit": "cccccccccccccccccccccccccccccccccccccccc"
+  },
+  "runtime": {
+    "python": "3.14.9",
+    "node": "24.22.2",
+    "bench": "5.31.1",
+    "uv": "0.13.7"
+  },
+  "archive": {
+    "name": "clothing-erp-v0.3.0.tar.gz",
+    "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  }
+}

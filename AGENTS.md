@@ -71,3 +71,15 @@ foundations are not completion of catalogue, ordering or warehouse workflows.
 - [ ] No secrets or temporary credentials committed.
 
 Deployment work also requires `python -m unittest discover -s deploy/tests -v`, shell syntax checks, and ShellCheck. Mocked host-command tests do not replace an actual Proxmox installation trial.
+
+## 5. Release and lifecycle rules
+
+- Production consumes published stable release artifacts, not arbitrary main/develop checkouts.
+- Keep Clothing ERP source independent; upstream version pins are declarative release inputs.
+- A release includes exact upstream commits, checksums and a schema-validated manifest.
+- Build a separate environment before stopping the live site; never change active dependencies in place.
+- Quiesce writers and record a verified database/config/file recovery point before migration.
+- Recovery before activation restores code and data together. After background writers are released,
+  repair the activated release; do not automatically discard their new writes.
+- Test fault recovery and fresh database-backed installs before publishing a stable release.
+- Never claim mocked Proxmox tests constitute a real host installation/update/reboot trial.

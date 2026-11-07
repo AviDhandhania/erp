@@ -3,6 +3,7 @@
 set -Eeuo pipefail
 umask 077
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+[[ -f $SOURCE_DIR/release.json ]] || { echo 'Use the published release bootstrap (a verified release.json is required).' >&2; exit 1; }
 CTID="${CTID:-}"
 STORAGE="${STORAGE:-local-lvm}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"
@@ -16,7 +17,14 @@ CT_HOSTNAME="${CT_HOSTNAME:-clothing-erp}"
 
 fail() { echo "ERROR: $*" >&2; exit 1; }
 [[ $EUID -eq 0 ]] || fail 'Run this on the Proxmox host as root.'
-for tool in pct pveam pvesh pvesm tar ip; do command -v "$tool" >/dev/null || fail "Missing Proxmox tool: $tool"; done
+for tool in pct pveam pvesh pvesm tar ip python3; do command -v "$tool" >/dev/null || fail "Missing Proxmox tool: $tool"; done
+python3 - "$SOURCE_DIR" <<'PYTHON'
+import json,sys
+from pathlib import Path
+sys.path.insert(0,str(Path(sys.argv[1])/'deploy/release'))
+from common import validate_manifest
+validate_manifest(json.load(open(Path(sys.argv[1])/'release.json')))
+PYTHON
 [[ $(uname -m) == x86_64 ]] || fail 'This installer currently supports x86_64 Proxmox hosts.'
 for value in "$MEMORY" "$CORES" "$DISK_GB"; do [[ $value =~ ^[1-9][0-9]*$ ]] || fail 'Memory, cores and disk must be positive integers.'; done
 (( MEMORY >= 4096 && DISK_GB >= 30 )) || fail 'At least 4096 MiB RAM and 30 GiB disk are required.'
@@ -46,7 +54,7 @@ TEMPLATE="$(pveam available --section system | awk '$2 ~ /^debian-13-standard_.*
 [[ -n $TEMPLATE ]] || fail 'No Debian 13 amd64 standard template is available from pveam.'
 pveam download "$TEMPLATE_STORAGE" "$TEMPLATE"
 # Include only app source, never the development bench, services, data or credentials.
-tar -C "$SOURCE_DIR" --exclude=__pycache__ --exclude='*.pyc' -czf "$WORK/app.tar.gz" clothing_erp deploy pyproject.toml README.md AGENTS.md license.txt work.md
+tar -C "$SOURCE_DIR" --exclude=__pycache__ --exclude='*.pyc' -czf "$WORK/app.tar.gz" clothing_erp deploy pyproject.toml README.md AGENTS.md license.txt work.md release.json
 pct create "$CTID" "$TEMPLATE_STORAGE:vztmpl/$TEMPLATE" \
     --hostname "$CT_HOSTNAME" --ostype debian --unprivileged 1 \
     --cores "$CORES" --memory "$MEMORY" --swap 1024 \

@@ -4,7 +4,7 @@ This is the canonical roadmap. The workspace-level work.md points here.
 
 ## Current foundation
 
-- [x] Independent clothing_erp app, version 0.2.0; no upstream core source edits.
+- [x] Independent clothing_erp app, version 0.3.0; no upstream core source edits.
 - [x] Real Frappe/ERPNext site and native launcher showing ERPNext, Clothing ERP, Framework.
 - [x] Root redirects through login to the native launcher.
 - [x] Three module-owned workspaces and five clothing roles.
@@ -54,3 +54,27 @@ tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromiu
 checks passed with all three icons, the Clothing ERP workspace and a connected
 realtime socket through nginx. nginx configurations were checked on unprivileged
 test ports; activating port 80 still requires the local sudo setup command.
+
+
+## Release lifecycle pipeline
+
+- [x] Separate upstream repositories and immutable, exact-commit release manifests.
+- [x] GitHub Publish release form with optional independent Frappe/ERPNext pin updates.
+- [x] Compatibility gate: app/security tests plus a fresh native database-backed install/build.
+- [x] Publish completed draft artifacts/checksums/provenance, then expose a stable release.
+- [x] Proxmox bootstrap installs a verified stable release instead of main source snapshots.
+- [x] Dedicated per-release benches, Python/Node/Bench tools and assets; shared site data.
+- [x] Root-owned lifecycle CLI: status/check/update/app-only/backup/recover/rollback.
+- [x] Locked operations, maintenance gate, consistent DB/config/attachment recovery points.
+- [x] Failed migration/frontend readiness restores previous code and data together.
+- [x] Post-commit service failures preserve new job writes and retry service startup.
+- [x] Manual rollback preserves a fresh backup of post-upgrade data before restoring old data.
+- [x] Previous native-installer adoption without downgrading developer benches.
+- [x] Release contract, archive safety, checksum, fault recovery and packaging tests.
+- [ ] Observe the new full GitHub compatibility workflow completing successfully.
+- [ ] Publish and download the first generated stable release artifacts.
+- [ ] Real Proxmox install/update/reboot/restore trial remains outstanding.
+
+The release updater manages the application stack's declared runtime versions.
+Debian OS packages and the Proxmox host remain separate operator administration.
+See docs/releasing.md and docs/operations.md for the simple maintainer/customer flows.

@@ -1,148 +1,131 @@
 # Clothing ERP
 
-An apparel distribution extension installed alongside ERPNext on a real Frappe site.
-The native app launcher shows **ERPNext**, **Clothing ERP**, and **Framework**.
-Open the server IP in a browser (`http://<IP>/`); nginx handles port 80, static assets,
-and realtime connections. Signing in opens the native launcher. All accounting,
-customers, products and stock remain standard ERPNext documents.
+Clothing ERP is a separate Frappe application alongside **ERPNext** and **Framework**.
+It has its own source, version history and GitHub releases. Upstream ERPNext/Frappe
+repositories remain unchanged. Everyone uses one IP, login and native app launcher.
 
-Implemented: app registration, three native workspaces, five clothing roles,
-read-only operational dashboards, assignment restrictions and deployment tooling.
-The apparel catalogue, approvals, ordering, picking/packing workflows and retailer
-portal are still planned; see [work.md](work.md). No dashboard invents sample sales.
+## Install
 
-## Install on Proxmox
-
-Run on a **Proxmox VE host as root**, using the published repository:
+Run on a Proxmox VE amd64 host as root:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/AviDhandhania/erp/main/deploy/proxmox/bootstrap.sh)
 ```
 
-This creates a **new unprivileged Debian 13 amd64 LXC**, provisions MariaDB, Redis,
-Python, Node, Chromium for PDF printing, Frappe, ERPNext, Clothing ERP, nginx, background workers and daily
-backups, and prints the container's URL. Defaults: 4 cores, 8 GiB RAM, 40 GiB disk,
-DHCP, bridge `vmbr0`, storage `local-lvm`, template storage `local`. The host must
-have those resources available, working DNS and internet access. A site using
-another bridge or storage must override them; no installer can infer every host's
-network policy. ARM hosts are not supported.
+The installer downloads the **latest published stable release**, checks its archive
+and manifest, and creates a new unprivileged Debian 13 LXC with the complete stack.
+It prints `http://<container-IP>/` and how to retrieve the generated Administrator
+password. Finish the standard ERPNext company setup after signing in.
+
+Defaults: 4 CPU cores, 8 GiB RAM, 40 GiB disk, DHCP, `vmbr0`, `local-lvm` root storage
+and `local` template storage. Override only what differs on your host:
 
 ```bash
 STORAGE=local-zfs BRIDGE=vmbr1 CTID=210 bash <(curl -fsSL https://raw.githubusercontent.com/AviDhandhania/erp/main/deploy/proxmox/bootstrap.sh)
 ```
 
-For a static address, also set `CT_IP=192.168.1.50/24 GATEWAY=192.168.1.1`.
-Set `CLOTHING_ERP_REF` to a published release tag to install that revision.
-Existing CTs/VMs are rejected. Failed installations preserve the new CT for diagnosis.
-This installer does not alter the Proxmox host's network, firewall, or existing guests.
+To choose an older published release, set `CLOTHING_ERP_VERSION=v0.3.0`.
+For a static address set `CT_IP=192.168.1.50/24 GATEWAY=192.168.1.1`.
+Existing guests are never overwritten; failed new guests remain available for diagnosis.
+The host needs internet access, working DNS, sufficient resources, and a firewall
+policy that permits access to the container's HTTP port.
 
-Retrieve the generated password on the host:
+## Update
 
-```bash
-pct exec <CTID> -- cat /root/clothing-erp-credentials
-```
-
-Sign in as `Administrator` and complete ERPNext's standard setup wizard with your
-company details. The production installer creates **no demo company or customers**.
-After setup, the launcher and app workspaces are available. The password is random;
-there is no shared production default. Logs: `/var/log/clothing-erp-install.log` in
-that CT. Service logs: `journalctl -u clothing-erp-web -u clothing-erp-socketio`.
-
-The scripts and package have automated command-level tests. **A complete installation
-has not yet been tested on a real Proxmox host.** Validate a disposable CT before
-using this for business data. The initial HTTP setup is intended for your LAN;
-HTTPS for a public hostname is a separate administrator configuration.
-
-## Portable installer
-
-A source checkout can create an installer containing the complete custom app:
+Inside the installed LXC, as root:
 
 ```bash
-./deploy/build-installer.sh
+clothing-erp update
 ```
 
-Copy `dist/clothing-erp-lxc.run` to the Proxmox host and run:
+That single command updates Clothing ERP **and the exact compatible ERPNext,
+Frappe, Python, Node and Bench versions declared by that release**. It builds a
+separate bench first, takes a recovery backup, migrates, switches the active bench,
+and checks readiness before opening access again. It never pulls arbitrary core
+branches into production.
+
+Useful commands:
 
 ```bash
-bash clothing-erp-lxc.run
+clothing-erp status
+clothing-erp check
+clothing-erp update --version v0.3.1
+clothing-erp update --app-only
+clothing-erp backup
+clothing-erp recover --yes
+clothing-erp rollback --yes
 ```
 
-The package verifies its embedded SHA-256 checksum and requires no GitHub login.
-It still downloads upstream dependencies. It excludes local databases, site configs,
-virtual environments and Git history. `--extract DIRECTORY` extracts it without
-installing anything.
+`--app-only` requires unchanged upstream/runtime pins. `recover` resumes an
+interrupted operation from its recorded phase. `rollback` restores the previous
+**code, database and attachments**, not just an old Git checkout. It saves a fresh
+backup of current data first; restoring an older recovery point still makes the
+older data the live data. Copy backups off the CT for disaster recovery.
 
-## Runtime contract
-
-Exact upstream release pins are in [deploy/versions.env](deploy/versions.env):
-Frappe `v16.55.2`, ERPNext `v16.54.0`, Bench `5.31.1`, Python `3.14.9`, Node `24.22.2`,
-and Debian 13's MariaDB/Redis packages. Python, Node, Bench and uv versions are pinned; Debian security
-updates are resolved at install time. The installer never uses an ERPNext develop
-branch or a `latest` container image. Runtime requirements follow the
-[official Frappe installation guide](https://docs.frappe.io/framework/user/en/installation).
-Proxmox creation uses the [native container toolkit](https://pve.proxmox.com/pve-docs/pct.1.html).
-
-nginx is the only public entry point. MariaDB, Redis and gunicorn bind to loopback;
-realtime runs behind nginx. No mock ERPNext process runs on port 8001. The dedicated
-WSGI entry point fixes the site to `clothing.local`, so an IP or forged incoming
-site-selection header cannot select another site's database.
-
-## Existing local development workspace
-
-From `/home/avi/GitHub/erp`:
+From the Proxmox host, updates are equally simple:
 
 ```bash
-./scripts/start_all.sh
+pct exec <CTID> -- clothing-erp update
 ```
 
-This starts the real local database/cache, workers, scheduler, realtime and gunicorn.
-The development address is `http://localhost:8000/`. Stop the foreground process
-with Ctrl+C. To use **`http://localhost/` or the machine IP without a port**, run once:
+Containers made by the earlier installer can adopt the manager once:
 
 ```bash
-sudo ./scripts/setup-local-http.sh
+# Inside that existing production LXC as root
+bash <(curl -fsSL https://raw.githubusercontent.com/AviDhandhania/erp/main/deploy/upgrade-bootstrap.sh)
 ```
 
-This installs nginx if necessary and enables the project's own systemd services.
-It refuses to take over port 80 from another web server. For this workspace's test
-preview, the standard setup wizard was completed with **TEST Clothing ERP Demo**;
-no real company or personal data was entered. Production installations use their
-own company setup. Local runtime remains the pre-existing ERPNext develop checkout;
-this deployment package pins stable v16 and does not downgrade that site's database.
+This manager is for the dedicated production LXC. It does not convert or downgrade
+an arbitrary developer bench.
 
-The canonical local scripts live in `deploy/local/`; workspace scripts delegate to
-them. Set `CLOTHING_WORKSPACE` if the development workspace is located elsewhere.
-The old Docker setup and simulated ERPNext server have been retired.
+## Publish your next release
 
-## Roles and assignments
+1. Develop Clothing ERP in this repository and push to `main`.
+2. In GitHub, open **Actions → Publish release → Run workflow**.
+3. Enter a version such as `v0.3.1` and run it.
 
-Roles: Clothing Salesperson, Clothing Sales Manager, Clothing Warehouse Operator,
-Clothing Warehouse Manager, Clothing Business Administrator. Administrators assign
-roles in **User**. Operational roles have read access for this foundation;
-workflow-specific write permissions will accompany those future workflows.
+The workflow updates the app version and tag, runs unit/security/recovery tests,
+creates a fresh database-backed Frappe/ERPNext installation, builds all assets,
+then publishes checksummed source, an exact-version manifest, provenance attestation,
+and a portable Proxmox installer. If verification fails, no stable release is
+published. Retry the failed run without rewriting its tag.
 
-Use native **User Permission** records to assign Customers and Warehouses. Apply
-those permissions to all applicable document types. Unassigned operational users
-see no customers/tasks. Pick lists also require an open native ToDo assignment to
-the operator. Mixed-warehouse delivery/pick documents are denied if they contain an
-unassigned warehouse. Native ERPNext permissions still apply; clothing hooks only
-add restrictions. Other ERPNext users retain their native access rules.
+Leave the optional ERPNext and Frappe fields blank for a clothing-only release.
+When you want core updates, enter their stable v16 tags in that same form: the
+workflow tests the new combination before publishing. Customers still run the
+same update command. Debian/Proxmox OS administration remains separate from the
+application release lifecycle.
 
-## Verification and maintenance
+Use this workflow rather than publishing empty releases manually: a release is
+installable only when its verified assets exist. Details: [release guide](docs/releasing.md).
 
-```bash
-# From the existing development workspace
-./scripts/test-dev.sh
-.venv/bin/python -m unittest discover -s clothing_erp/deploy/tests -v
+## What is implemented
 
-# In a production CT as frappe, from /home/frappe/frappe-bench
-/home/frappe/.tooling/bin/bench --site clothing.local backup --with-files
-```
+The native launcher, three clothing workspaces, five clothing roles, read-only
+operational APIs, assignment restrictions, installer, release pipeline, and update/
+recovery tooling. Catalogue, retailer approval, garment ordering and warehouse
+workflows remain on the [roadmap](work.md).
 
-Daily backups run at 02:00 container time. They reside under the site's private
-backups directory and need an off-container copy plus the site's encryption key for
-recovery. An automated upgrade/rollback system is not implemented. Do not rerun the
-fresh-install script against an existing bench; it refuses to overwrite one.
+The five clothing roles use native User Permissions for assigned Customers and
+Warehouses; pick lists additionally require an open ToDo assignment. All access is
+subject to native ERPNext permissions. No mock sales or simulated ERP server is used.
 
-All custom source is maintained in this repository. Never modify Frappe or ERPNext
-core files to implement clothing features. MIT license; see [license.txt](license.txt).
+## Development and operations
+
+- [Architecture and separation](docs/architecture.md)
+- [Release workflow and upstream upgrades](docs/releasing.md)
+- [Backups, recovery, layout and service commands](docs/operations.md)
+- [Deployment pins](deploy/versions.env)
+
+The existing `/home/avi/GitHub/erp` development workspace still uses
+`./scripts/start_all.sh`; `sudo ./scripts/setup-local-http.sh` enables no-port local
+access. It contains the fictional **TEST Clothing ERP Demo** company. Its pre-existing
+ERPNext develop checkout is not a release target and has not been downgraded.
+
+**Validation limits:** automated app/database/recovery tests run locally and in CI.
+Host-command tests simulate Proxmox. A complete install/update/reboot/restore on an
+actual Proxmox host remains a required deployment trial; it has not been claimed
+as completed. Initial HTTP access is intended for a LAN; configure HTTPS for a
+public hostname.
+
+MIT license for this application. ERPNext and Frappe retain their upstream licenses.

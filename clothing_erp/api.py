@@ -1,5 +1,6 @@
 """Authenticated APIs. All data is queried with native document permissions."""
 import frappe
+from clothing_erp import __version__
 from frappe.utils import today, get_first_day
 from clothing_erp.roles import ALL_ROLES, ROLE_BUSINESS_ADMIN, ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_WAREHOUSE_MANAGER, ROLE_WAREHOUSE_OPERATOR
 from clothing_erp.security import get_current_user, get_user_roles, get_active_operational_role, require_role, is_salesperson, is_warehouse_operator, is_clothing_admin
@@ -11,7 +12,7 @@ def get_user_context():
     return {"user": get_current_user(), "active_role": get_active_operational_role(),
             "roles": sorted(get_user_roles()),
             "permissions": {"salesperson_portal": is_salesperson(), "warehouse_operations": is_warehouse_operator(), "business_admin": is_clothing_admin()},
-            "app_version": "0.2.0"}
+            "app_version": __version__}
 
 @frappe.whitelist(methods=["POST"])
 def switch_preview_role(role=None):

@@ -1,0 +1,101 @@
+name: Publish release
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New stable version, for example v0.3.1'
+        required: true
+        type: string
+      frappe:
+        description: 'Optional Frappe v16 tag; leave blank to keep current'
+        type: string
+      erpnext:
+        description: 'Optional ERPNext v16 tag; leave blank to keep current'
+        type: string
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.prepare.outputs.sha }}
+      version: ${{ steps.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
+      - id: prepare
+        env:
+          EVENT: ${{ github.event_name }}
+          VERSION: ${{ inputs.version || github.ref_name }}
+          FRAPPE: ${{ inputs.frappe }}
+          ERPNEXT: ${{ inputs.erpnext }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if [[ "$EVENT" == workflow_dispatch ]]; then
+            if git rev-parse --verify "refs/tags/$VERSION" >/dev/null 2>&1; then
+              git checkout "refs/tags/$VERSION"
+            else
+              python3 deploy/release/prepare.py "$VERSION" --frappe "$FRAPPE" --erpnext "$ERPNEXT"
+              git add clothing_erp/__init__.py deploy/versions.env
+              if ! git diff --cached --quiet; then git commit -m "chore: release $VERSION"; fi
+              git tag "$VERSION"
+              git push origin HEAD:main "refs/tags/$VERSION"
+            fi
+          fi
+          python3 -c 'import sys; sys.path.insert(0,"deploy/release"); from common import version_tuple; version_tuple(sys.argv[1])' "$VERSION"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+  verify:
+    needs: prepare
+    uses: ./.github/workflows/verify.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+  publish:
+    needs: [prepare, verify]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+      - name: Build exact release artifacts
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          python3 deploy/release/build.py "$VERSION"
+          cp dist/release/release.json release.json
+          ./deploy/build-installer.sh
+          cp dist/clothing-erp-lxc.run dist/release/
+          cd dist/release
+          sha256sum clothing-erp-lxc.run >> SHA256SUMS
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'dist/release/*'
+      - name: Upload before publishing the stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "$VERSION" --json isDraft > /tmp/release-state.json 2>/dev/null; then
+            python3 -c 'import json; assert json.load(open("/tmp/release-state.json"))["isDraft"], "Published releases are immutable; use a new version"'
+          else
+            gh release create "$VERSION" --draft --verify-tag --title "Clothing ERP $VERSION" --generate-notes
+          fi
+          gh release upload "$VERSION" dist/release/* --clobber
+          gh release edit "$VERSION" --draft=false --latest
