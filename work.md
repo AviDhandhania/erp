@@ -32,12 +32,12 @@ in for them now.
 
 ## Apparel features still to build
 
-1. Complete the salesperson catalogue with style/collection/fabric/fit/season custom
-   fields and customer-specific pricing context. The native catalogue foundation,
-   images, filters, variant matrix, generic selling prices and stock visibility are done.
-2. Extend retailer management with reassignment history, visit reporting and bulk
-   administration. Registration, duplicate checks, approval, customer linkage,
-   salesperson assignment and visit follow-ups are complete.
+1. Persist selected catalogue quantities only as part of the authoritative Stage 5
+   Sales Order flow. Catalogue metadata, images, filters, variant matrix, generic and
+   customer-specific pricing, and stock visibility are complete.
+2. Extend retailer management with reassignment history and bulk administration.
+   Registration, duplicate checks, approval, customer linkage, salesperson assignment,
+   visit follow-ups and permission-aware visit reporting are complete.
 3. Salesperson ordering: matrix cart, authoritative pricing, discounts/credit checks,
    stock handling, idempotency, standard Sales Orders and lifecycle status.
 4. Warehouse operations: assigned picking, barcode verification, shortages, packing,
@@ -68,7 +68,8 @@ in for them now.
   responsive click-to-view catalogue viewer.
 - [x] Site-owned gallery uploads with reference-safe cleanup on row removal and a
   conservative scheduled orphan sweep; packaged release images are never deleted.
-- [ ] Add clothing metadata fields after confirming the exact naming and reporting needs.
+- [x] Add app-owned Item metadata fields for style code, collection, fabric, fit and
+  season, with permission-aware catalogue filters, style-code search and fictional seed data.
 - [x] Add an assigned-retailer context using native ERPNext item/Sales Order pricing for
   customer Price Lists, Pricing Rules, currency and UOM conversion.
 - [ ] Persist selected quantities only as part of the separately tested Stage 5 cart/order flow.
@@ -87,6 +88,8 @@ submitted. The catalogue intentionally creates no Sales Order or stock transacti
 - [x] Approval creates native Customer, Contact and billing/shipping Address records.
 - [x] Approval assigns the Customer through a native User Permission for the salesperson.
 - [x] Retailer Visit records with outcomes, notes and required future follow-up dates.
+- [x] Permission-aware Retailer Visit Report with date, retailer, salesperson and outcome
+  filters, outcome chart and operational summary counts.
 - [x] Database integration coverage for application, approval, native records, assignment
   visibility and visit creation.
 
@@ -98,7 +101,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 44 app tests passed through the real site runner, 8 installer/package
+Verification: 48 app tests passed through the real site runner, 32 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
 checks passed with all three icons and the Clothing ERP workspace. Current local
 testing is intentionally direct on port 8000; nginx is deferred from this phase.

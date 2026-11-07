@@ -6,7 +6,7 @@ frappe.pages["clothing-catalogue"].on_page_load = (wrapper) => {
 class ClothingCatalogue {
 	constructor(page) {
 		this.page = page;
-		this.state = { page: 1, search: "", item_group: "", brand: "", customer: "" };
+		this.state = { page: 1, search: "", item_group: "", brand: "", customer: "", collection: "", fabric: "", fit: "", season: "" };
 		this.selection = new Map();
 		this.products = new Map();
 		this.page.main.html(`<div class="clothing-catalogue">
@@ -16,6 +16,15 @@ class ClothingCatalogue {
 				<select class="form-control catalogue-group"><option value="">${__("All categories")}</option></select>
 				<select class="form-control catalogue-brand"><option value="">${__("All brands")}</option></select>
 			</div>
+			<details class="catalogue-more-filters">
+				<summary>${__("More clothing filters")}</summary>
+				<div class="catalogue-metadata-filters">
+					<select class="form-control" data-catalogue-filter="collection"><option value="">${__("All collections")}</option></select>
+					<select class="form-control" data-catalogue-filter="fabric"><option value="">${__("All fabrics")}</option></select>
+					<select class="form-control" data-catalogue-filter="fit"><option value="">${__("All fits")}</option></select>
+					<select class="form-control" data-catalogue-filter="season"><option value="">${__("All seasons")}</option></select>
+				</div>
+			</details>
 			<div class="catalogue-status text-muted" role="status"></div>
 			<div class="catalogue-grid"></div>
 			<div class="catalogue-pagination"></div>
@@ -42,6 +51,11 @@ class ClothingCatalogue {
 				this.selection.clear();
 				this.render_selection();
 			}
+			this.state.page = 1;
+			this.refresh();
+		});
+		this.$root.find("[data-catalogue-filter]").on("change", (event) => {
+			this.state[event.currentTarget.dataset.catalogueFilter] = event.currentTarget.value;
 			this.state.page = 1;
 			this.refresh();
 		});
@@ -78,6 +92,9 @@ class ClothingCatalogue {
 		const { message } = await frappe.call("clothing_erp.catalogue.get_catalogue_filters");
 		this.fill_select(".catalogue-group", message.item_groups);
 		this.fill_select(".catalogue-brand", message.brands);
+		["collection", "fabric", "fit", "season"].forEach((field) => {
+			this.fill_select(`[data-catalogue-filter="${field}"]`, message[field]);
+		});
 		const $retailers = this.$root.find(".catalogue-customer");
 		message.retailers.forEach((retailer) => $retailers.append($("<option>", {
 			value: retailer.name,
@@ -172,8 +189,12 @@ class ClothingCatalogue {
 			<td><span class="stock-pill ${variant.available ? "in-stock" : "out-of-stock"}">${format_number(variant.actual_qty)} ${this.escape(variant.uom)}</span></td>
 			<td><input class="form-control variant-qty" type="number" inputmode="numeric" min="0" step="1" aria-label="${__("Quantity for {0}", [this.escape(variant.item_code)])}" data-item-code="${this.escape(variant.item_code)}" data-rate="${variant.price || 0}" data-currency="${this.escape(variant.currency)}" value="${this.selection.get(variant.item_code)?.quantity || ""}" ${variant.price == null ? "disabled" : ""}></td>
 		</tr>`).join("");
+		const metadata = [product.style_code, product.collection, product.fabric, product.fit, product.season]
+			.filter(Boolean)
+			.map((value) => `<span>${this.escape(value)}</span>`)
+			.join("");
 		return `<article class="catalogue-card">
-			<div class="catalogue-product-head">${image}<div><h3>${this.escape(product.item_name)}</h3><p>${this.escape(product.item_code)}</p><span class="catalogue-product-meta">${this.escape(product.brand || product.item_group)}</span>${gallery_action}</div></div>
+			<div class="catalogue-product-head">${image}<div><h3>${this.escape(product.item_name)}</h3><p>${this.escape(product.item_code)}</p><span class="catalogue-product-meta">${this.escape(product.brand || product.item_group)}</span><div class="catalogue-metadata">${metadata}</div>${gallery_action}</div></div>
 			<div class="catalogue-table-wrap"><table class="table"><thead><tr><th>${__("Size / SKU")}</th><th>${__("Price")}</th><th>${__("On hand")}</th><th>${__("Qty")}</th></tr></thead><tbody>${rows || `<tr><td colspan="4">${__("No enabled variants")}</td></tr>`}</tbody></table></div>
 		</article>`;
 	}

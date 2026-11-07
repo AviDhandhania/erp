@@ -22,9 +22,10 @@ controllers that apply before implementation.
 | Generic catalogue pricing | Selling Settings default price list; Price List enabled/selling/currency; Item Price UOM, validity and party scope | Applied server-side. Party-specific rows are excluded until a retailer is selected. |
 | Assigned-retailer catalogue pricing | Customer defaults, customer Price List, Pricing Rules, exchange-rate policy, currency and UOM conversion | Calls ERPNext's native item-pricing controller with a Sales Order context; no commercial document is written. |
 | Catalogue stock display | Bin actual quantity; Warehouse User Permissions | Only aggregate quantities are returned. Configured warehouse assignments restrict the aggregation; warehouse names are not exposed. |
+| Clothing catalogue metadata | Native Item templates plus app-owned Custom Fields | Style code, collection, fabric, fit and season are descriptive/reporting metadata on each colour-specific Item template. They do not create variants or replace Item Group, Brand or Size attributes. Filter values use permission-aware Item queries. |
 | Product galleries | File upload size/type/privacy policy and site file storage | Uploads use native File records. Cleanup invokes native File deletion and protects referenced, shared, private-policy and packaged assets. |
 | Retailer approval | Customer naming/default validation, Customer Group, Territory, Contact, Address and User Permission | All records are inserted through their native controllers. The assigned salesperson is revalidated at submission and approval. |
-| Retailer visits | Customer User Permissions and app role scope | A salesperson can record a visit only for an assigned native Customer. |
+| Retailer visits and reporting | Customer User Permissions and app role scope | A salesperson can record a visit only for an assigned native Customer. The Desk report uses permission-aware `get_list` queries and the same Retailer Visit permission conditions. |
 | Dashboard and directories | Native document permissions, User Permissions, currencies and submitted document state | Queries use permission-aware lists and keep currency totals separated. |
 
 ## Required checks for upcoming stages

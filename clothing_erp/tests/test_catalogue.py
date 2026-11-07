@@ -28,6 +28,11 @@ class TestCatalogue(unittest.TestCase):
                 description="Fictional test garment",
                 image=None,
                 stock_uom="Nos",
+                custom_clothing_style_code="TEST-STYLE-1",
+                custom_clothing_collection="TEST Essentials",
+                custom_clothing_fabric="TEST Cotton",
+                custom_clothing_fit="TEST Regular",
+                custom_clothing_season="TEST Core",
             )
         ]
         variants = [
@@ -41,9 +46,19 @@ class TestCatalogue(unittest.TestCase):
         ]
         with (
             patch.object(catalogue, "require_role"),
-            patch.object(catalogue, "_selling_price_list", return_value=("TEST Selling", "INR")),
-            patch.object(catalogue, "_templates", return_value=templates) as template_query,
-            patch.object(catalogue, "_product_images", return_value={"TEST-TSHIRT": [{"image": "/test-front.jpg", "caption": "Front"}]}),
+            patch.object(
+                catalogue, "_selling_price_list", return_value=("TEST Selling", "INR")
+            ),
+            patch.object(
+                catalogue, "_templates", return_value=templates
+            ) as template_query,
+            patch.object(
+                catalogue,
+                "_product_images",
+                return_value={
+                    "TEST-TSHIRT": [{"image": "/test-front.jpg", "caption": "Front"}]
+                },
+            ),
             patch.object(frappe, "get_list", return_value=variants) as variant_query,
             patch.object(
                 catalogue,
@@ -64,33 +79,133 @@ class TestCatalogue(unittest.TestCase):
         ):
             result = catalogue.get_catalogue(search="  cotton  ", page=0, page_size=999)
 
-        template_query.assert_called_once_with("cotton", "", "", 0, catalogue.MAX_PAGE_SIZE)
+        template_query.assert_called_once_with(
+            "cotton",
+            "",
+            "",
+            {"collection": "", "fabric": "", "fit": "", "season": ""},
+            0,
+            catalogue.MAX_PAGE_SIZE,
+        )
         self.assertEqual(variant_query.call_args.args[0], "Item")
         self.assertNotIn("ignore_permissions", variant_query.call_args.kwargs)
-        self.assertEqual(result["pagination"], {"page": 1, "page_size": 24, "has_more": False})
+        self.assertEqual(
+            result["pagination"], {"page": 1, "page_size": 24, "has_more": False}
+        )
         variant = result["products"][0]["variants"][0]
         self.assertEqual(result["products"][0]["images"][0]["caption"], "Front")
+        self.assertEqual(result["products"][0]["style_code"], "TEST-STYLE-1")
+        self.assertEqual(result["products"][0]["fabric"], "TEST Cotton")
         self.assertEqual(variant["item_code"], "TEST-TSHIRT-BLACK-M")
         self.assertEqual(variant["price"], 499)
         self.assertEqual(variant["actual_qty"], 12)
         self.assertTrue(variant["available"])
 
+    def test_template_query_searches_style_code_and_applies_metadata_filters(self):
+        with patch.object(frappe, "get_list", return_value=[]) as get_list:
+            catalogue._templates(
+                search="TEST-STYLE",
+                item_group="TEST Garments",
+                brand="TEST Brand",
+                metadata={
+                    "collection": "TEST Essentials",
+                    "fabric": "TEST Cotton",
+                    "fit": "TEST Regular",
+                    "season": "TEST Core",
+                },
+            )
+        kwargs = get_list.call_args.kwargs
+        self.assertEqual(
+            kwargs["or_filters"]["custom_clothing_style_code"], ["like", "%TEST-STYLE%"]
+        )
+        self.assertEqual(
+            kwargs["filters"]["custom_clothing_collection"], "TEST Essentials"
+        )
+        self.assertEqual(kwargs["filters"]["custom_clothing_fabric"], "TEST Cotton")
+        self.assertEqual(kwargs["filters"]["custom_clothing_fit"], "TEST Regular")
+        self.assertEqual(kwargs["filters"]["custom_clothing_season"], "TEST Core")
+
+    def test_filter_values_use_permission_aware_item_queries(self):
+        def get_list(doctype, **kwargs):
+            if doctype == "Item":
+                fieldname = kwargs["fields"][0]
+                return [frappe._dict({fieldname: f"TEST {fieldname}"})]
+            return []
+
+        with (
+            patch.object(catalogue, "require_role"),
+            patch.object(frappe, "get_list", side_effect=get_list) as query,
+        ):
+            result = catalogue.get_catalogue_filters()
+        self.assertEqual(result["collection"], ["TEST custom_clothing_collection"])
+        item_calls = [call for call in query.call_args_list if call.args[0] == "Item"]
+        self.assertEqual(len(item_calls), len(catalogue.METADATA_FIELDS))
+        self.assertTrue(
+            all("ignore_permissions" not in call.kwargs for call in item_calls)
+        )
+
     def test_active_price_excludes_future_expired_and_customer_specific_rows(self):
         rows = [
-            frappe._dict(item_code="ITEM", uom="Nos", price_list_rate=100, currency="INR", valid_from="2026-01-01", valid_upto=None, customer=None, supplier=None, batch_no=None),
-            frappe._dict(item_code="ITEM", uom="Nos", price_list_rate=999, currency="INR", valid_from="2027-01-01", valid_upto=None, customer=None, supplier=None, batch_no=None),
-            frappe._dict(item_code="ITEM", uom="Nos", price_list_rate=888, currency="INR", valid_from="2025-01-01", valid_upto="2025-12-31", customer=None, supplier=None, batch_no=None),
-            frappe._dict(item_code="ITEM", uom="Nos", price_list_rate=777, currency="INR", valid_from="2026-01-01", valid_upto=None, customer="TEST Retailer", supplier=None, batch_no=None),
+            frappe._dict(
+                item_code="ITEM",
+                uom="Nos",
+                price_list_rate=100,
+                currency="INR",
+                valid_from="2026-01-01",
+                valid_upto=None,
+                customer=None,
+                supplier=None,
+                batch_no=None,
+            ),
+            frappe._dict(
+                item_code="ITEM",
+                uom="Nos",
+                price_list_rate=999,
+                currency="INR",
+                valid_from="2027-01-01",
+                valid_upto=None,
+                customer=None,
+                supplier=None,
+                batch_no=None,
+            ),
+            frappe._dict(
+                item_code="ITEM",
+                uom="Nos",
+                price_list_rate=888,
+                currency="INR",
+                valid_from="2025-01-01",
+                valid_upto="2025-12-31",
+                customer=None,
+                supplier=None,
+                batch_no=None,
+            ),
+            frappe._dict(
+                item_code="ITEM",
+                uom="Nos",
+                price_list_rate=777,
+                currency="INR",
+                valid_from="2026-01-01",
+                valid_upto=None,
+                customer="TEST Retailer",
+                supplier=None,
+                batch_no=None,
+            ),
         ]
-        with patch.object(frappe, "get_all", return_value=rows), patch.object(catalogue, "nowdate", return_value="2026-11-07"):
+        with (
+            patch.object(frappe, "get_all", return_value=rows),
+            patch.object(catalogue, "nowdate", return_value="2026-11-07"),
+        ):
             prices = catalogue._active_prices({"ITEM": "Nos"}, "TEST Selling")
         self.assertEqual(prices, {"ITEM": {"rate": 100.0, "currency": "INR"}})
 
     def test_stock_respects_configured_warehouse_user_permissions(self):
         row = frappe._dict(item_code="ITEM", actual_qty=7)
-        with patch.object(
-            catalogue, "assigned_documents", return_value=["Allowed Warehouse"]
-        ), patch.object(frappe, "get_all", return_value=[row]) as get_all:
+        with (
+            patch.object(
+                catalogue, "assigned_documents", return_value=["Allowed Warehouse"]
+            ),
+            patch.object(frappe, "get_all", return_value=[row]) as get_all,
+        ):
             self.assertEqual(catalogue._stock(["ITEM"]), {"ITEM": 7.0})
         self.assertEqual(
             get_all.call_args.kwargs["filters"]["warehouse"],
@@ -120,7 +235,9 @@ class TestCatalogue(unittest.TestCase):
         ]
         with (
             patch.object(catalogue, "require_role"),
-            patch.object(catalogue, "_selling_price_list", return_value=("Standard", "INR")),
+            patch.object(
+                catalogue, "_selling_price_list", return_value=("Standard", "INR")
+            ),
             patch.object(catalogue, "_templates", return_value=templates),
             patch.object(catalogue, "_product_images", return_value={}),
             patch.object(frappe, "get_list", return_value=variants),
@@ -154,11 +271,31 @@ class TestCatalogue(unittest.TestCase):
         from pathlib import Path
 
         app_root = Path(__file__).parents[1]
-        page = loads((app_root / "clothing_erp/page/clothing_catalogue/clothing_catalogue.json").read_text())
-        workspace = loads((app_root / "clothing_erp/workspace/salesperson_portal/salesperson_portal.json").read_text())
-        catalogue_script = (app_root / "clothing_erp/page/clothing_catalogue/clothing_catalogue.js").read_text()
+        page = loads(
+            (
+                app_root
+                / "clothing_erp/page/clothing_catalogue/clothing_catalogue.json"
+            ).read_text()
+        )
+        workspace = loads(
+            (
+                app_root
+                / "clothing_erp/workspace/salesperson_portal/salesperson_portal.json"
+            ).read_text()
+        )
+        catalogue_script = (
+            app_root / "clothing_erp/page/clothing_catalogue/clothing_catalogue.js"
+        ).read_text()
         self.assertEqual(page["module"], "Clothing ERP")
         self.assertNotIn("Guest", {row["role"] for row in page["roles"]})
-        self.assertTrue(any(row.get("link_to") == "clothing-catalogue" and row.get("type") == "Page" for row in workspace["shortcuts"]))
-        self.assertIn('class="btn btn-primary btn-sm catalogue-photo-trigger catalogue-gallery-action"', catalogue_script)
-        self.assertIn('View photos ({0})', catalogue_script)
+        self.assertTrue(
+            any(
+                row.get("link_to") == "clothing-catalogue" and row.get("type") == "Page"
+                for row in workspace["shortcuts"]
+            )
+        )
+        self.assertIn(
+            'class="btn btn-primary btn-sm catalogue-photo-trigger catalogue-gallery-action"',
+            catalogue_script,
+        )
+        self.assertIn("View photos ({0})", catalogue_script)
