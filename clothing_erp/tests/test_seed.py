@@ -1,6 +1,7 @@
 """Development seed safety tests."""
 
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import frappe
@@ -25,3 +26,12 @@ class TestSeedSafety(unittest.TestCase):
             self.assertTrue(product["brand"].startswith("TEST "))
             self.assertTrue(all(value.startswith("TEST ") for value in product["colours"]))
             self.assertTrue(all(value.startswith("TEST ") for value in product["sizes"]))
+
+    def test_seed_images_are_local_packaged_assets(self):
+        public_root = Path(__file__).parents[1] / "public"
+        for product in seed.PRODUCTS:
+            self.assertTrue(product["image"].startswith("/assets/clothing_erp/images/seed/"))
+            relative = product["image"].removeprefix("/assets/clothing_erp/")
+            image = public_root / relative
+            self.assertTrue(image.is_file(), image)
+            self.assertGreater(image.stat().st_size, 20_000)

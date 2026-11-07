@@ -4,14 +4,13 @@ import frappe
 from erpnext.controllers.item_variant import create_variant
 
 SEED_REFERENCE = "Clothing ERP fictional catalogue seed"
-SEED_IMAGE = "/assets/clothing_erp/images/clothing_erp_logo.svg"
-
 PRODUCTS = (
     {
         "code": "TEST-CLASSIC-TEE",
         "name": "TEST Classic Cotton T-shirt",
         "brand": "TEST Threadline",
         "description": "Fictional cotton T-shirt for Clothing ERP testing only.",
+        "image": "/assets/clothing_erp/images/seed/test-classic-tee.jpg",
         "colours": ("TEST Black", "TEST White", "TEST Navy"),
         "sizes": ("TEST S", "TEST M", "TEST L", "TEST XL"),
         "rate": 499,
@@ -21,6 +20,7 @@ PRODUCTS = (
         "name": "TEST Straight Fit Denim Jeans",
         "brand": "TEST Denim Works",
         "description": "Fictional straight-fit jeans for Clothing ERP testing only.",
+        "image": "/assets/clothing_erp/images/seed/test-denim-jeans.jpg",
         "colours": ("TEST Indigo", "TEST Washed Black"),
         "sizes": ("TEST 28", "TEST 30", "TEST 32", "TEST 34"),
         "rate": 1299,
@@ -30,6 +30,7 @@ PRODUCTS = (
         "name": "TEST Everyday Fleece Hoodie",
         "brand": "TEST Threadline",
         "description": "Fictional fleece hoodie for Clothing ERP testing only.",
+        "image": "/assets/clothing_erp/images/seed/test-fleece-hoodie.jpg",
         "colours": ("TEST Charcoal", "TEST Maroon"),
         "sizes": ("TEST M", "TEST L", "TEST XL"),
         "rate": 999,
@@ -106,6 +107,18 @@ def _ensure_template(product, item_group):
         template = frappe.get_doc("Item", product["code"])
         if not template.has_variants:
             frappe.throw(frappe._("Seed item {0} exists but is not a template.").format(product["code"]))
+        changed = False
+        for fieldname, value in (
+            ("item_name", product["name"]),
+            ("description", product["description"]),
+            ("brand", product["brand"]),
+            ("image", product["image"]),
+        ):
+            if template.get(fieldname) != value:
+                template.set(fieldname, value)
+                changed = True
+        if changed:
+            template.save()
         return template
     return frappe.get_doc(
         {
@@ -116,7 +129,7 @@ def _ensure_template(product, item_group):
             "item_group": item_group,
             "brand": product["brand"],
             "stock_uom": "Nos",
-            "image": SEED_IMAGE,
+            "image": product["image"],
             "has_variants": 1,
             "variant_based_on": "Item Attribute",
             "attributes": [{"attribute": "Colour"}, {"attribute": "Size"}],
@@ -137,11 +150,14 @@ def _ensure_variants(template, product):
                 variant = frappe.get_doc("Item", item_code)
                 if variant.variant_of != template.name:
                     frappe.throw(frappe._("Seed item code {0} belongs to another template.").format(item_code))
+                if variant.image != product["image"]:
+                    variant.image = product["image"]
+                    variant.save()
             else:
                 variant = create_variant(template.name, {"Colour": colour, "Size": size})
                 variant.item_code = item_code
                 variant.item_name = f"{product['name']} — {colour.removeprefix('TEST ')} / {size.removeprefix('TEST ')}"
-                variant.image = SEED_IMAGE
+                variant.image = product["image"]
                 variant.insert()
             variants.append(variant)
     return variants
