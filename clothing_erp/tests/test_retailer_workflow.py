@@ -19,3 +19,12 @@ class TestRetailerWorkflow(unittest.TestCase):
             with self.assertRaises(frappe.PermissionError):
                 retailer_application.approve("RET-APP-TEST")
             get_doc.assert_not_called()
+
+    def test_salesperson_must_be_an_enabled_clothing_system_user(self):
+        with patch.object(
+            frappe.db,
+            "get_value",
+            return_value=frappe._dict(enabled=0, user_type="System User"),
+        ):
+            with self.assertRaises(frappe.ValidationError):
+                retailer_application._validate_salesperson("disabled@example.invalid")

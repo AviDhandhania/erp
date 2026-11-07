@@ -1,0 +1,52 @@
+# ERPNext settings compatibility
+
+Clothing ERP provides simplified operational screens, but ERPNext remains the business
+system of record. Every custom operation must identify the ERPNext settings and native
+controllers that apply before implementation.
+
+## Rules
+
+1. Never write directly to ERPNext ledger tables or reproduce a native commercial ledger.
+2. Create and update standard business records through their Frappe documents so native
+   validation, hooks, naming, defaults and permissions execute.
+3. Never accept client-provided prices, commission, stock availability or permission claims.
+4. When a custom screen displays a native value, apply relevant User Permissions and
+   company, warehouse, currency, UOM and effective-date context.
+5. If an ERPNext setting is not relevant to an operation, document that boundary instead
+   of inventing a Clothing ERP equivalent.
+
+## Current compatibility matrix
+
+| Clothing ERP operation | ERPNext authority and settings | Handling |
+|---|---|---|
+| Generic catalogue pricing | Selling Settings default price list; Price List enabled/selling/currency; Item Price UOM, validity and party scope | Applied server-side. Party-specific rows are excluded until a retailer is selected. |
+| Assigned-retailer catalogue pricing | Customer defaults, customer Price List, Pricing Rules, exchange-rate policy, currency and UOM conversion | Calls ERPNext's native item-pricing controller with a Sales Order context; no commercial document is written. |
+| Catalogue stock display | Bin actual quantity; Warehouse User Permissions | Only aggregate quantities are returned. Configured warehouse assignments restrict the aggregation; warehouse names are not exposed. |
+| Product galleries | File upload size/type/privacy policy and site file storage | Uploads use native File records. Cleanup invokes native File deletion and protects referenced, shared, private-policy and packaged assets. |
+| Retailer approval | Customer naming/default validation, Customer Group, Territory, Contact, Address and User Permission | All records are inserted through their native controllers. The assigned salesperson is revalidated at submission and approval. |
+| Retailer visits | Customer User Permissions and app role scope | A salesperson can record a visit only for an assigned native Customer. |
+| Dashboard and directories | Native document permissions, User Permissions, currencies and submitted document state | Queries use permission-aware lists and keep currency totals separated. |
+
+## Required checks for upcoming stages
+
+Salesperson ordering must call the native pricing and Sales Order controllers and cover:
+
+- customer/default price lists, Pricing Rules, currencies, UOMs and taxes;
+- item maximum discounts and the app's permitted operational discount policy;
+- customer credit limits and configured credit controller behavior;
+- stock availability, negative-stock and stock-reservation configuration;
+- native Sales Person/Sales Team commission rate, contribution and incentives;
+- Sales Order naming, approval/workflow, cancellation and duplicate-request protection.
+
+Warehouse fulfilment must use native Pick List and Delivery Note behavior, including
+warehouse permissions, serial/batch bundles, stock reservation, negative-stock rules,
+partial delivery and cancellation. A custom display status must never create a stock
+movement.
+
+This matrix is reviewed whenever a new ERPNext version is added to the release manifest.
+
+The existing developer bench intentionally runs ERPNext `develop` with Frappe v16 and
+is not a production compatibility target. A native Sales Order party-load test exposed
+a Contact-schema mismatch in that mixed checkout. Clothing ERP does not patch around
+core schema differences: release CI must validate full order creation on the exact
+pinned Frappe/ERPNext pair before Stage 5 can be marked complete.

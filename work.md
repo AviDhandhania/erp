@@ -68,7 +68,8 @@ in for them now.
 - [x] Site-owned gallery uploads with reference-safe cleanup on row removal and a
   conservative scheduled orphan sweep; packaged release images are never deleted.
 - [ ] Add clothing metadata fields after confirming the exact naming and reporting needs.
-- [ ] Add an assigned-retailer context and ERPNext pricing-rule/customer-specific calculation.
+- [x] Add an assigned-retailer context using native ERPNext item/Sales Order pricing for
+  customer Price Lists, Pricing Rules, currency and UOM conversion.
 - [ ] Persist selected quantities only as part of the separately tested Stage 5 cart/order flow.
 
 The displayed stock is informational on-hand quantity, not a reservation or promise.
@@ -96,10 +97,33 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 41 app tests passed through the real site runner, 8 installer/package
+Verification: 44 app tests passed through the real site runner, 8 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
 checks passed with all three icons and the Clothing ERP workspace. Current local
 testing is intentionally direct on port 8000; nginx is deferred from this phase.
+
+## ERPNext settings compatibility contract
+
+- [x] Native ERPNext documents and their controllers remain authoritative for Customers,
+  Contacts, Addresses, Items, prices, stock transactions and commercial documents.
+- [x] Catalogue pricing honors the configured enabled Selling Price List, currency,
+  Item Price validity, selling/UOM scope and excludes party-specific rows when no
+  retailer context exists.
+- [x] Catalogue stock aggregation respects Warehouse User Permissions without exposing
+  warehouse-level quantities.
+- [x] Retailer approval revalidates the assigned enabled Clothing Salesperson and uses
+  native Customer, Contact, Address and User Permission documents.
+- [x] Gallery upload restrictions, privacy, storage and deletion use native File lifecycle
+  checks; the app only removes confirmed unreferenced local uploads.
+- [x] Current custom APIs retain native role and User Permission enforcement.
+- [ ] Stage 5 ordering must use ERPNext's pricing-rule engine, credit-limit checks,
+  Sales Order validation, stock/reservation policy and Sales Person commission fields.
+- [ ] Stage 6 fulfilment must use native Pick List, Delivery Note, serial/batch and stock
+  validation settings rather than changing inventory from custom status fields.
+
+Only settings relevant to an operation are applied. A setting is either delegated to
+the native ERPNext controller or explicitly handled and tested in this app; it must
+never be silently reimplemented with conflicting semantics.
 
 
 ## Release lifecycle pipeline

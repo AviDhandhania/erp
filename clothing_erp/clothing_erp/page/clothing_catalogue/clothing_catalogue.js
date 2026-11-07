@@ -6,12 +6,13 @@ frappe.pages["clothing-catalogue"].on_page_load = (wrapper) => {
 class ClothingCatalogue {
 	constructor(page) {
 		this.page = page;
-		this.state = { page: 1, search: "", item_group: "", brand: "" };
+		this.state = { page: 1, search: "", item_group: "", brand: "", customer: "" };
 		this.selection = new Map();
 		this.products = new Map();
 		this.page.main.html(`<div class="clothing-catalogue">
 			<div class="catalogue-toolbar">
 				<input class="form-control catalogue-search" type="search" placeholder="${__("Search style or SKU")}">
+				<select class="form-control catalogue-customer"><option value="">${__("Generic prices — select retailer")}</option></select>
 				<select class="form-control catalogue-group"><option value="">${__("All categories")}</option></select>
 				<select class="form-control catalogue-brand"><option value="">${__("All brands")}</option></select>
 			</div>
@@ -32,8 +33,15 @@ class ClothingCatalogue {
 			clearTimeout(timer);
 			timer = setTimeout(() => { this.state.search = event.target.value; this.state.page = 1; this.refresh(); }, 300);
 		});
-		this.$root.find("select").on("change", (event) => {
-			this.state[event.target.classList.contains("catalogue-group") ? "item_group" : "brand"] = event.target.value;
+		this.$root.find(".catalogue-group, .catalogue-brand, .catalogue-customer").on("change", (event) => {
+			const field = event.target.classList.contains("catalogue-group")
+				? "item_group"
+				: event.target.classList.contains("catalogue-brand") ? "brand" : "customer";
+			this.state[field] = event.target.value;
+			if (field === "customer") {
+				this.selection.clear();
+				this.render_selection();
+			}
 			this.state.page = 1;
 			this.refresh();
 		});
@@ -70,6 +78,11 @@ class ClothingCatalogue {
 		const { message } = await frappe.call("clothing_erp.catalogue.get_catalogue_filters");
 		this.fill_select(".catalogue-group", message.item_groups);
 		this.fill_select(".catalogue-brand", message.brands);
+		const $retailers = this.$root.find(".catalogue-customer");
+		message.retailers.forEach((retailer) => $retailers.append($("<option>", {
+			value: retailer.name,
+			text: retailer.customer_name === retailer.name ? retailer.name : `${retailer.customer_name} (${retailer.name})`,
+		})));
 	}
 
 	fill_select(selector, values) {
@@ -101,7 +114,8 @@ class ClothingCatalogue {
 	render(data) {
 		this.products = new Map(data.products.map((product) => [product.item_code, product]));
 		const $grid = this.$root.find(".catalogue-grid").empty();
-		this.$root.find(".catalogue-status").text(data.products.length ? __("Prices from {0}", [data.price_list]) : __("No matching clothing products"));
+		const price_context = data.customer ? __("Retailer pricing: {0}", [data.customer]) : __("Generic prices");
+		this.$root.find(".catalogue-status").text(data.products.length ? `${price_context} · ${__("Price List: {0}", [data.price_list])}` : __("No matching clothing products"));
 		data.products.forEach((product) => $grid.append(this.product_card(product)));
 		const page = data.pagination.page;
 		this.$root.find(".catalogue-pagination").html(`
@@ -150,7 +164,7 @@ class ClothingCatalogue {
 			? `<button type="button" class="catalogue-photo-trigger catalogue-image-trigger" data-item-code="${this.escape(product.item_code)}" aria-label="${__("View photos for {0}", [this.escape(product.item_name)])}"><img src="${this.escape(product.image)}" alt=""></button>`
 			: `<div class="catalogue-image-placeholder">${frappe.utils.icon("image", "lg")}</div>`;
 		const gallery_action = product.images?.length
-			? `<button type="button" class="btn btn-default btn-sm catalogue-photo-trigger catalogue-gallery-action" data-item-code="${this.escape(product.item_code)}">${frappe.utils.icon("image", "sm")}<span>${__("View photos ({0})", [product.images.length])}</span></button>`
+			? `<button type="button" class="btn btn-primary btn-sm catalogue-photo-trigger catalogue-gallery-action" data-item-code="${this.escape(product.item_code)}" title="${__("Open product gallery")}">${frappe.utils.icon("image", "sm")}<strong>${__("View photos ({0})", [product.images.length])}</strong></button>`
 			: "";
 		const rows = product.variants.map((variant) => `<tr>
 			<td><strong>${this.escape(this.attribute(variant, ["size"]))}</strong><small>${this.escape(variant.item_code)}</small></td>
@@ -159,7 +173,7 @@ class ClothingCatalogue {
 			<td><input class="form-control variant-qty" type="number" inputmode="numeric" min="0" step="1" aria-label="${__("Quantity for {0}", [this.escape(variant.item_code)])}" data-item-code="${this.escape(variant.item_code)}" data-rate="${variant.price || 0}" data-currency="${this.escape(variant.currency)}" value="${this.selection.get(variant.item_code)?.quantity || ""}" ${variant.price == null ? "disabled" : ""}></td>
 		</tr>`).join("");
 		return `<article class="catalogue-card">
-			<div class="catalogue-product-head">${image}<div><h3>${this.escape(product.item_name)}</h3><p>${this.escape(product.item_code)}</p><span>${this.escape(product.brand || product.item_group)}</span>${gallery_action}</div></div>
+			<div class="catalogue-product-head">${image}<div><h3>${this.escape(product.item_name)}</h3><p>${this.escape(product.item_code)}</p><span class="catalogue-product-meta">${this.escape(product.brand || product.item_group)}</span>${gallery_action}</div></div>
 			<div class="catalogue-table-wrap"><table class="table"><thead><tr><th>${__("Size / SKU")}</th><th>${__("Price")}</th><th>${__("On hand")}</th><th>${__("Qty")}</th></tr></thead><tbody>${rows || `<tr><td colspan="4">${__("No enabled variants")}</td></tr>`}</tbody></table></div>
 		</article>`;
 	}

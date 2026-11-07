@@ -5,6 +5,7 @@ from frappe.utils import add_days, now_datetime
 from frappe.tests import IntegrationTestCase
 from clothing_erp.roles import ROLE_SALESPERSON, ROLE_WAREHOUSE_OPERATOR
 from clothing_erp import api, catalogue, security
+from clothing_erp.pricing import get_customer_prices
 from clothing_erp.clothing_erp.doctype.retailer_application.retailer_application import approve, reject
 
 
@@ -142,6 +143,25 @@ class TestSitePermissions(IntegrationTestCase):
             {(value["attribute"], value["value"]) for value in row["attributes"]},
             {("TEST Clothing Colour", "Black"), ("TEST Clothing Size", "Medium")},
         )
+        for doctype, field, value in (
+            ("Customer Group", "customer_group_name", "TEST Catalogue Retailers"),
+            ("Territory", "territory_name", "TEST Catalogue Territory"),
+        ):
+            if not frappe.db.exists(doctype, value):
+                frappe.get_doc({"doctype": doctype, field: value, "is_group": 0}).insert()
+        customer = frappe.get_doc({
+            "doctype": "Customer",
+            "customer_name": "TEST Catalogue Pricing Retailer",
+            "customer_type": "Company",
+            "customer_group": "TEST Catalogue Retailers",
+            "territory": "TEST Catalogue Territory",
+        }).insert()
+        customer_prices, price_list_name, currency = get_customer_prices(
+            customer.name, [variant.name]
+        )
+        self.assertEqual(customer_prices[variant.name]["rate"], 749)
+        self.assertEqual(price_list_name, price_list)
+        self.assertEqual(currency, "INR")
 
     def test_retailer_application_approval_creates_native_customer_and_assignment(self):
         for doctype, field, value, parent_field, parent in (

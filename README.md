@@ -114,6 +114,7 @@ subject to native ERPNext permissions. No mock sales or simulated ERP server is 
 ## Development and operations
 
 - [Architecture and separation](docs/architecture.md)
+- [ERPNext settings compatibility](docs/erpnext-settings-compatibility.md)
 - [Release workflow and upstream upgrades](docs/releasing.md)
 - [Backups, recovery, layout and service commands](docs/operations.md)
 - [Deployment pins](deploy/versions.env)
@@ -144,6 +145,12 @@ Uploaded gallery files are stored in the standard site `public/files` or
 deletes its local upload only when no Item or other gallery still references it; a
 daily conservative sweep handles abandoned uploads. Packaged `/assets/clothing_erp/`
 demo images remain release-managed and are never removed by this cleanup.
+
+The catalogue's retailer selector only lists Customers permitted by native User
+Permissions. Selecting one recalculates the displayed quantity-one rates through
+ERPNext's item-pricing engine, including that Customer's Price List, Pricing Rules,
+currency exchange and UOM behavior. These are catalogue estimates; Stage 5 order
+submission will recalculate exact quantities and all commercial validations again.
 
 ### Retailer workflow
 

@@ -7,7 +7,7 @@ import frappe
 from frappe.utils import cint, flt, getdate, nowdate
 
 from clothing_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALESPERSON, ROLE_SALES_MANAGER
-from clothing_erp.security import require_role
+from clothing_erp.security import assigned_documents, require_role
 
 CATALOGUE_ROLES = {ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}
 PAGE_SIZE = 12
@@ -71,12 +71,16 @@ def _active_prices(item_uoms, price_list):
 
 
 def _stock(item_codes):
-    """Return total on-hand quantity without exposing warehouse-level inventory."""
+    """Return aggregate on-hand stock, respecting configured Warehouse User Permissions."""
     if not item_codes:
         return {}
+    filters = {"item_code": ["in", item_codes]}
+    permitted_warehouses = assigned_documents("Warehouse")
+    if permitted_warehouses:
+        filters["warehouse"] = ["in", permitted_warehouses]
     rows = frappe.get_all(
         "Bin",
-        filters={"item_code": ["in", item_codes]},
+        filters=filters,
         fields=["item_code", {"SUM": "actual_qty", "as": "actual_qty"}],
         group_by="item_code",
     )
@@ -143,7 +147,15 @@ def _templates(search=None, item_group=None, brand=None, start=0, page_size=PAGE
 
 
 @frappe.whitelist()
-def get_catalogue(search=None, item_group=None, brand=None, page=1, page_size=PAGE_SIZE, price_list=None):
+def get_catalogue(
+    search=None,
+    item_group=None,
+    brand=None,
+    customer=None,
+    page=1,
+    page_size=PAGE_SIZE,
+    price_list=None,
+):
     """Return a paginated, matrix-ready view of ERPNext item variants."""
     require_role(CATALOGUE_ROLES)
     search = _clean(search)
@@ -151,7 +163,15 @@ def get_catalogue(search=None, item_group=None, brand=None, page=1, page_size=PA
     brand = _clean(brand, 140)
     page = max(cint(page), 1)
     page_size = min(max(cint(page_size), 1), MAX_PAGE_SIZE)
-    selected_price_list, default_currency = _selling_price_list(price_list)
+    if customer:
+        if price_list:
+            frappe.throw(
+                frappe._("The retailer's configured Price List is used automatically."),
+                frappe.PermissionError,
+            )
+        selected_price_list, default_currency = None, None
+    else:
+        selected_price_list, default_currency = _selling_price_list(price_list)
 
     template_rows = _templates(search, item_group, brand, (page - 1) * page_size, page_size)
     has_more = len(template_rows) > page_size
@@ -171,11 +191,24 @@ def get_catalogue(search=None, item_group=None, brand=None, page=1, page_size=PA
     ) if template_names else []
     variant_codes = [row.name for row in variants]
     attributes = _variant_attributes(variant_codes)
-    prices = _active_prices({row.name: row.stock_uom for row in variants}, selected_price_list)
+    prices = (
+        _active_prices({row.name: row.stock_uom for row in variants}, selected_price_list)
+        if selected_price_list
+        else {}
+    )
     stock = _stock(variant_codes)
+    customer_prices = {}
+    if customer:
+        from clothing_erp.pricing import get_customer_prices
+
+        customer_prices, customer_price_list, customer_currency = get_customer_prices(
+            _clean(customer, 140), variant_codes
+        )
+        selected_price_list = customer_price_list or selected_price_list
+        default_currency = customer_currency or default_currency
     grouped = defaultdict(list)
     for variant in variants:
-        price = prices.get(variant.name)
+        price = customer_prices.get(variant.name) or prices.get(variant.name)
         grouped[variant.variant_of].append({
             "item_code": variant.name,
             "item_name": variant.item_name,
@@ -209,6 +242,7 @@ def get_catalogue(search=None, item_group=None, brand=None, page=1, page_size=PA
         "pagination": {"page": page, "page_size": page_size, "has_more": has_more},
         "price_list": selected_price_list,
         "currency": default_currency,
+        "customer": customer or None,
     }
 
 
@@ -220,4 +254,11 @@ def get_catalogue_filters():
             "Item Group", filters={"is_group": 0}, pluck="name", order_by="name asc", limit=500
         ),
         "brands": frappe.get_list("Brand", pluck="name", order_by="name asc", limit=500),
+        "retailers": frappe.get_list(
+            "Customer",
+            filters={"disabled": 0},
+            fields=["name", "customer_name"],
+            order_by="customer_name asc",
+            limit=500,
+        ),
     }

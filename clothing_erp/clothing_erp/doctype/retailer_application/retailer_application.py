@@ -52,6 +52,14 @@ def find_duplicates(doc, exclude=None):
     return matches
 
 
+def _validate_salesperson(user):
+    details = frappe.db.get_value("User", user, ["enabled", "user_type"], as_dict=True)
+    if not details or not details.enabled or details.user_type != "System User":
+        frappe.throw(frappe._("Select an enabled system user as the salesperson."))
+    if ROLE_SALESPERSON not in get_user_roles(user):
+        frappe.throw(frappe._("The selected user must have the Clothing Salesperson role."))
+
+
 class RetailerApplication(Document):
     def validate(self):
         if not self.is_new():
@@ -69,6 +77,7 @@ class RetailerApplication(Document):
             frappe.throw(frappe._("Enter a valid phone number."))
         if ROLE_SALESPERSON in get_user_roles() and not ({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN} & get_user_roles()):
             self.salesperson = get_current_user()
+        _validate_salesperson(self.salesperson)
         if self.is_new() and find_duplicates(self):
             frappe.throw(frappe._("A possible duplicate retailer or pending application already exists."))
 
@@ -95,6 +104,8 @@ def _make_contact(application, customer):
 def _make_address(application, customer, shipping=False):
     line = application.shipping_address_line1 if shipping else application.billing_address_line1
     city = application.shipping_city if shipping else application.billing_city
+    state = application.shipping_state if shipping else application.billing_state
+    pincode = application.shipping_pincode if shipping else application.billing_pincode
     if not line:
         return
     frappe.get_doc(
@@ -104,8 +115,8 @@ def _make_address(application, customer, shipping=False):
             "address_type": "Shipping" if shipping else "Billing",
             "address_line1": line,
             "city": city or application.billing_city,
-            "state": application.billing_state,
-            "pincode": application.billing_pincode,
+            "state": state,
+            "pincode": pincode,
             "country": application.country,
             "phone": application.phone,
             "email_id": application.email,
@@ -131,6 +142,7 @@ def approve(name):
     application = _lock_application(name)
     if application.status != "Pending":
         frappe.throw(frappe._("Only pending applications can be approved."))
+    _validate_salesperson(application.salesperson)
     duplicates = find_duplicates(application, exclude=application.name)
     if duplicates: frappe.throw(frappe._("Approval stopped because a duplicate retailer was found."))
     customer = frappe.get_doc(
@@ -145,7 +157,19 @@ def approve(name):
     ).insert(ignore_permissions=True)
     _make_contact(application, customer)
     _make_address(application, customer)
-    if application.shipping_address_line1 and application.shipping_address_line1 != application.billing_address_line1:
+    billing_address = (
+        application.billing_address_line1,
+        application.billing_city,
+        application.billing_state,
+        application.billing_pincode,
+    )
+    shipping_address = (
+        application.shipping_address_line1,
+        application.shipping_city,
+        application.shipping_state,
+        application.shipping_pincode,
+    )
+    if application.shipping_address_line1 and shipping_address != billing_address:
         _make_address(application, customer, shipping=True)
     if not frappe.db.exists(
         "User Permission",

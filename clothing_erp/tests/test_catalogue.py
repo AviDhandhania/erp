@@ -86,6 +86,61 @@ class TestCatalogue(unittest.TestCase):
             prices = catalogue._active_prices({"ITEM": "Nos"}, "TEST Selling")
         self.assertEqual(prices, {"ITEM": {"rate": 100.0, "currency": "INR"}})
 
+    def test_stock_respects_configured_warehouse_user_permissions(self):
+        row = frappe._dict(item_code="ITEM", actual_qty=7)
+        with patch.object(
+            catalogue, "assigned_documents", return_value=["Allowed Warehouse"]
+        ), patch.object(frappe, "get_all", return_value=[row]) as get_all:
+            self.assertEqual(catalogue._stock(["ITEM"]), {"ITEM": 7.0})
+        self.assertEqual(
+            get_all.call_args.kwargs["filters"]["warehouse"],
+            ["in", ["Allowed Warehouse"]],
+        )
+
+    def test_customer_context_uses_native_customer_pricing(self):
+        templates = [
+            frappe._dict(
+                name="TEST-TSHIRT",
+                item_name="TEST Shirt",
+                item_group="TEST Garments",
+                brand="TEST Brand",
+                description="Test",
+                image=None,
+                stock_uom="Nos",
+            )
+        ]
+        variants = [
+            frappe._dict(
+                name="TEST-TSHIRT-M",
+                item_name="TEST Shirt M",
+                variant_of="TEST-TSHIRT",
+                image=None,
+                stock_uom="Nos",
+            )
+        ]
+        with (
+            patch.object(catalogue, "require_role"),
+            patch.object(catalogue, "_selling_price_list", return_value=("Standard", "INR")),
+            patch.object(catalogue, "_templates", return_value=templates),
+            patch.object(catalogue, "_product_images", return_value={}),
+            patch.object(frappe, "get_list", return_value=variants),
+            patch.object(catalogue, "_variant_attributes", return_value={}),
+            patch.object(catalogue, "_active_prices", return_value={}),
+            patch.object(catalogue, "_stock", return_value={}),
+            patch(
+                "clothing_erp.pricing.get_customer_prices",
+                return_value=(
+                    {"TEST-TSHIRT-M": {"rate": 425, "currency": "INR"}},
+                    "Retailer Price",
+                    "INR",
+                ),
+            ) as customer_prices,
+        ):
+            result = catalogue.get_catalogue(customer="TEST Retailer")
+        customer_prices.assert_called_once_with("TEST Retailer", ["TEST-TSHIRT-M"])
+        self.assertEqual(result["price_list"], "Retailer Price")
+        self.assertEqual(result["products"][0]["variants"][0]["price"], 425)
+
     def test_arbitrary_price_list_cannot_be_probed(self):
         with patch.object(catalogue, "frappe") as framework:
             framework.db.get_single_value.return_value = "Standard Selling"
@@ -105,5 +160,5 @@ class TestCatalogue(unittest.TestCase):
         self.assertEqual(page["module"], "Clothing ERP")
         self.assertNotIn("Guest", {row["role"] for row in page["roles"]})
         self.assertTrue(any(row.get("link_to") == "clothing-catalogue" and row.get("type") == "Page" for row in workspace["shortcuts"]))
-        self.assertIn('class="btn btn-default btn-sm catalogue-photo-trigger catalogue-gallery-action"', catalogue_script)
+        self.assertIn('class="btn btn-primary btn-sm catalogue-photo-trigger catalogue-gallery-action"', catalogue_script)
         self.assertIn('View photos ({0})', catalogue_script)
