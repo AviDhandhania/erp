@@ -3,6 +3,7 @@
 import json
 import os
 import unittest
+import frappe
 from clothing_erp.api import (
 	get_user_context,
 	switch_preview_role,
@@ -34,7 +35,7 @@ class TestOperationalInterfaces(unittest.TestCase):
 		# Switch back to Administrator
 		switch_preview_role("Administrator")
 
-		with self.assertRaises(ValueError):
+		with self.assertRaises((ValueError, frappe.ValidationError)):
 			switch_preview_role("InvalidNonexistentRole")
 
 	def test_salesperson_dashboard_payload(self):
