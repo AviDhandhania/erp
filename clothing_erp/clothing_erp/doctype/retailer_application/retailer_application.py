@@ -4,7 +4,7 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
-from clothing_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALESPERSON, ROLE_SALES_MANAGER
+from clothing_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
 from clothing_erp.security import get_current_user, get_user_roles, require_role
 
 
@@ -14,24 +14,43 @@ def _phone(value):
 
 def _same_phone(left, right):
     left, right = _phone(left), _phone(right)
-    return len(left) >= 7 and len(right) >= 7 and (left.endswith(right) or right.endswith(left))
+    return (
+        len(left) >= 7
+        and len(right) >= 7
+        and (left.endswith(right) or right.endswith(left))
+    )
 
 
 def find_duplicates(doc, exclude=None):
     matches = []
-    customers = frappe.get_all("Customer", fields=["name", "customer_name", "mobile_no", "email_id", "tax_id"])
+    customers = frappe.get_all(
+        "Customer", fields=["name", "customer_name", "mobile_no", "email_id", "tax_id"]
+    )
     for customer in customers:
         reasons = []
-        if customer.customer_name.strip().casefold() == doc.shop_name.strip().casefold():
+        if (
+            customer.customer_name.strip().casefold()
+            == doc.shop_name.strip().casefold()
+        ):
             reasons.append("shop name")
         if _same_phone(customer.mobile_no, doc.phone):
             reasons.append("phone")
-        if doc.email and customer.email_id and customer.email_id.casefold() == doc.email.casefold():
+        if (
+            doc.email
+            and customer.email_id
+            and customer.email_id.casefold() == doc.email.casefold()
+        ):
             reasons.append("email")
-        if doc.gstin and customer.tax_id and customer.tax_id.upper() == doc.gstin.upper():
+        if (
+            doc.gstin
+            and customer.tax_id
+            and customer.tax_id.upper() == doc.gstin.upper()
+        ):
             reasons.append("GSTIN")
         if reasons:
-            matches.append({"doctype": "Customer", "name": customer.name, "reasons": reasons})
+            matches.append(
+                {"doctype": "Customer", "name": customer.name, "reasons": reasons}
+            )
     pending = frappe.get_all(
         "Retailer Application",
         filters={"name": ["!=", exclude or ""], "status": "Pending"},
@@ -43,12 +62,26 @@ def find_duplicates(doc, exclude=None):
             reasons.append("shop name")
         if _same_phone(application.phone, doc.phone):
             reasons.append("phone")
-        if doc.email and application.email and application.email.casefold() == doc.email.casefold():
+        if (
+            doc.email
+            and application.email
+            and application.email.casefold() == doc.email.casefold()
+        ):
             reasons.append("email")
-        if doc.gstin and application.gstin and application.gstin.upper() == doc.gstin.upper():
+        if (
+            doc.gstin
+            and application.gstin
+            and application.gstin.upper() == doc.gstin.upper()
+        ):
             reasons.append("GSTIN")
         if reasons:
-            matches.append({"doctype": "Retailer Application", "name": application.name, "reasons": reasons})
+            matches.append(
+                {
+                    "doctype": "Retailer Application",
+                    "name": application.name,
+                    "reasons": reasons,
+                }
+            )
     return matches
 
 
@@ -57,17 +90,28 @@ def _validate_salesperson(user):
     if not details or not details.enabled or details.user_type != "System User":
         frappe.throw(frappe._("Select an enabled system user as the salesperson."))
     if ROLE_SALESPERSON not in get_user_roles(user):
-        frappe.throw(frappe._("The selected user must have the Clothing Salesperson role."))
+        frappe.throw(
+            frappe._("The selected user must have the Clothing Salesperson role.")
+        )
 
 
 class RetailerApplication(Document):
     def validate(self):
         if not self.is_new():
-            stored_status = frappe.db.get_value("Retailer Application", self.name, "status")
+            stored_status = frappe.db.get_value(
+                "Retailer Application", self.name, "status"
+            )
             if stored_status != self.status:
-                frappe.throw(frappe._("Use the manager approval or rejection action to change status."), frappe.PermissionError)
+                frappe.throw(
+                    frappe._(
+                        "Use the manager approval or rejection action to change status."
+                    ),
+                    frappe.PermissionError,
+                )
             if stored_status != "Pending":
-                frappe.throw(frappe._("Reviewed retailer applications cannot be edited."))
+                frappe.throw(
+                    frappe._("Reviewed retailer applications cannot be edited.")
+                )
         self.shop_name = self.shop_name.strip()
         self.contact_person = self.contact_person.strip()
         self.phone = _phone(self.phone)
@@ -75,11 +119,17 @@ class RetailerApplication(Document):
         self.gstin = (self.gstin or "").strip().upper()
         if len(self.phone) < 7:
             frappe.throw(frappe._("Enter a valid phone number."))
-        if ROLE_SALESPERSON in get_user_roles() and not ({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN} & get_user_roles()):
+        if ROLE_SALESPERSON in get_user_roles() and not (
+            {ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN} & get_user_roles()
+        ):
             self.salesperson = get_current_user()
         _validate_salesperson(self.salesperson)
         if self.is_new() and find_duplicates(self):
-            frappe.throw(frappe._("A possible duplicate retailer or pending application already exists."))
+            frappe.throw(
+                frappe._(
+                    "A possible duplicate retailer or pending application already exists."
+                )
+            )
 
 
 def _make_contact(application, customer):
@@ -96,13 +146,21 @@ def _make_contact(application, customer):
     if application.phone:
         contact.append(
             "phone_nos",
-            {"phone": application.phone, "is_primary_phone": 1, "is_primary_mobile_no": 1},
+            {
+                "phone": application.phone,
+                "is_primary_phone": 1,
+                "is_primary_mobile_no": 1,
+            },
         )
     contact.insert(ignore_permissions=True)
 
 
 def _make_address(application, customer, shipping=False):
-    line = application.shipping_address_line1 if shipping else application.billing_address_line1
+    line = (
+        application.shipping_address_line1
+        if shipping
+        else application.billing_address_line1
+    )
     city = application.shipping_city if shipping else application.billing_city
     state = application.shipping_state if shipping else application.billing_state
     pincode = application.shipping_pincode if shipping else application.billing_pincode
@@ -144,7 +202,10 @@ def approve(name):
         frappe.throw(frappe._("Only pending applications can be approved."))
     _validate_salesperson(application.salesperson)
     duplicates = find_duplicates(application, exclude=application.name)
-    if duplicates: frappe.throw(frappe._("Approval stopped because a duplicate retailer was found."))
+    if duplicates:
+        frappe.throw(
+            frappe._("Approval stopped because a duplicate retailer was found.")
+        )
     customer = frappe.get_doc(
         {
             "doctype": "Customer",
@@ -173,7 +234,11 @@ def approve(name):
         _make_address(application, customer, shipping=True)
     if not frappe.db.exists(
         "User Permission",
-        {"user": application.salesperson, "allow": "Customer", "for_value": customer.name},
+        {
+            "user": application.salesperson,
+            "allow": "Customer",
+            "for_value": customer.name,
+        },
     ):
         frappe.get_doc(
             {
@@ -194,7 +259,14 @@ def approve(name):
         }
     )
     frappe.clear_cache(user=application.salesperson)
-    return {"application": application.name, "customer": customer.name, "status": "Approved"}
+    frappe.db.after_commit.add(
+        lambda user=application.salesperson: frappe.clear_cache(user=user)
+    )
+    return {
+        "application": application.name,
+        "customer": customer.name,
+        "status": "Approved",
+    }
 
 
 @frappe.whitelist(methods=["POST"])

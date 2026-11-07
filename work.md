@@ -35,18 +35,15 @@ in for them now.
 1. Persist selected catalogue quantities only as part of the authoritative Stage 5
    Sales Order flow. Catalogue metadata, images, filters, variant matrix, generic and
    customer-specific pricing, and stock visibility are complete.
-2. Extend retailer management with reassignment history and bulk administration.
-   Registration, duplicate checks, approval, customer linkage, salesperson assignment,
-   visit follow-ups and permission-aware visit reporting are complete.
-3. Salesperson ordering: matrix cart, authoritative pricing, discounts/credit checks,
+2. Salesperson ordering: matrix cart, authoritative pricing, discounts/credit checks,
    stock handling, idempotency, standard Sales Orders and lifecycle status.
-4. Warehouse operations: assigned picking, barcode verification, shortages, packing,
+3. Warehouse operations: assigned picking, barcode verification, shortages, packing,
    dispatch and standard Delivery Notes.
-5. Retailer-direct requests: authenticated intake and approval before Sales Orders.
-6. Realtime workflow notifications, reconciliation and operational reports.
-7. Full permission audit and cross-user integration/concurrency coverage.
-8. Release CI, reproducible release manifests and supported-host installation trials.
-9. Backup restore drills, upgrades and rollback tooling.
+4. Retailer-direct requests: authenticated intake and approval before Sales Orders.
+5. Realtime workflow notifications, reconciliation and operational reports.
+6. Full permission audit and cross-user integration/concurrency coverage.
+7. Release CI, reproducible release manifests and supported-host installation trials.
+8. Backup restore drills, upgrades and rollback tooling.
 
 ## Stage 3 — salesperson catalogue
 
@@ -90,18 +87,24 @@ submitted. The catalogue intentionally creates no Sales Order or stock transacti
 - [x] Retailer Visit records with outcomes, notes and required future follow-up dates.
 - [x] Permission-aware Retailer Visit Report with date, retailer, salesperson and outcome
   filters, outcome chart and operational summary counts.
+- [x] Manager-only single-retailer reassignment from the native Customer form, backed by
+  an atomic replacement of the native Customer User Permission.
+- [x] Bounded bulk reassignment from the native Customer list with sorted row locking,
+  full-selection preflight and all-or-nothing request behavior.
+- [x] Immutable Retailer Assignment History recording previous/new salesperson, reason,
+  actor and timestamp for every actual assignment change.
 - [x] Database integration coverage for application, approval, native records, assignment
-  visibility and visit creation.
+  visibility, reassignment cache changes, immutable history and visit creation.
 
-Stage 4 is complete. Retailer applications and visits are app-owned workflow records;
-approved commercial masters remain native ERPNext documents. No ERPNext source was
-modified.
+Stage 4 is complete. Retailer applications, visits and assignment history are app-owned
+workflow/audit records; the live retailer assignment remains a native User Permission and
+approved commercial masters remain native ERPNext documents. No ERPNext source was modified.
 
 All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 48 app tests passed through the real site runner, 32 installer/package
+Verification: 52 app tests passed through the real site runner, 32 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
 checks passed with all three icons and the Clothing ERP workspace. Current local
 testing is intentionally direct on port 8000; nginx is deferred from this phase.
@@ -117,6 +120,8 @@ testing is intentionally direct on port 8000; nginx is deferred from this phase.
   warehouse-level quantities.
 - [x] Retailer approval revalidates the assigned enabled Clothing Salesperson and uses
   native Customer, Contact, Address and User Permission documents.
+- [x] Retailer reassignment replaces native User Permissions atomically, records immutable
+  app-owned history and invalidates affected user permission caches.
 - [x] Gallery upload restrictions, privacy, storage and deletion use native File lifecycle
   checks; the app only removes confirmed unreferenced local uploads.
 - [x] Current custom APIs retain native role and User Permission enforcement.

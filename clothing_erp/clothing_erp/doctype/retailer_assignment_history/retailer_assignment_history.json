@@ -1,0 +1,24 @@
+{
+ "autoname": "format:RET-ASG-{YYYY}-{#####}",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": ["customer", "previous_salesperson", "new_salesperson", "reason", "changed_by", "changed_on"],
+ "fields": [
+  {"fieldname":"customer","fieldtype":"Link","label":"Retailer","options":"Customer","reqd":1,"read_only":1,"in_list_view":1,"search_index":1},
+  {"fieldname":"previous_salesperson","fieldtype":"Link","label":"Previous Salesperson","options":"User","read_only":1,"in_list_view":1},
+  {"fieldname":"new_salesperson","fieldtype":"Link","label":"New Salesperson","options":"User","reqd":1,"read_only":1,"in_list_view":1},
+  {"fieldname":"reason","fieldtype":"Small Text","label":"Reason","reqd":1,"read_only":1},
+  {"fieldname":"changed_by","fieldtype":"Link","label":"Changed By","options":"User","reqd":1,"read_only":1},
+  {"fieldname":"changed_on","fieldtype":"Datetime","label":"Changed On","reqd":1,"read_only":1,"in_list_view":1}
+ ],
+ "module": "Clothing ERP",
+ "name": "Retailer Assignment History",
+ "permissions": [
+  {"role":"Clothing Sales Manager","read":1,"report":1,"export":1},
+  {"role":"Clothing Business Administrator","read":1,"report":1,"export":1},
+  {"role":"System Manager","read":1,"report":1,"export":1}
+ ],
+ "sort_field": "changed_on",
+ "sort_order": "DESC",
+ "track_changes": 0
+}
