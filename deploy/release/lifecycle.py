@@ -56,7 +56,9 @@ class Manager:
         state_dir=Path("/var/lib/clothing-erp"),
         database_socket=Path("/run/mysqld/mysqld.sock"),
         application_user="frappe",
+        manage_queue=True,
     ):
+        self.manage_queue = manage_queue
         self.database_socket = Path(database_socket)
         self.home = Path(home)
         self.active = self.home / "frappe-bench"
@@ -244,6 +246,60 @@ class Manager:
                     process.kill()
                     process.wait()
 
+    def dump_queue(self, path):
+        # This platform dedicates one local Redis instance to this site. Preserve
+        # pending jobs as well as DB state so failed migrations cannot leak jobs
+        # requiring the abandoned code/schema into the restored old release.
+        result = self.run(
+            ["redis-cli", "--raw", "CONFIG", "GET", "appendonly"],
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout.splitlines() != ["appendonly", "no"]:
+            raise RuntimeError(
+                "Queue recovery requires the managed Redis RDB configuration (appendonly=no)"
+            )
+        self.run(["redis-cli", "--rdb", path])
+
+    def check_queue(self, path):
+        self.run(["redis-check-rdb", path], capture_output=True, text=True)
+
+    def restore_queue(self, path):
+        # A previous interrupted restore may have stopped Redis. The active RDB
+        # remains valid because replacement below is atomic. No app writer is running.
+        self.run(["systemctl", "start", "redis-server"])
+        # Fixed distribution-managed paths only; the app cannot supply a restore destination.
+        for key, expected in (
+            ("dir", "/var/lib/redis"),
+            ("dbfilename", "dump.rdb"),
+            ("appendonly", "no"),
+        ):
+            result = self.run(
+                ["redis-cli", "--raw", "CONFIG", "GET", key],
+                capture_output=True,
+                text=True,
+            )
+            if result.stdout.splitlines() != [key, expected]:
+                raise RuntimeError(
+                    "Unexpected Redis persistence configuration; maintenance remains enabled"
+                )
+        self.run(["systemctl", "stop", "redis-server"])
+        target = Path("/var/lib/redis/dump.rdb")
+        temporary = target.with_name(".clothing-restore.rdb")
+        shutil.copyfile(path, temporary)
+        redis = pwd.getpwnam("redis")
+        os.chown(temporary, redis.pw_uid, redis.pw_gid)
+        temporary.chmod(0o600)
+        with temporary.open("rb") as file:
+            os.fsync(file.fileno())
+        os.replace(temporary, target)
+        descriptor = os.open(target.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        self.run(["systemctl", "start", "redis-server"])
+
     def backup(self):
         self.installed()
         identifier = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
@@ -264,17 +320,20 @@ class Manager:
                                 "File backup contains symlinks; use a storage-aware backup before updating"
                             )
                     output.add(site / directory, arcname=directory)
-        for artifact in ("database.sql.gz", "files.tar.gz", "site_config.json"):
+        artifacts = ["database.sql.gz", "files.tar.gz", "site_config.json"]
+        if self.manage_queue:
+            self.dump_queue(backup / "redis.rdb")
+            self.check_queue(backup / "redis.rdb")
+            artifacts.append("redis.rdb")
+        for artifact in artifacts:
             with (backup / artifact).open("rb") as file:
                 os.fsync(file.fileno())
         metadata = {
             "database": database,
             "created_at": identifier,
             "current": self.state["current"],
-            "sha256": {
-                name: sha256(backup / name)
-                for name in ("database.sql.gz", "files.tar.gz", "site_config.json")
-            },
+            "queue": self.manage_queue,
+            "sha256": {name: sha256(backup / name) for name in artifacts},
         }
         atomic_json(backup / "backup.json", metadata)
         print(f"Recovery point: {backup}", flush=True)
@@ -288,9 +347,14 @@ class Manager:
         configuration = json.loads((backup / "site_config.json").read_text())
         if self.database_name(configuration) != metadata["database"]:
             raise RuntimeError("Recovery database mismatch")
-        for name in ("database.sql.gz", "files.tar.gz", "site_config.json"):
+        artifacts = ["database.sql.gz", "files.tar.gz", "site_config.json"]
+        if metadata.get("queue"):
+            artifacts.append("redis.rdb")
+        for name in artifacts:
             if sha256(backup / name) != metadata["sha256"][name]:
                 raise RuntimeError(f"Recovery point checksum mismatch: {name}")
+        if metadata.get("queue"):
+            self.check_queue(backup / "redis.rdb")
         # Detect truncated/corrupt gzip before touching the live database.
         with gzip.open(backup / "database.sql.gz", "rb") as sql:
             while sql.read(1024 * 1024):
@@ -349,6 +413,8 @@ class Manager:
         self.restore_database(metadata["database"], backup / "database.sql.gz")
         extract_archive(backup / "files.tar.gz", site, max_bytes=None, max_members=None)
         atomic_json(site / "site_config.json", configuration)
+        if metadata.get("queue"):
+            self.restore_queue(backup / "redis.rdb")
         for directory, dirs, files in os.walk(site):
             os.chown(directory, self.uid, self.gid)
             for name in dirs + files:

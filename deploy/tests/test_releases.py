@@ -172,6 +172,17 @@ class FakeManager(lifecycle.Manager):
         with gzip.open(path, "wb") as file:
             file.write(b"-- TEST database snapshot\n")
 
+    def dump_queue(self, path):
+        self.events.append("queue-backup")
+        path.write_bytes(b"REDIS00011TEST")
+
+    def check_queue(self, path):
+        if path.read_bytes() != b"REDIS00011TEST":
+            raise RuntimeError("invalid TEST queue snapshot")
+
+    def restore_queue(self, path):
+        self.events.append("queue-restore")
+
     def restore_database(self, name, path):
         self.events.append("restore")
         if self.failure == "restore":
@@ -247,6 +258,8 @@ class TestUpdateRecovery(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "migration failed"):
             m.update(self.next, self.source)
         self.assertTrue(m.restored)
+        self.assertLess(m.events.index("queue-backup"), m.events.index("migrate"))
+        self.assertIn("queue-restore", m.events)
         self.assertEqual(m.active.resolve(), m.previous)
         self.assertEqual(
             (m.shared / "private/files/test.txt").read_text(), "TEST before update"

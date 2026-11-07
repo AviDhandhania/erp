@@ -58,7 +58,7 @@ clothing-erp rollback --yes
 
 `--app-only` requires unchanged upstream/runtime pins. `recover` resumes an
 interrupted operation from its recorded phase. `rollback` restores the previous
-**code, database and attachments**, not just an old Git checkout. It saves a fresh
+**code, database, attachments and pending jobs**, not just an old Git checkout. It saves a fresh
 backup of current data first; restoring an older recovery point still makes the
 older data the live data. Copy backups off the CT for disaster recovery.
 

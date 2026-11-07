@@ -39,8 +39,8 @@ The developer workspace at `/home/avi/GitHub/erp` is intentionally unaffected.
 Updates take a recovery point before migration. A daily root cron job also creates
 one at 02:00 container time. These are consistent backups: nginx returns HTTP 503
 and application workers/services are stopped for the capture. The backup includes
-a MariaDB SQL dump, public and private attachments, and the site config containing
-the encryption key. Checksums are checked before restore. The manager supports the
+a MariaDB SQL dump, public and private attachments, the site config containing
+the encryption key, and a checked Redis RDB snapshot containing pending jobs. Checksums are checked before restore. The manager supports the
 single installer-generated database only; it does not select arbitrary databases.
 
 Keep an **off-container copy** of recovery points. The current implementation does

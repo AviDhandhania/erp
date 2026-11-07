@@ -71,10 +71,14 @@ test ports; activating port 80 still requires the local sudo setup command.
 - [x] Manual rollback preserves a fresh backup of post-upgrade data before restoring old data.
 - [x] Previous native-installer adoption without downgrading developer benches.
 - [x] Release contract, archive safety, checksum, fault recovery and packaging tests.
-- [ ] Observe the new full GitHub compatibility workflow completing successfully.
+- [x] Full GitHub compatibility workflow passed, including the exact staging builder and native SQL restore.
 - [ ] Publish and download the first generated stable release artifacts.
 - [ ] Real Proxmox install/update/reboot/restore trial remains outstanding.
 
 The release updater manages the application stack's declared runtime versions.
 Debian OS packages and the Proxmox host remain separate operator administration.
 See docs/releasing.md and docs/operations.md for the simple maintainer/customer flows.
+
+Additional verification: isolated native queue RDB snapshot and integrity checks passed.
+Recovery points include pending jobs so abandoned migration jobs cannot run against
+a restored old schema. Code, database, attachments, config and queue are recovered together.

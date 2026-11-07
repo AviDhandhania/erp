@@ -42,6 +42,7 @@ def run(socket):
             home,
             Path(directory) / "state",
             database_socket=socket,
+            manage_queue=False,
             application_user="root" if os.geteuid() == 0 else "frappe",
         )
         manager.state["current"] = {

@@ -34,11 +34,12 @@ an actively serving environment.
 
 Migrations change the shared database. They run only with all application writers
 stopped and the HTTP maintenance gate closed, after a database/config/file backup.
-Before the activation commit point, failure restores the old database and old code.
+Before the activation commit point, failure restores the old database, attachments,
+queue snapshot and code.
 After frontend readiness is confirmed and the release is committed, background
 writers are started; recovery after that point repairs the new services without
 silently discarding their writes. Explicit rollback saves a new recovery point and
-then restores the selected previous code/data together.
+then restores the selected previous code/data/queue together.
 
 This follows Frappe's rule that reverse schema migrations are unsupported:
 [official migration documentation](https://docs.frappe.io/framework/user/en/database-migrations).
