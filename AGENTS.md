@@ -31,7 +31,7 @@ This document defines the strict operating boundaries and development rules for 
 ## 2. Architecture & Design Principles
 
 - **Leverage Native ERPNext DocTypes**:
-  - Garment Variants $\rightarrow$ ERPNext `Item` with `Item Variant` (Attributes: Size, Color).
+  - Garment colourways $\rightarrow$ separate ERPNext `Item` templates/SKUs; variants use Size only.
   - Retailer Accounts $\rightarrow$ ERPNext `Customer` (Customer Group: Retailer/Boutique).
   - Wholesale Orders $\rightarrow$ ERPNext `Sales Order`.
   - Stock Movements $\rightarrow$ ERPNext `Stock Entry` and `Delivery Note`.

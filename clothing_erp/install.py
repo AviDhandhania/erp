@@ -1,10 +1,21 @@
 """Idempotent app-owned role and read-permission provisioning."""
 import frappe
 from frappe.permissions import add_permission
+from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from clothing_erp.roles import ALL_ROLES, ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_WAREHOUSE_OPERATOR, ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN
 
 
 def after_install():
+    create_custom_fields({
+        "Item": [{
+            "fieldname": "custom_clothing_product_images",
+            "fieldtype": "Table",
+            "label": "Clothing Product Gallery",
+            "options": "Clothing Product Image",
+            "insert_after": "image",
+            "description": "Additional ordered images shown in the Clothing ERP catalogue.",
+        }]
+    })
     for role in ALL_ROLES:
         if not frappe.db.exists("Role", role["role_name"]):
             frappe.get_doc({"doctype": "Role", "role_name": role["role_name"], "desk_access": 1, "is_custom": 1}).insert(ignore_permissions=True)

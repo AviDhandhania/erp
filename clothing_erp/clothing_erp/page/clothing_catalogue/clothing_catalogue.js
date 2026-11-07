@@ -8,6 +8,7 @@ class ClothingCatalogue {
 		this.page = page;
 		this.state = { page: 1, search: "", item_group: "", brand: "" };
 		this.selection = new Map();
+		this.products = new Map();
 		this.page.main.html(`<div class="clothing-catalogue">
 			<div class="catalogue-toolbar">
 				<input class="form-control catalogue-search" type="search" placeholder="${__("Search style or SKU")}">
@@ -60,6 +61,9 @@ class ClothingCatalogue {
 			this.$root.find(".variant-qty").val("");
 			this.render_selection();
 		});
+		this.$root.on("click", ".catalogue-photo-trigger", (event) => {
+			this.open_gallery(this.products.get(event.currentTarget.dataset.itemCode));
+		});
 	}
 
 	async load_filters() {
@@ -95,6 +99,7 @@ class ClothingCatalogue {
 	}
 
 	render(data) {
+		this.products = new Map(data.products.map((product) => [product.item_code, product]));
 		const $grid = this.$root.find(".catalogue-grid").empty();
 		this.$root.find(".catalogue-status").text(data.products.length ? __("Prices from {0}", [data.price_list]) : __("No matching clothing products"));
 		data.products.forEach((product) => $grid.append(this.product_card(product)));
@@ -104,6 +109,27 @@ class ClothingCatalogue {
 			<span>${__("Page {0}", [page])}</span>
 			<button class="btn btn-default" data-page="${page + 1}" ${data.pagination.has_more ? "" : "disabled"}>${__("Next")}</button>`);
 		this.render_selection();
+	}
+
+	open_gallery(product) {
+		if (!product || !product.images?.length) return;
+		const dialog = new frappe.ui.Dialog({ title: product.item_name, size: "extra-large" });
+		const slides = product.images.map((row, index) => `<figure class="catalogue-gallery-slide ${index ? "hidden" : ""}" data-gallery-index="${index}">
+			<img src="${this.escape(row.image)}" alt="${this.escape(row.caption || product.item_name)}">
+			${row.caption ? `<figcaption>${this.escape(row.caption)}</figcaption>` : ""}
+		</figure>`).join("");
+		dialog.$body.html(`<div class="catalogue-gallery">${slides}</div><div class="catalogue-gallery-controls">
+			<button class="btn btn-default gallery-prev">${__("Previous")}</button><span class="gallery-count">1 / ${product.images.length}</span><button class="btn btn-default gallery-next">${__("Next")}</button>
+		</div>`);
+		let index = 0;
+		const show = (next) => {
+			index = (next + product.images.length) % product.images.length;
+			dialog.$body.find(".catalogue-gallery-slide").addClass("hidden").filter(`[data-gallery-index="${index}"]`).removeClass("hidden");
+			dialog.$body.find(".gallery-count").text(`${index + 1} / ${product.images.length}`);
+		};
+		dialog.$body.on("click", ".gallery-prev", () => show(index - 1));
+		dialog.$body.on("click", ".gallery-next", () => show(index + 1));
+		dialog.show();
 	}
 
 	render_selection() {
@@ -121,7 +147,7 @@ class ClothingCatalogue {
 
 	product_card(product) {
 		const image = product.image
-			? `<img src="${this.escape(product.image)}" alt="">`
+			? `<button class="catalogue-photo-trigger" data-item-code="${this.escape(product.item_code)}" aria-label="${__("View photos for {0}", [this.escape(product.item_name)])}"><img src="${this.escape(product.image)}" alt=""></button>`
 			: `<div class="catalogue-image-placeholder">${frappe.utils.icon("image", "lg")}</div>`;
 		const rows = product.variants.map((variant) => `<tr>
 			<td><strong>${this.escape(this.attribute(variant, ["size"]))}</strong><small>${this.escape(variant.item_code)}</small></td>
@@ -130,7 +156,7 @@ class ClothingCatalogue {
 			<td><input class="form-control variant-qty" type="number" inputmode="numeric" min="0" step="1" aria-label="${__("Quantity for {0}", [this.escape(variant.item_code)])}" data-item-code="${this.escape(variant.item_code)}" data-rate="${variant.price || 0}" data-currency="${this.escape(variant.currency)}" value="${this.selection.get(variant.item_code)?.quantity || ""}" ${variant.price == null ? "disabled" : ""}></td>
 		</tr>`).join("");
 		return `<article class="catalogue-card">
-			<div class="catalogue-product-head">${image}<div><h3>${this.escape(product.item_name)}</h3><p>${this.escape(product.item_code)}</p><span>${this.escape(product.brand || product.item_group)}</span></div></div>
+			<div class="catalogue-product-head">${image}<div><h3>${this.escape(product.item_name)}</h3><p>${this.escape(product.item_code)}</p><span>${this.escape(product.brand || product.item_group)}</span>${product.images?.length ? `<button class="btn btn-link btn-xs catalogue-photo-trigger" data-item-code="${this.escape(product.item_code)}">${__("View {0} photos", [product.images.length])}</button>` : ""}</div></div>
 			<div class="catalogue-table-wrap"><table class="table"><thead><tr><th>${__("Size / SKU")}</th><th>${__("Price")}</th><th>${__("On hand")}</th><th>${__("Qty")}</th></tr></thead><tbody>${rows || `<tr><td colspan="4">${__("No enabled variants")}</td></tr>`}</tbody></table></div>
 		</article>`;
 	}

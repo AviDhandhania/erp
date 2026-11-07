@@ -135,6 +135,11 @@ cd /home/avi/GitHub/erp/frappe-bench
 
 It refuses non-developer sites and only uses clearly labelled `TEST` catalogue data.
 
+To add a product gallery without changing ERPNext core, open the colour-specific Item
+template in ERPNext, find **Clothing Product Gallery** beside the primary image, and add
+ordered image rows with optional captions. Save the Item. The catalogue shows a
+**View photos** action and opens the images in a responsive previous/next viewer.
+
 **Validation limits:** automated app/database/recovery tests run locally and in CI.
 Host-command tests simulate Proxmox. A complete install/update/reboot/restore on an
 actual Proxmox host remains a required deployment trial; it has not been claimed

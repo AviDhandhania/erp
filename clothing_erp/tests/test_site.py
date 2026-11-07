@@ -26,6 +26,8 @@ class TestSitePermissions(IntegrationTestCase):
     def test_unassigned_salesperson_cannot_list_any_retailers(self):
         frappe.set_user(self.email)
         self.assertTrue(frappe.db.exists("Page", "clothing-catalogue"))
+        gallery = frappe.get_meta("Item").get_field("custom_clothing_product_images")
+        self.assertEqual((gallery.fieldtype, gallery.options), ("Table", "Clothing Product Image"))
         self.assertEqual(frappe.get_list("Customer", pluck="name"), [])
         self.assertEqual(frappe.get_list("Sales Order", pluck="name"), [])
         self.assertEqual(api.get_salesperson_dashboard()["metrics"]["assigned_retailers_count"], 0)

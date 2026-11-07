@@ -43,6 +43,7 @@ class TestCatalogue(unittest.TestCase):
             patch.object(catalogue, "require_role"),
             patch.object(catalogue, "_selling_price_list", return_value=("TEST Selling", "INR")),
             patch.object(catalogue, "_templates", return_value=templates) as template_query,
+            patch.object(catalogue, "_product_images", return_value={"TEST-TSHIRT": [{"image": "/test-front.jpg", "caption": "Front"}]}),
             patch.object(frappe, "get_list", return_value=variants) as variant_query,
             patch.object(
                 catalogue,
@@ -68,6 +69,7 @@ class TestCatalogue(unittest.TestCase):
         self.assertNotIn("ignore_permissions", variant_query.call_args.kwargs)
         self.assertEqual(result["pagination"], {"page": 1, "page_size": 24, "has_more": False})
         variant = result["products"][0]["variants"][0]
+        self.assertEqual(result["products"][0]["images"][0]["caption"], "Front")
         self.assertEqual(variant["item_code"], "TEST-TSHIRT-BLACK-M")
         self.assertEqual(variant["price"], 499)
         self.assertEqual(variant["actual_qty"], 12)

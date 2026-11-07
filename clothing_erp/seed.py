@@ -11,6 +11,7 @@ PRODUCTS = (
         "brand": "TEST Threadline",
         "description": "Fictional cotton T-shirt for Clothing ERP testing only.",
         "image": "/assets/clothing_erp/images/seed/test-classic-tee.jpg",
+        "gallery": (("/assets/clothing_erp/images/seed/test-classic-tee.jpg", "Folded T-shirt view"), ("/assets/clothing_erp/images/seed/test-classic-tee-alt.jpg", "Hanging T-shirt detail")),
         "colour": "Black",
         "sizes": ("TEST S", "TEST M", "TEST L", "TEST XL"),
         "rate": 499,
@@ -21,6 +22,7 @@ PRODUCTS = (
         "brand": "TEST Threadline",
         "description": "Fictional white cotton T-shirt for Clothing ERP testing only.",
         "image": "/assets/clothing_erp/images/seed/test-classic-tee.jpg",
+        "gallery": (("/assets/clothing_erp/images/seed/test-classic-tee.jpg", "Folded T-shirt view"), ("/assets/clothing_erp/images/seed/test-classic-tee-alt.jpg", "Hanging T-shirt detail")),
         "colour": "White",
         "sizes": ("TEST S", "TEST M", "TEST L", "TEST XL"),
         "rate": 499,
@@ -31,6 +33,7 @@ PRODUCTS = (
         "brand": "TEST Threadline",
         "description": "Fictional navy cotton T-shirt for Clothing ERP testing only.",
         "image": "/assets/clothing_erp/images/seed/test-classic-tee.jpg",
+        "gallery": (("/assets/clothing_erp/images/seed/test-classic-tee.jpg", "Folded T-shirt view"), ("/assets/clothing_erp/images/seed/test-classic-tee-alt.jpg", "Hanging T-shirt detail")),
         "colour": "Navy",
         "sizes": ("TEST S", "TEST M", "TEST L", "TEST XL"),
         "rate": 499,
@@ -41,6 +44,7 @@ PRODUCTS = (
         "brand": "TEST Denim Works",
         "description": "Fictional straight-fit jeans for Clothing ERP testing only.",
         "image": "/assets/clothing_erp/images/seed/test-denim-jeans.jpg",
+        "gallery": (("/assets/clothing_erp/images/seed/test-denim-jeans.jpg", "Folded denim detail"), ("/assets/clothing_erp/images/seed/test-denim-jeans-alt.jpg", "Back-pocket detail")),
         "colour": "Indigo",
         "sizes": ("TEST 28", "TEST 30", "TEST 32", "TEST 34"),
         "rate": 1299,
@@ -51,6 +55,7 @@ PRODUCTS = (
         "brand": "TEST Denim Works",
         "description": "Fictional washed-black jeans for Clothing ERP testing only.",
         "image": "/assets/clothing_erp/images/seed/test-denim-jeans.jpg",
+        "gallery": (("/assets/clothing_erp/images/seed/test-denim-jeans.jpg", "Folded denim detail"), ("/assets/clothing_erp/images/seed/test-denim-jeans-alt.jpg", "Back-pocket detail")),
         "colour": "Washed Black",
         "sizes": ("TEST 28", "TEST 30", "TEST 32", "TEST 34"),
         "rate": 1299,
@@ -61,6 +66,7 @@ PRODUCTS = (
         "brand": "TEST Threadline",
         "description": "Fictional fleece hoodie for Clothing ERP testing only.",
         "image": "/assets/clothing_erp/images/seed/test-fleece-hoodie.jpg",
+        "gallery": (("/assets/clothing_erp/images/seed/test-fleece-hoodie.jpg", "Hoodie lifestyle view"), ("/assets/clothing_erp/images/seed/test-fleece-hoodie-alt.jpg", "Plain back view")),
         "colour": "Charcoal",
         "sizes": ("TEST M", "TEST L", "TEST XL"),
         "rate": 999,
@@ -71,6 +77,7 @@ PRODUCTS = (
         "brand": "TEST Threadline",
         "description": "Fictional maroon fleece hoodie for Clothing ERP testing only.",
         "image": "/assets/clothing_erp/images/seed/test-fleece-hoodie.jpg",
+        "gallery": (("/assets/clothing_erp/images/seed/test-fleece-hoodie.jpg", "Hoodie lifestyle view"), ("/assets/clothing_erp/images/seed/test-fleece-hoodie-alt.jpg", "Plain back view")),
         "colour": "Maroon",
         "sizes": ("TEST M", "TEST L", "TEST XL"),
         "rate": 999,
@@ -159,10 +166,20 @@ def _ensure_template(product, item_group):
             if template.get(fieldname) != value:
                 template.set(fieldname, value)
                 changed = True
+        existing_images = {row.image for row in template.get("custom_clothing_product_images") or []}
+        for image, caption in product["gallery"]:
+            if image not in existing_images:
+                template.append("custom_clothing_product_images", {"image": image, "caption": caption})
+                changed = True
+        existing_gallery = {(row.image, row.caption or "") for row in template.get("custom_clothing_product_images", [])}
+        for image, caption in product["gallery"]:
+            if (image, caption) not in existing_gallery:
+                template.append("custom_clothing_product_images", {"image": image, "caption": caption})
+                changed = True
         if changed:
             template.save()
         return template
-    return frappe.get_doc(
+    template = frappe.get_doc(
         {
             "doctype": "Item",
             "item_code": product["code"],
@@ -176,7 +193,10 @@ def _ensure_template(product, item_group):
             "variant_based_on": "Item Attribute",
             "attributes": [{"attribute": "Size"}],
         }
-    ).insert()
+    )
+    for image, caption in product["gallery"]:
+        template.append("custom_clothing_product_images", {"image": image, "caption": caption})
+    return template.insert()
 
 
 def _variant_code(template_code, size_index):

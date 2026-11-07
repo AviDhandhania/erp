@@ -100,6 +100,27 @@ def _variant_attributes(item_codes):
     return values
 
 
+def _product_images(item_codes):
+    """Return gallery rows only for already permission-filtered Item templates."""
+    images = defaultdict(list)
+    if not item_codes:
+        return images
+    rows = frappe.get_all(
+        "Clothing Product Image",
+        filters={
+            "parent": ["in", item_codes],
+            "parenttype": "Item",
+            "parentfield": "custom_clothing_product_images",
+        },
+        fields=["parent", "image", "caption", "idx"],
+        order_by="parent asc, idx asc",
+    )
+    for row in rows:
+        if row.image:
+            images[row.parent].append({"image": row.image, "caption": row.caption or ""})
+    return images
+
+
 def _templates(search=None, item_group=None, brand=None, start=0, page_size=PAGE_SIZE):
     filters = {"disabled": 0, "has_variants": 1, "is_sales_item": 1}
     if item_group:
@@ -136,6 +157,7 @@ def get_catalogue(search=None, item_group=None, brand=None, page=1, page_size=PA
     has_more = len(template_rows) > page_size
     template_rows = template_rows[:page_size]
     template_names = [row.name for row in template_rows]
+    galleries = _product_images(template_names)
     variants = frappe.get_list(
         "Item",
         filters={
@@ -168,6 +190,9 @@ def get_catalogue(search=None, item_group=None, brand=None, page=1, page_size=PA
 
     products = []
     for template in template_rows:
+        images = galleries.get(template.name, [])
+        if template.image and template.image not in {row["image"] for row in images}:
+            images.insert(0, {"image": template.image, "caption": template.item_name})
         products.append({
             "item_code": template.name,
             "item_name": template.item_name,
@@ -175,6 +200,7 @@ def get_catalogue(search=None, item_group=None, brand=None, page=1, page_size=PA
             "brand": template.brand,
             "description": template.description,
             "image": template.image,
+            "images": images,
             "uom": template.stock_uom,
             "variants": grouped.get(template.name, []),
         })

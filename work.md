@@ -62,6 +62,8 @@ in for them now.
 - [x] Real database integration test covering template, variant attributes, Item Price and Bin.
 - [x] Idempotent developer-only fictional seed command using submitted ERPNext stock receipts.
 - [x] Locally bundled, attributed web photos for all fictional seed product families.
+- [x] App-owned multi-image gallery on Item templates with ordered captions and a
+  responsive click-to-view catalogue viewer.
 - [ ] Add clothing metadata fields after confirming the exact naming and reporting needs.
 - [ ] Add an assigned-retailer context and ERPNext pricing-rule/customer-specific calculation.
 - [ ] Persist selected quantities only as part of the separately tested Stage 5 cart/order flow.
