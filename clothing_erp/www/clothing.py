@@ -4,7 +4,16 @@ try:
 	import frappe
 	from frappe import _
 except ImportError:
-	# Fallback for standalone unit testing outside active Frappe environment
+	class _FrappeDict(dict):
+		def __getattr__(self, key):
+			try:
+				return self[key]
+			except KeyError:
+				raise AttributeError(key)
+
+		def __setattr__(self, key, value):
+			self[key] = value
+
 	frappe = None
 	_ = lambda x: x
 
@@ -78,17 +87,26 @@ def get_navigation_items():
 	]
 
 
+def _set_ctx(ctx, key, val):
+	if hasattr(ctx, "__setitem__"):
+		ctx[key] = val
+	try:
+		setattr(ctx, key, val)
+	except (AttributeError, TypeError):
+		pass
+
+
 def get_context(context):
 	"""Populate context for the Clothing ERP homepage."""
-	user = frappe.session.user if frappe else "Guest"
+	user = frappe.session.user if (frappe and hasattr(frappe, "session")) else "Guest"
 	is_authenticated = user and user != "Guest"
 
-	context.title = _("Clothing ERP")
-	context.subtitle = _("Open-Source Clothing Distribution ERP")
-	context.no_cache = 1
-	context.no_sidebar = 1
-	context.is_authenticated = is_authenticated
-	context.current_user = user
+	_set_ctx(context, "title", _("Clothing ERP"))
+	_set_ctx(context, "subtitle", _("Open-Source Clothing Distribution ERP"))
+	_set_ctx(context, "no_cache", 1)
+	_set_ctx(context, "no_sidebar", 1)
+	_set_ctx(context, "is_authenticated", is_authenticated)
+	_set_ctx(context, "current_user", user)
 
 	all_items = get_navigation_items()
 
@@ -97,14 +115,18 @@ def get_context(context):
 		is_admin = user == "Administrator" or "System Manager" in roles or "Clothing ERP User" in roles
 		# Filter links by read permission if authenticated, Administrator sees all
 		if is_admin:
-			context.navigation_items = all_items
+			_set_ctx(context, "navigation_items", all_items)
 		else:
-			context.navigation_items = [
-				item for item in all_items
-				if frappe.has_permission(item["doctype"], "read")
-			]
+			_set_ctx(
+				context,
+				"navigation_items",
+				[
+					item for item in all_items
+					if frappe.has_permission(item["doctype"], "read")
+				]
+			)
 	else:
 		# For guest visitors, show all navigation placeholders as a preview with login guidance
-		context.navigation_items = all_items
+		_set_ctx(context, "navigation_items", all_items)
 
 	return context
