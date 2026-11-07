@@ -83,7 +83,7 @@ jobs:
           cp dist/clothing-erp-lxc.run dist/release/
           cd dist/release
           sha256sum clothing-erp-lxc.run >> SHA256SUMS
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: 'dist/release/*'
       - name: Upload before publishing the stable release
