@@ -8,8 +8,8 @@ In every subsequent prompt, check this file to identify the next task and update
 ## Overall Progress Summary
 
 - **Stage 1 — Development Foundation**: [x] COMPLETED
-- **Stage 2 — Roles and Operational Interface Foundation**: [x] IN PROGRESS (Active)
-- **Stage 3 — Salesperson Catalogue**: [ ] PENDING
+- **Stage 2 — Roles and Operational Interface Foundation**: [x] COMPLETED
+- **Stage 3 — Salesperson Catalogue**: [ ] PENDING (Next Stage)
 - **Stage 4 — Retailer Management**: [ ] PENDING
 - **Stage 5 — Salesperson Ordering**: [ ] PENDING
 - **Stage 6 — Warehouse Operations**: [ ] PENDING
