@@ -6,7 +6,7 @@ frappe.listview_settings["Customer"] = {
 		clothing_erp_customer_list_settings.onload?.(listview);
 		if (!["System Manager", "Clothing Sales Manager", "Clothing Business Administrator"]
 			.some((role) => frappe.user_roles.includes(role))) return;
-		listview.page.add_actions_menu_item(__("Reassign Clothing Salesperson"), () => {
+		listview.page.add_inner_button(__("Reassign Salesperson"), () => {
 			const customers = listview.get_checked_items().map((row) => row.name);
 			if (!customers.length) {
 				frappe.msgprint(__("Select at least one retailer first."));

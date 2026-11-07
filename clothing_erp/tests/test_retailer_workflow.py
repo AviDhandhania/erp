@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import frappe
@@ -8,6 +9,15 @@ from clothing_erp.clothing_erp.doctype.retailer_application import retailer_appl
 
 
 class TestRetailerWorkflow(unittest.TestCase):
+    def test_reassignment_controls_are_directly_visible(self):
+        app_root = Path(__file__).parents[1]
+        form_script = (app_root / "public/js/customer_assignment.js").read_text()
+        list_script = (app_root / "public/js/customer_list.js").read_text()
+        self.assertIn('frm.add_custom_button(__("Reassign Salesperson")', form_script)
+        self.assertNotIn('}, __("Clothing ERP"));', form_script)
+        self.assertIn('add_inner_button(__("Reassign Salesperson")', list_script)
+        self.assertNotIn("add_actions_menu_item", list_script)
+
     def test_reassignment_requires_manager_before_reading_assignment_state(self):
         with (
             patch.object(

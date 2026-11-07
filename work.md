@@ -104,10 +104,11 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 52 app tests passed through the real site runner, 32 installer/package
+Verification: 53 app tests passed through the real site runner, 32 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
-checks passed with all three icons and the Clothing ERP workspace. Current local
-testing is intentionally direct on port 8000; nginx is deferred from this phase.
+checks passed with all three icons, the Clothing ERP workspace and the directly visible
+Customer-list reassignment action. Current local testing is intentionally direct on port
+8000; nginx is deferred from this phase.
 
 ## ERPNext settings compatibility contract
 
