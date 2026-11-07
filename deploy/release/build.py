@@ -3,6 +3,8 @@
 
 import argparse
 import gzip
+import io
+import tarfile
 import json
 from pathlib import Path
 import subprocess
@@ -33,8 +35,12 @@ def resolve(repo, tag):
     return value
 
 
-def build(version, output):
+def build(version, output, *, locks=None, resolve_for_ci=False):
     version_tuple(version)
+    if locks is None and not resolve_for_ci:
+        raise ValueError(
+            "Published releases require dependency locks from the passing CI build"
+        )
     if git("status", "--porcelain", "--untracked-files=no"):
         raise ValueError("Release build requires clean tracked source")
     actual = (ROOT / "clothing_erp/__init__.py").read_text().strip()
@@ -52,6 +58,26 @@ def build(version, output):
     raw = subprocess.check_output(
         ["git", "-C", str(ROOT), "archive", "--format=tar", "HEAD"]
     )
+    lock_metadata = {}
+    if locks is not None:
+        buffer = io.BytesIO(raw)
+        with tarfile.open(fileobj=buffer, mode="a") as archive:
+            existing = set(archive.getnames())
+            for filename in ("python.txt", "tools.txt"):
+                path = Path(locks) / filename
+                relative = f"deploy/locks/{filename}"
+                if relative in existing:
+                    raise ValueError(
+                        "Dependency locks are CI artifacts, not tracked source files"
+                    )
+                contents = path.read_bytes()
+                entry = tarfile.TarInfo(relative)
+                entry.size = len(contents)
+                entry.mode = 0o644
+                entry.mtime = 0
+                archive.addfile(entry, io.BytesIO(contents))
+                lock_metadata[filename] = {"path": relative, "sha256": sha256(path)}
+        raw = buffer.getvalue()
     with (
         (output / name).open("wb") as target,
         gzip.GzipFile(fileobj=target, mode="wb", mtime=0, filename="") as compressed,
@@ -76,8 +102,9 @@ def build(version, output):
             for key in ("python", "node", "bench", "uv")
         },
         "archive": {"name": name, "sha256": sha256(output / name)},
+        "locks": lock_metadata,
     }
-    validate_manifest(manifest)
+    validate_manifest(manifest, allow_unlocked=resolve_for_ci)
     (output / "release.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     )
@@ -93,5 +120,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("version")
     parser.add_argument("--output", default=str(ROOT / "dist/release"))
+    parser.add_argument("--locks", type=Path)
+    parser.add_argument("--resolve-for-ci", action="store_true")
     args = parser.parse_args()
-    print(json.dumps(build(args.version, args.output), indent=2))
+    print(
+        json.dumps(
+            build(
+                args.version,
+                args.output,
+                locks=args.locks,
+                resolve_for_ci=args.resolve_for_ci,
+            ),
+            indent=2,
+        )
+    )

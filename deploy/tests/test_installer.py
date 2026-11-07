@@ -3,6 +3,7 @@ No actual Proxmox resources, packages, databases or system services are changed.
 """
 
 import json
+import hashlib
 import os
 import shutil
 from pathlib import Path
@@ -46,11 +47,27 @@ class TestInstaller(unittest.TestCase):
             shutil.copytree(
                 ROOT,
                 source,
-                ignore=shutil.ignore_patterns(".git", "dist", "__pycache__"),
+                ignore=shutil.ignore_patterns(
+                    ".git",
+                    "dist",
+                    "__pycache__",
+                    ".venv",
+                    "env",
+                    "node_modules",
+                    ".env",
+                    "sites",
+                ),
             )
             shutil.copy2(
                 ROOT / "deploy/tests/fixtures/release.json", source / "release.json"
             )
+            data = json.loads((source / "release.json").read_text())
+            (source / "deploy/locks").mkdir(exist_ok=True)
+            for name in ("python.txt", "tools.txt"):
+                content = b"test-package==1.2.3\n"
+                (source / "deploy/locks" / name).write_bytes(content)
+                data["locks"][name]["sha256"] = hashlib.sha256(content).hexdigest()
+            (source / "release.json").write_text(json.dumps(data))
             for name in ("pct", "pveam", "pvesh", "pvesm", "ip"):
                 path = tmp / name
                 path.write_text(STUB)
@@ -133,11 +150,27 @@ class TestPackage(unittest.TestCase):
             shutil.copytree(
                 ROOT,
                 source,
-                ignore=shutil.ignore_patterns(".git", "dist", "__pycache__"),
+                ignore=shutil.ignore_patterns(
+                    ".git",
+                    "dist",
+                    "__pycache__",
+                    ".venv",
+                    "env",
+                    "node_modules",
+                    ".env",
+                    "sites",
+                ),
             )
             shutil.copy2(
                 ROOT / "deploy/tests/fixtures/release.json", source / "release.json"
             )
+            data = json.loads((source / "release.json").read_text())
+            (source / "deploy/locks").mkdir(exist_ok=True)
+            for name in ("python.txt", "tools.txt"):
+                content = b"test-package==1.2.3\n"
+                (source / "deploy/locks" / name).write_bytes(content)
+                data["locks"][name]["sha256"] = hashlib.sha256(content).hexdigest()
+            (source / "release.json").write_text(json.dumps(data))
             output = Path(directory) / "install.run"
             extracted = Path(directory) / "extracted"
             subprocess.run(

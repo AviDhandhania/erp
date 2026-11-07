@@ -7,6 +7,15 @@ mkdir -p "$(dirname "$OUT")"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 [[ -f $ROOT/release.json ]] || { echo 'Build a verified release envelope first (release.json is required).' >&2; exit 1; }
+python3 - "$ROOT" <<'PYTHON'
+import json,sys
+from pathlib import Path
+root=Path(sys.argv[1])
+sys.path.insert(0,str(root/'deploy/release'))
+from common import validate_manifest,verify_locks
+manifest=validate_manifest(json.load(open(root/'release.json')))
+verify_locks(root,manifest)
+PYTHON
 EXTRA=(release.json)
 # Explicit allowlist excludes local bench, databases, credentials and history.
 tar -C "$ROOT" --exclude=__pycache__ --exclude='*.pyc' -czf "$WORK/source.tar.gz" \

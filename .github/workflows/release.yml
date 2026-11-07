@@ -73,11 +73,17 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.sha }}
           fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-runtime-locks
+          path: /tmp/verified-runtime-locks
       - name: Build exact release artifacts
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          python3 deploy/release/build.py "$VERSION"
+          python3 deploy/release/build.py "$VERSION" --locks /tmp/verified-runtime-locks
+          mkdir -p deploy/locks
+          cp /tmp/verified-runtime-locks/*.txt deploy/locks/
           cp dist/release/release.json release.json
           ./deploy/build-installer.sh
           cp dist/clothing-erp-lxc.run dist/release/

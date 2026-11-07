@@ -56,3 +56,9 @@ jobs:
       - name: Build exact native app combination and run database tests
         shell: bash
         run: bash deploy/ci-integration.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-runtime-locks
+          path: /tmp/verified-runtime-locks/
+          retention-days: 14
+          overwrite: true

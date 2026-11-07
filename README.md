@@ -86,7 +86,7 @@ an arbitrary developer bench.
 
 The workflow updates the app version and tag, runs unit/security/recovery tests,
 creates a fresh database-backed Frappe/ERPNext installation, builds all assets,
-then publishes checksummed source, an exact-version manifest, provenance attestation,
+then publishes checksummed source, an exact-version manifest, tested dependency locks, provenance attestation,
 and a portable Proxmox installer. If verification fails, no stable release is
 published. Retry the failed run without rewriting its tag.
 

@@ -8,12 +8,16 @@ DESTINATION="$2"
 [[ -f $SOURCE/release.json ]] || { echo 'A verified release manifest is required.' >&2; exit 1; }
 mkdir -p "$DESTINATION/.runtime"
 python3 - "$SOURCE/release.json" "$DESTINATION/.runtime/pins.env" <<'PY'
-import json,sys
+import json,sys,os
 from pathlib import Path
 sys.path.insert(0,str(Path(sys.argv[1]).parent/'deploy/release'))
-from common import validate_manifest
-m=validate_manifest(json.load(open(sys.argv[1])))
+from common import validate_manifest, verify_locks
+allow_unlocked = os.environ.get("GITHUB_ACTIONS") == "true" and os.environ.get("CLOTHING_CI_RESOLVE") == "1"
+m=validate_manifest(json.load(open(sys.argv[1])), allow_unlocked=allow_unlocked)
+if m.get("locks"):
+    verify_locks(Path(sys.argv[1]).parent,m)
 values={f'{k.upper()}_VERSION':v for k,v in m['runtime'].items()}
+values['LOCKED']='1' if m.get('locks') else '0'
 for app in ('frappe','erpnext'):
     values[app.upper()+'_REF']=m[app]['ref']
     values[app.upper()+'_COMMIT']=m[app]['commit']
@@ -33,7 +37,13 @@ export PATH="$DESTINATION/.runtime/bin:$DESTINATION/.runtime/node/bin:$DESTINATI
 npm install --global --prefix "$DESTINATION/.runtime/node" yarn@1.22.22
 uv python install "$PYTHON_VERSION"
 uv venv --python "$PYTHON_VERSION" "$DESTINATION/.runtime/tools"
-uv pip install --python "$DESTINATION/.runtime/tools/bin/python" "frappe-bench==$BENCH_VERSION"
+TOOL_LOCK=()
+if [[ $LOCKED == 1 ]]; then TOOL_LOCK=(--constraint "$SOURCE/deploy/locks/tools.txt"); fi
+uv pip install --python "$DESTINATION/.runtime/tools/bin/python" "${TOOL_LOCK[@]}" "frappe-bench==$BENCH_VERSION"
+if [[ $LOCKED == 1 ]]; then
+    export UV_CONSTRAINT="$SOURCE/deploy/locks/python.txt"
+    export PIP_CONSTRAINT="$UV_CONSTRAINT"
+fi
 cp -a "$SOURCE" "$DESTINATION/source"
 git -C "$DESTINATION/source" init -b main
 git -C "$DESTINATION/source" add .
@@ -45,6 +55,14 @@ cd "$DESTINATION/bench"
 bench get-app --branch "$ERPNEXT_REF" --skip-assets https://github.com/frappe/erpnext.git
 [[ $(git -C apps/erpnext rev-parse HEAD) == "$ERPNEXT_COMMIT" ]] || { echo 'ERPNext tag no longer matches the release manifest.' >&2; exit 1; }
 bench get-app --skip-assets "$DESTINATION/source"
+if [[ $LOCKED == 1 ]]; then
+    # Reconcile any seeded installer packages, then prove the complete runtime matches CI.
+    uv pip install --python env/bin/python --requirement "$SOURCE/deploy/locks/python.txt"
+    uv pip freeze --python env/bin/python --exclude-editable > "$DESTINATION/.runtime/python.actual"
+    uv pip freeze --python "$DESTINATION/.runtime/tools/bin/python" --exclude-editable > "$DESTINATION/.runtime/tools.actual"
+    diff -u "$SOURCE/deploy/locks/python.txt" "$DESTINATION/.runtime/python.actual"
+    diff -u "$SOURCE/deploy/locks/tools.txt" "$DESTINATION/.runtime/tools.actual"
+fi
 ln -s "$DESTINATION/.runtime" .platform
 cp "$SOURCE/release.json" .clothing-release.json
 bench build --production
@@ -52,5 +70,8 @@ bench build --production
 chmod o+x "$DESTINATION" "$DESTINATION/bench" sites apps apps/frappe apps/frappe/frappe apps/erpnext apps/erpnext/erpnext apps/clothing_erp apps/clothing_erp/clothing_erp
 find -L sites/assets -type d -exec chmod o+rx {} +
 find -L sites/assets -type f -exec chmod o+r {} +
+for app in frappe erpnext clothing_erp; do
+    [[ -z $(git -C "apps/$app" status --porcelain) ]] || { echo "Build changed tracked source in $app" >&2; exit 1; }
+done
 touch .stage-complete
 echo "Prepared independent bench: $DESTINATION/bench"

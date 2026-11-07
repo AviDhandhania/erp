@@ -15,17 +15,27 @@ DIAGNOSTIC
 }
 trap report_failure ERR
 VERSION="v$(python3 -c 'import ast; print(ast.literal_eval(open("clothing_erp/__init__.py").read().split("=",1)[1].strip()))')"
-python3 deploy/release/build.py "$VERSION" --output /tmp/release-envelope
-python3 - "$VERSION" <<'PYTHON'
-import json,sys
+extract_recipe() {
+    python3 - "$VERSION" "$1" <<'PYTHON'
+import sys
 from pathlib import Path
 sys.path.insert(0,"deploy/release")
 from common import extract_archive
-directory=Path("/tmp/release-envelope")
+directory=Path(sys.argv[2])
 extract_archive(directory/f"clothing-erp-{sys.argv[1]}.tar.gz",directory/"source")
 (directory/"source/release.json").write_text((directory/"release.json").read_text())
 PYTHON
-# This is the SAME builder used by fresh LXC installs and customer updates.
+}
+# Resolve once in CI, freeze the full runtime, then test a SECOND fresh build
+# using those locks exactly as the eventual customer installer will.
+python3 deploy/release/build.py "$VERSION" --resolve-for-ci --output /tmp/resolve-envelope
+extract_recipe /tmp/resolve-envelope
+CLOTHING_CI_RESOLVE=1 bash /tmp/resolve-envelope/source/deploy/stage-release.sh /tmp/resolve-envelope/source /tmp/staged-resolve
+mkdir -p /tmp/verified-runtime-locks
+/tmp/staged-resolve/.runtime/bin/uv pip freeze --python /tmp/staged-resolve/bench/env/bin/python --exclude-editable > /tmp/verified-runtime-locks/python.txt
+/tmp/staged-resolve/.runtime/bin/uv pip freeze --python /tmp/staged-resolve/.runtime/tools/bin/python --exclude-editable > /tmp/verified-runtime-locks/tools.txt
+python3 deploy/release/build.py "$VERSION" --locks /tmp/verified-runtime-locks --output /tmp/release-envelope
+extract_recipe /tmp/release-envelope
 bash /tmp/release-envelope/source/deploy/stage-release.sh /tmp/release-envelope/source /tmp/staged-release
 export PATH="/tmp/staged-release/.runtime/tools/bin:/tmp/staged-release/.runtime/node/bin:/tmp/staged-release/.runtime/bin:$PATH"
 cd /tmp/staged-release/bench

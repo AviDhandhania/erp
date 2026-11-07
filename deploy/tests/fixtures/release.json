@@ -21,5 +21,15 @@
   "archive": {
     "name": "clothing-erp-v0.3.0.tar.gz",
     "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "locks": {
+    "python.txt": {
+      "path": "deploy/locks/python.txt",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "tools.txt": {
+      "path": "deploy/locks/tools.txt",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    }
   }
 }

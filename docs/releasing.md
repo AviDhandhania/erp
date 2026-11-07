@@ -24,6 +24,16 @@ a recursive copy of a developer's directory. The builder resolves annotated or
 lightweight upstream tags to full commits. Installation refuses a core tag that no
 longer resolves to that release's recorded commit.
 
+CI first resolves the environment, freezes every installed runtime Python package
+(including the Bench tools environment), then builds and tests a second fresh bench
+using those exact versions. Only the lock files from that passing build are included
+in the published source archive. Installers verify their checksums, constrain package
+installation, and compare the complete installed package lists against the locks.
+Node dependency versions come from the pinned upstream yarn.lock files; source-tree
+checks reject builds that rewrite upstream tracked files. Debian system libraries
+and package security updates remain distribution-managed, so this is version-locked
+application reproducibility rather than a claim of byte-identical OS images.
+
 Artifacts:
 
 - `clothing-erp-vX.Y.Z.tar.gz`: the custom app and its deployment tools.

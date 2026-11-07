@@ -20,7 +20,7 @@ A second fake ERP service or duplicated stock/accounting database is not involve
 
 Each published release contains an app source archive and `release.json` describing
 its exact Clothing ERP source commit, ERPNext/Frappe tag commits, Python, Node,
-Bench and uv versions. A source checksum and SHA256SUMS detect artifact corruption;
+Bench and uv versions, plus checksummed runtime dependency locks. A source checksum and SHA256SUMS detect artifact corruption;
 GitHub Actions also publishes provenance attestations. Normal installation uses
 GitHub's HTTPS release-asset endpoints. Local clients do not currently verify the
 Sigstore attestation; checksums alone are not an independent publisher signature.

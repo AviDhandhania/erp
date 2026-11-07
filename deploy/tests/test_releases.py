@@ -32,6 +32,10 @@ def manifest(version="v0.3.0"):
             "bench": "5.31.1",
             "uv": "0.13.7",
         },
+        "locks": {
+            name: {"path": f"deploy/locks/{name}", "sha256": "e" * 64}
+            for name in ("python.txt", "tools.txt")
+        },
         "archive": {"name": f"clothing-erp-{version}.tar.gz", "sha256": "d" * 64},
     }
 
@@ -419,8 +423,27 @@ class TestReleaseBuilder(unittest.TestCase):
                     ),
                 ),
             ):
-                first = module.build("v0.3.0", Path(directory) / "first")
-                second = module.build("v0.3.0", Path(directory) / "second")
+                first = module.build(
+                    "v0.3.0", Path(directory) / "first", resolve_for_ci=True
+                )
+                second = module.build(
+                    "v0.3.0", Path(directory) / "second", resolve_for_ci=True
+                )
+                locks = Path(directory) / "locks"
+                locks.mkdir()
+                for filename in ("python.txt", "tools.txt"):
+                    (locks / filename).write_text("test-package==1.2.3\n")
+                published = module.build(
+                    "v0.3.0", Path(directory) / "published", locks=locks
+                )
+                extracted = Path(directory) / "extracted"
+                common.extract_archive(
+                    Path(directory) / "published" / published["archive"]["name"],
+                    extracted,
+                )
+                common.verify_locks(extracted, published)
+                with self.assertRaisesRegex(ValueError, "dependency locks"):
+                    module.build("v0.3.0", Path(directory) / "not-publishable")
             self.assertEqual(first, second)
             with tarfile.open(
                 Path(directory) / "first" / first["archive"]["name"]
@@ -440,3 +463,33 @@ class TestReleaseBuilder(unittest.TestCase):
         )
         with patch.object(module.subprocess, "check_output", return_value=output):
             self.assertEqual(module.resolve("frappe", "v16.55.2"), "b" * 40)
+
+
+class TestDependencyLocks(unittest.TestCase):
+    def test_production_rejects_unlocked_ci_recipes(self):
+        data = manifest()
+        data.pop("locks")
+        with self.assertRaisesRegex(ValueError, "dependency locks"):
+            common.validate_manifest(data)
+        self.assertEqual(
+            common.validate_manifest(data, allow_unlocked=True)["version"], "v0.3.0"
+        )
+
+    def test_lock_contents_are_exact_and_hash_verified(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "deploy/locks").mkdir(parents=True)
+            data = manifest()
+            for name in ("python.txt", "tools.txt"):
+                path = root / "deploy/locks" / name
+                path.write_text("test-package==1.2.3\n")
+                data["locks"][name]["sha256"] = common.sha256(path)
+            common.verify_locks(root, data)
+            (root / "deploy/locks/python.txt").write_text("test-package>=1.2.3\n")
+            with self.assertRaisesRegex(ValueError, "checksum"):
+                common.verify_locks(root, data)
+            data["locks"]["python.txt"]["sha256"] = common.sha256(
+                root / "deploy/locks/python.txt"
+            )
+            with self.assertRaisesRegex(ValueError, "exact index-package"):
+                common.verify_locks(root, data)

@@ -28,7 +28,7 @@ def sha256(path):
     return digest.hexdigest()
 
 
-def validate_manifest(data):
+def validate_manifest(data, *, allow_unlocked=False):
     if data.get("schema") != 1 or data.get("platform") != "debian13-native-v1":
         raise ValueError("Unsupported release platform/schema")
     version_tuple(data["version"])
@@ -56,7 +56,32 @@ def validate_manifest(data):
         raise ValueError("Unexpected release archive name")
     if not re.fullmatch(r"[a-f0-9]{64}", data["archive"]["sha256"]):
         raise ValueError("Missing archive checksum")
+    locks = data.get("locks", {})
+    if not locks and allow_unlocked:
+        return data
+    for name in ("python.txt", "tools.txt"):
+        entry = locks.get(name, {})
+        if entry.get("path") != f"deploy/locks/{name}" or not re.fullmatch(
+            r"[a-f0-9]{64}", entry.get("sha256", "")
+        ):
+            raise ValueError("Verified runtime dependency locks are required")
     return data
+
+
+def verify_locks(source, manifest):
+    source = Path(source)
+    for name in ("python.txt", "tools.txt"):
+        path = source / manifest["locks"][name]["path"]
+        if sha256(path) != manifest["locks"][name]["sha256"]:
+            raise ValueError(f"Dependency lock checksum mismatch: {name}")
+        lines = [line.strip() for line in path.read_text().splitlines() if line.strip()]
+        if not lines or any(
+            not re.fullmatch(r"[A-Za-z0-9_.-]+==[A-Za-z0-9_.!+-]+", line)
+            for line in lines
+        ):
+            raise ValueError(
+                "Dependency locks must contain exact index-package versions only"
+            )
 
 
 def fetch_json(url):
@@ -166,6 +191,7 @@ def fetch_release(destination, tag=None):
     if sha256(destination / name) != manifest["archive"]["sha256"]:
         raise ValueError("Release archive checksum mismatch")
     extract_archive(destination / name, destination / "source")
+    verify_locks(destination / "source", manifest)
     (destination / "source/release.json").write_text(
         json.dumps(manifest, indent=2) + "\n"
     )
