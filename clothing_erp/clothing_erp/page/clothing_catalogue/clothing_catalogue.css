@@ -5,8 +5,9 @@
 .catalogue-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-sm); }
 .catalogue-product-head { display: flex; gap: 1rem; padding: 1rem; align-items: center; }
 .catalogue-product-head img, .catalogue-image-placeholder { width: 76px; height: 76px; border-radius: 12px; object-fit: cover; background: var(--subtle-fg); display: grid; place-items: center; flex: none; }
-.catalogue-photo-trigger { border: 0; background: none; padding: 0; cursor: pointer; }
-.catalogue-product-head .btn-link { display: block; margin-top: .25rem; }
+.catalogue-image-trigger { border: 0; background: none; padding: 0; cursor: pointer; }
+.catalogue-gallery-action { display: flex; align-items: center; gap: .35rem; width: fit-content; margin-top: .55rem; }
+.catalogue-gallery-action svg { width: 14px; height: 14px; }
 .catalogue-product-head h3 { font-size: 1.05rem; margin: 0 0 .2rem; }
 .catalogue-product-head p { color: var(--text-muted); margin: 0; }
 .catalogue-product-head span { font-size: .75rem; color: var(--text-muted); }

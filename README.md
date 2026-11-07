@@ -139,6 +139,11 @@ To add a product gallery without changing ERPNext core, open the colour-specific
 template in ERPNext, find **Clothing Product Gallery** beside the primary image, and add
 ordered image rows with optional captions. Save the Item. The catalogue shows a
 **View photos** action and opens the images in a responsive previous/next viewer.
+Uploaded gallery files are stored in the standard site `public/files` or
+`private/files` directory and are included in site backups. Removing a gallery row
+deletes its local upload only when no Item or other gallery still references it; a
+daily conservative sweep handles abandoned uploads. Packaged `/assets/clothing_erp/`
+demo images remain release-managed and are never removed by this cleanup.
 
 ### Retailer workflow
 

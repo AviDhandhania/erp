@@ -36,6 +36,16 @@ website_route_rules = [
 after_install = "clothing_erp.install.after_install"
 after_migrate = "clothing_erp.install.after_migrate"
 
+doc_events = {
+	"Item": {
+		"on_update": "clothing_erp.gallery.cleanup_removed_gallery_files",
+	}
+}
+
+scheduler_events = {
+	"daily_long": ["clothing_erp.gallery.cleanup_orphan_gallery_files"],
+}
+
 # Document Permission Hooks (Document-level access control)
 has_permission = {
 	"Customer": "clothing_erp.security.customer_has_permission",

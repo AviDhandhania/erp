@@ -94,6 +94,12 @@ class TestSitePermissions(IntegrationTestCase):
                 {"attribute": "TEST Clothing Colour"},
                 {"attribute": "TEST Clothing Size"},
             ],
+            "custom_clothing_product_images": [
+                {
+                    "image": "/assets/clothing_erp/images/seed/test-classic-tee.jpg",
+                    "caption": "TEST catalogue front",
+                }
+            ],
         }).insert()
         variant = create_variant(template.name, {
             "TEST Clothing Colour": "Black",
@@ -127,6 +133,7 @@ class TestSitePermissions(IntegrationTestCase):
 
         result = catalogue.get_catalogue(search="Catalogue Shirt")
         self.assertEqual(len(result["products"]), 1)
+        self.assertEqual(result["products"][0]["images"][0]["caption"], "TEST catalogue front")
         row = result["products"][0]["variants"][0]
         self.assertEqual(row["item_code"], variant.name)
         self.assertEqual(row["price"], 749)

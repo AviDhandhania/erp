@@ -65,6 +65,8 @@ in for them now.
 - [x] Locally bundled, attributed web photos for all fictional seed product families.
 - [x] App-owned multi-image gallery on Item templates with ordered captions and a
   responsive click-to-view catalogue viewer.
+- [x] Site-owned gallery uploads with reference-safe cleanup on row removal and a
+  conservative scheduled orphan sweep; packaged release images are never deleted.
 - [ ] Add clothing metadata fields after confirming the exact naming and reporting needs.
 - [ ] Add an assigned-retailer context and ERPNext pricing-rule/customer-specific calculation.
 - [ ] Persist selected quantities only as part of the separately tested Stage 5 cart/order flow.
@@ -94,7 +96,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 37 app tests passed through the real site runner, 8 installer/package
+Verification: 41 app tests passed through the real site runner, 8 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
 checks passed with all three icons and the Clothing ERP workspace. Current local
 testing is intentionally direct on port 8000; nginx is deferred from this phase.

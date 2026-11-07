@@ -147,8 +147,11 @@ class ClothingCatalogue {
 
 	product_card(product) {
 		const image = product.image
-			? `<button class="catalogue-photo-trigger" data-item-code="${this.escape(product.item_code)}" aria-label="${__("View photos for {0}", [this.escape(product.item_name)])}"><img src="${this.escape(product.image)}" alt=""></button>`
+			? `<button type="button" class="catalogue-photo-trigger catalogue-image-trigger" data-item-code="${this.escape(product.item_code)}" aria-label="${__("View photos for {0}", [this.escape(product.item_name)])}"><img src="${this.escape(product.image)}" alt=""></button>`
 			: `<div class="catalogue-image-placeholder">${frappe.utils.icon("image", "lg")}</div>`;
+		const gallery_action = product.images?.length
+			? `<button type="button" class="btn btn-default btn-sm catalogue-photo-trigger catalogue-gallery-action" data-item-code="${this.escape(product.item_code)}">${frappe.utils.icon("image", "sm")}<span>${__("View photos ({0})", [product.images.length])}</span></button>`
+			: "";
 		const rows = product.variants.map((variant) => `<tr>
 			<td><strong>${this.escape(this.attribute(variant, ["size"]))}</strong><small>${this.escape(variant.item_code)}</small></td>
 			<td>${variant.price == null ? `<span class="text-muted">${__("Not priced")}</span>` : format_currency(variant.price, variant.currency)}</td>
@@ -156,7 +159,7 @@ class ClothingCatalogue {
 			<td><input class="form-control variant-qty" type="number" inputmode="numeric" min="0" step="1" aria-label="${__("Quantity for {0}", [this.escape(variant.item_code)])}" data-item-code="${this.escape(variant.item_code)}" data-rate="${variant.price || 0}" data-currency="${this.escape(variant.currency)}" value="${this.selection.get(variant.item_code)?.quantity || ""}" ${variant.price == null ? "disabled" : ""}></td>
 		</tr>`).join("");
 		return `<article class="catalogue-card">
-			<div class="catalogue-product-head">${image}<div><h3>${this.escape(product.item_name)}</h3><p>${this.escape(product.item_code)}</p><span>${this.escape(product.brand || product.item_group)}</span>${product.images?.length ? `<button class="btn btn-link btn-xs catalogue-photo-trigger" data-item-code="${this.escape(product.item_code)}">${__("View {0} photos", [product.images.length])}</button>` : ""}</div></div>
+			<div class="catalogue-product-head">${image}<div><h3>${this.escape(product.item_name)}</h3><p>${this.escape(product.item_code)}</p><span>${this.escape(product.brand || product.item_group)}</span>${gallery_action}</div></div>
 			<div class="catalogue-table-wrap"><table class="table"><thead><tr><th>${__("Size / SKU")}</th><th>${__("Price")}</th><th>${__("On hand")}</th><th>${__("Qty")}</th></tr></thead><tbody>${rows || `<tr><td colspan="4">${__("No enabled variants")}</td></tr>`}</tbody></table></div>
 		</article>`;
 	}

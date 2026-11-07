@@ -101,6 +101,9 @@ class TestCatalogue(unittest.TestCase):
         app_root = Path(__file__).parents[1]
         page = loads((app_root / "clothing_erp/page/clothing_catalogue/clothing_catalogue.json").read_text())
         workspace = loads((app_root / "clothing_erp/workspace/salesperson_portal/salesperson_portal.json").read_text())
+        catalogue_script = (app_root / "clothing_erp/page/clothing_catalogue/clothing_catalogue.js").read_text()
         self.assertEqual(page["module"], "Clothing ERP")
         self.assertNotIn("Guest", {row["role"] for row in page["roles"]})
         self.assertTrue(any(row.get("link_to") == "clothing-catalogue" and row.get("type") == "Page" for row in workspace["shortcuts"]))
+        self.assertIn('class="btn btn-default btn-sm catalogue-photo-trigger catalogue-gallery-action"', catalogue_script)
+        self.assertIn('View photos ({0})', catalogue_script)
