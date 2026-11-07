@@ -1,0 +1,139 @@
+{% extends "templates/web.html" %}
+
+{% block header %}
+<style>
+	.clothing-hero {
+		background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+		color: #ffffff;
+		border-radius: 12px;
+		padding: 3rem 2rem;
+		margin-bottom: 2.5rem;
+		box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+	}
+	.clothing-badge-stage {
+		background-color: #3b82f6;
+		color: white;
+		font-weight: 600;
+		font-size: 0.85rem;
+		padding: 0.35rem 0.75rem;
+		border-radius: 9999px;
+		display: inline-block;
+		margin-bottom: 1rem;
+	}
+	.module-card {
+		border: 1px solid #e2e8f0;
+		border-radius: 10px;
+		transition: all 0.2s ease-in-out;
+		background: #ffffff;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+	}
+	.module-card:hover {
+		transform: translateY(-3px);
+		box-shadow: 0 12px 20px -5px rgba(0, 0, 0, 0.08);
+		border-color: #cbd5e1;
+	}
+	.module-card .card-body {
+		padding: 1.5rem;
+		flex-grow: 1;
+		display: flex;
+		flex-direction: column;
+	}
+	.module-badge {
+		font-size: 0.75rem;
+		padding: 0.2rem 0.5rem;
+		border-radius: 4px;
+		background: #f1f5f9;
+		color: #475569;
+		font-weight: 500;
+	}
+	.module-icon {
+		width: 42px;
+		height: 42px;
+		border-radius: 8px;
+		background: #eff6ff;
+		color: #2563eb;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.25rem;
+		margin-bottom: 1rem;
+	}
+</style>
+{% endblock %}
+
+{% block page_content %}
+<div class="container py-4">
+	<!-- Hero Section -->
+	<div class="clothing-hero text-center">
+		<span class="clothing-badge-stage">{{ _("Stage 1 Foundation") }}</span>
+		<h1 class="display-5 fw-bold mb-3">{{ _("Clothing ERP") }}</h1>
+		<p class="lead mb-4 text-light opacity-90 mx-auto" style="max-width: 650px;">
+			{{ _("Open-source apparel distribution and wholesale supply chain platform powered by Frappe Framework & ERPNext.") }}
+		</p>
+		{% if not is_authenticated %}
+		<div>
+			<a href="/login" class="btn btn-primary px-4 py-2 me-2 fw-semibold">
+				{{ _("Login to Desk") }}
+			</a>
+			<span class="text-muted d-inline-block mt-2 mt-sm-0">
+				{{ _("Viewing public preview mode") }}
+			</span>
+		</div>
+		{% else %}
+		<div>
+			<span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
+				{{ _("Connected as") }}: <strong>{{ current_user }}</strong>
+			</span>
+			<a href="/app" class="btn btn-outline-light btn-sm ms-3">
+				{{ _("Open Desk") }} &rarr;
+			</a>
+		</div>
+		{% endif %}
+	</div>
+
+	<!-- Section Heading -->
+	<div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
+		<div>
+			<h2 class="h4 mb-1 fw-bold text-dark">{{ _("Distribution Workspaces") }}</h2>
+			<p class="text-muted small mb-0">{{ _("Core operational domains for garment distribution and supply management") }}</p>
+		</div>
+		<span class="badge bg-secondary-subtle text-secondary">{{ navigation_items | length }} {{ _("Modules") }}</span>
+	</div>
+
+	<!-- Module Navigation Grid -->
+	<div class="row g-4 mb-5">
+		{% for item in navigation_items %}
+		<div class="col-12 col-md-6 col-lg-4" id="nav-item-{{ item.id }}">
+			<div class="module-card">
+				<div class="card-body">
+					<div class="d-flex justify-content-between align-items-start mb-2">
+						<div class="module-icon">
+							<span class="fw-bold">{{ item.label[:1] }}</span>
+						</div>
+						<span class="module-badge">{{ item.badge }}</span>
+					</div>
+					<h3 class="h5 fw-bold text-dark mb-2">{{ item.label }}</h3>
+					<p class="text-muted small mb-4 flex-grow-1">{{ item.description }}</p>
+					<div class="pt-2 border-top">
+						<a href="{{ item.url }}" class="btn btn-sm btn-outline-primary w-100 fw-semibold">
+							{{ _("Enter") }} {{ item.label }} &rarr;
+						</a>
+					</div>
+				</div>
+			</div>
+		</div>
+		{% endfor %}
+	</div>
+
+	<!-- Architecture Notice -->
+	<div class="alert alert-info border-0 shadow-sm d-flex align-items-center p-3 mb-4 rounded-3" role="alert">
+		<div class="me-3 fs-3 text-info">&#9432;</div>
+		<div class="small">
+			<strong>{{ _("Development Environment Rule") }}:</strong>
+			{{ _("All custom clothing distribution logic resides strictly in the independent") }} <code>clothing_erp</code> {{ _("app. Upstream ERPNext and Frappe core remain 100% untouched.") }}
+		</div>
+	</div>
+</div>
+{% endblock %}
