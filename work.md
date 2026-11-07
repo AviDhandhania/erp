@@ -14,12 +14,12 @@ This is the canonical roadmap. The workspace-level work.md points here.
 - [x] Native User Permissions for assignments; open ToDo required for operator pick lists.
 - [x] Regression unit tests and real database permission tests.
 - [x] Desktop launcher verified in Chromium against the real local site.
-- [x] Local nginx/systemd setup script for port 80, prepared for a sudo run.
+- [x] Direct local development server at `http://localhost:8000`, without nginx.
 - [x] Stable deployment release pins; native services and nginx for an IP-based LXC.
 - [x] Proxmox installer with preflight checks, new CT only, generated passwords, health check.
 - [x] Portable single-file installer and tests for packaging and host command flow.
 - [ ] Test a full installation/reboot/restore on an actual Proxmox host.
-- [ ] Activate local port 80 using sudo (passwordless sudo is unavailable to this session).
+- [ ] Revisit nginx/port 80 only when deployment testing is explicitly requested.
 
 The local pre-existing bench uses Frappe v16.55.2 and ERPNext develop 17.0.0-dev.
 It was not downgraded. New LXC deployments pin ERPNext v16.54.0 with Frappe v16.55.2.
@@ -51,9 +51,8 @@ ledgers or implement business behavior by modifying upstream core.
 
 Verification: 22 app tests passed through the real site runner, 8 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
-checks passed with all three icons, the Clothing ERP workspace and a connected
-realtime socket through nginx. nginx configurations were checked on unprivileged
-test ports; activating port 80 still requires the local sudo setup command.
+checks passed with all three icons and the Clothing ERP workspace. Current local
+testing is intentionally direct on port 8000; nginx is deferred from this phase.
 
 
 ## Release lifecycle pipeline

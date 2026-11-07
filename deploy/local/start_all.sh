@@ -34,12 +34,13 @@ WORKER_PID=$!
 "$ROOT/bench" schedule > logs/scheduler.log 2>&1 &
 SCHEDULER_PID=$!
 trap 'kill "$SOCKET_PID" "$WORKER_PID" "$SCHEDULER_PID" 2>/dev/null || true' EXIT
-# Frappe's static-file wrapper is useful in local development; nginx serves assets in LXC.
+# The development WSGI wrapper serves the app and its assets directly. Local
+# testing deliberately has no reverse proxy or system service dependency.
 . "$ROOT/.venv/bin/activate"
 gunicorn --chdir "$ROOT/frappe-bench/sites" --bind 127.0.0.1:8000 --workers 2 --threads 4 --timeout 120 'clothing_erp.wsgi:create_development_application()' &
 WEB_PID=$!
 trap 'kill "$WEB_PID" "$SOCKET_PID" "$WORKER_PID" "$SCHEDULER_PID" 2>/dev/null || true' EXIT
 trap 'exit 0' TERM INT
-printf 'Native ERP is running at http://localhost:8000/\nUse sudo ./scripts/setup-local-http.sh once for http://localhost/\n'
+printf 'Native ERP local test server is running at http://localhost:8000/\n'
 wait -n "$WEB_PID" "$SOCKET_PID" "$WORKER_PID" "$SCHEDULER_PID"
 exit 1

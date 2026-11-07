@@ -117,10 +117,12 @@ subject to native ERPNext permissions. No mock sales or simulated ERP server is 
 - [Backups, recovery, layout and service commands](docs/operations.md)
 - [Deployment pins](deploy/versions.env)
 
-The existing `/home/avi/GitHub/erp` development workspace still uses
-`./scripts/start_all.sh`; `sudo ./scripts/setup-local-http.sh` enables no-port local
-access. It contains the fictional **TEST Clothing ERP Demo** company. Its pre-existing
-ERPNext develop checkout is not a release target and has not been downgraded.
+The existing `/home/avi/GitHub/erp` development workspace uses
+`./scripts/start_all.sh`. Open **http://localhost:8000** for current local testing.
+This development path serves Frappe directly and does not use nginx, port 80 or a
+system service. It contains the fictional **TEST Clothing ERP Demo** company. Its
+pre-existing ERPNext develop checkout is not a release target and has not been
+downgraded.
 
 **Validation limits:** automated app/database/recovery tests run locally and in CI.
 Host-command tests simulate Proxmox. A complete install/update/reboot/restore on an
