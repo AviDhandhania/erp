@@ -9,13 +9,25 @@ app_license = "mit"
 
 required_apps = ["erpnext"]
 
-# Routing and Portal
+# Routing & Portal Homepage
 home_page = "clothing"
 
 website_route_rules = [
 	{"from_route": "/", "to_route": "clothing"},
 	{"from_route": "/clothing-erp", "to_route": "clothing"},
+	{"from_route": "/salesperson", "to_route": "clothing"},
+	{"from_route": "/warehouse", "to_route": "clothing"},
 ]
 
-# Installation
+# Lifecycle Installation & Migrations
 after_install = "clothing_erp.install.after_install"
+after_migrate = "clothing_erp.install.after_migrate"
+
+# Document Permission Hooks (Document-level access control)
+has_permission = {
+	"Customer": "clothing_erp.security.has_retailer_access",
+}
+
+permission_query_conditions = {
+	"Customer": "clothing_erp.security.get_salesperson_customer_conditions",
+}

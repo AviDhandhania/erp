@@ -1,0 +1,105 @@
+{
+ "app": "clothing_erp",
+ "charts": [],
+ "content": "[{\"id\": \"whcard001\", \"type\": \"card\", \"data\": {\"card_name\": \"Fulfillment Tasks\", \"col\": 6}}, {\"id\": \"whcard002\", \"type\": \"card\", \"data\": {\"card_name\": \"Stock & Packages\", \"col\": 6}}]",
+ "creation": "2026-11-07 15:45:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "package",
+ "idx": 3,
+ "is_hidden": 0,
+ "label": "Warehouse Operations",
+ "public": 1,
+ "roles": [
+  {
+   "role": "Clothing Warehouse Operator"
+  },
+  {
+   "role": "Clothing Warehouse Manager"
+  },
+  {
+   "role": "Clothing Business Administrator"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "shortcuts": [
+  {
+   "label": "Assigned Pick Lists",
+   "link_to": "Pick List",
+   "type": "DocType"
+  },
+  {
+   "label": "Packing Queue",
+   "link_to": "Delivery Note",
+   "type": "DocType"
+  },
+  {
+   "label": "Stock Movement",
+   "link_to": "Stock Entry",
+   "type": "DocType"
+  }
+ ],
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Fulfillment Tasks",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Pick Lists",
+   "link_count": 0,
+   "link_to": "Pick List",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Delivery Notes",
+   "link_count": 0,
+   "link_to": "Delivery Note",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Stock & Packages",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Stock Balance",
+   "link_count": 0,
+   "link_to": "Stock Entry",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Warehouses",
+   "link_count": 0,
+   "link_to": "Warehouse",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ]
+}

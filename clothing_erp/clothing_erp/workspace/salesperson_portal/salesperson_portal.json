@@ -1,0 +1,95 @@
+{
+ "app": "clothing_erp",
+ "charts": [],
+ "content": "[{\"id\": \"spcard001\", \"type\": \"card\", \"data\": {\"card_name\": \"My Operations\", \"col\": 6}}, {\"id\": \"spcard002\", \"type\": \"card\", \"data\": {\"card_name\": \"Catalog & Retailers\", \"col\": 6}}]",
+ "creation": "2026-11-07 15:45:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "shopping-cart",
+ "idx": 2,
+ "is_hidden": 0,
+ "label": "Salesperson Portal",
+ "public": 1,
+ "roles": [
+  {
+   "role": "Clothing Salesperson"
+  },
+  {
+   "role": "Clothing Sales Manager"
+  },
+  {
+   "role": "Clothing Business Administrator"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "shortcuts": [
+  {
+   "label": "+ New Sales Order",
+   "link_to": "Sales Order",
+   "type": "DocType"
+  },
+  {
+   "label": "+ Register Retailer",
+   "link_to": "Customer",
+   "type": "DocType"
+  },
+  {
+   "label": "Apparel Catalog",
+   "link_to": "Item",
+   "type": "DocType"
+  }
+ ],
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "My Operations",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "My Sales Orders",
+   "link_count": 0,
+   "link_to": "Sales Order",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Catalog & Retailers",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Assigned Retailers",
+   "link_count": 0,
+   "link_to": "Customer",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Garment Items",
+   "link_count": 0,
+   "link_to": "Item",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ]
+}
