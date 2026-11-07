@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4F46E5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7C3AED;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="20" fill="url(#grad)" />
+  <!-- T-shirt / Clothing icon -->
+  <path d="M 32 25 L 42 32 C 45 35 55 35 58 32 L 68 25 L 82 38 L 74 48 L 68 44 L 68 75 C 68 77 66 79 64 79 L 36 79 C 34 79 32 77 32 75 L 32 44 L 26 48 L 18 38 Z" fill="#FFFFFF" />
+</svg>

@@ -1,4 +1,5 @@
 {
+ "name": "Clothing ERP",
  "app": "clothing_erp",
  "charts": [],
  "content": "[{\"id\": \"clcard001\", \"type\": \"card\", \"data\": {\"card_name\": \"Sales Operations\", \"col\": 4}}, {\"id\": \"clcard002\", \"type\": \"card\", \"data\": {\"card_name\": \"Warehouse & Inventory\", \"col\": 4}}, {\"id\": \"clcard003\", \"type\": \"card\", \"data\": {\"card_name\": \"Garment Catalog\", \"col\": 4}}]",

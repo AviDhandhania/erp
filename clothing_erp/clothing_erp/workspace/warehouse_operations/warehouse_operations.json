@@ -1,4 +1,5 @@
 {
+ "name": "Warehouse Operations",
  "app": "clothing_erp",
  "charts": [],
  "content": "[{\"id\": \"whcard001\", \"type\": \"card\", \"data\": {\"card_name\": \"Fulfillment Tasks\", \"col\": 6}}, {\"id\": \"whcard002\", \"type\": \"card\", \"data\": {\"card_name\": \"Stock & Packages\", \"col\": 6}}]",

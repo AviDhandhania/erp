@@ -1,4 +1,5 @@
 {
+ "name": "Salesperson Portal",
  "app": "clothing_erp",
  "charts": [],
  "content": "[{\"id\": \"spcard001\", \"type\": \"card\", \"data\": {\"card_name\": \"My Operations\", \"col\": 6}}, {\"id\": \"spcard002\", \"type\": \"card\", \"data\": {\"card_name\": \"Catalog & Retailers\", \"col\": 6}}]",

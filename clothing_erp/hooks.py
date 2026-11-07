@@ -9,6 +9,16 @@ app_license = "mit"
 
 required_apps = ["erpnext"]
 
+add_to_apps_screen = [
+	{
+		"name": "clothing_erp",
+		"logo": "/assets/clothing_erp/images/clothing_erp_logo.svg",
+		"title": "Clothing ERP",
+		"route": "/desk/clothing-erp",
+		"setup_wizard_text": "Configure wholesale clothing distribution.",
+	}
+]
+
 # Routing & Portal Homepage
 home_page = "clothing"
 
