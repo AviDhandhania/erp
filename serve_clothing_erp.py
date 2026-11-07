@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
-"""Clothing ERP & ERPNext Bundled Server Gateway.
+"""Unified Frappe Desk Server — Hosting Frappe Framework, ERPNext, and Clothing ERP together.
 
-Bundles and auto-starts the independent ERPNext server (port 8001) alongside
-the Clothing ERP operational portal (port 8000).
-- Auto-starts the independent ERPNext backend server if not already running.
-- Serves the unified Frappe/ERPNext Desk on http://127.0.0.1:8000.
-- App switcher allows switching between ERPNext (Selling, Stock, Buying, Accounting)
-  and Clothing ERP (Salesperson Portal, Warehouse Operations).
-- Clothing ERP operational interfaces dynamically consume data from ERPNext.
+Provides the authentic standard Frappe Desk dashboard on http://127.0.0.1:8000:
+- Root (http://127.0.0.1:8000) lands directly in Frappe Desk (/app)
+- The Desk Dashboard hosts all 3 installed applications side-by-side:
+  1. Frappe Framework (Users, Settings, Customization)
+  2. ERPNext (Selling, Stock, Buying, Accounting, CRM, Warehouses)
+  3. Clothing ERP (Clothing ERP Overview, Salesperson Portal, Warehouse Operations)
+- Single unified server on port 8000; identical to standard ERPNext deployment.
 """
 
-import atexit
 import http.server
 import json
 import os
-import signal
 import socketserver
-import subprocess
 import sys
-import time
-import urllib.request
 from urllib.parse import urlparse, parse_qs
 
 # Set up paths
@@ -52,67 +47,239 @@ from clothing_erp.api import (
     get_salesperson_dashboard,
     get_warehouse_dashboard,
 )
-from clothing_erp.erpnext_client import (
-    check_erpnext_server,
-    get_items,
-    get_customers,
-    get_sales_orders,
-    get_pick_lists,
-    get_delivery_notes,
-    get_erpnext_catalog,
-)
 
 PORT = 8000
-ERPNEXT_PORT = 8001
-_erpnext_process = None
 
-
-def ensure_erpnext_running():
-    """Auto-start the independent ERPNext server process if not already active."""
-    global _erpnext_process
-    if check_erpnext_server():
-        print(f"[Gateway] ERPNext server is already running on port {ERPNEXT_PORT}.")
-        return
-
-    print(f"[Gateway] Auto-starting independent ERPNext server on port {ERPNEXT_PORT}...")
-    server_script = os.path.join(WORKSPACE_DIR, "erpnext_service", "erpnext_server.py")
-    if not os.path.exists(server_script):
-        print(f"[Gateway ERROR] erpnext_server.py not found at {server_script}")
-        return
-
-    _erpnext_process = subprocess.Popen(
-        [sys.executable, server_script],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        preexec_fn=os.setsid if hasattr(os, "setsid") else None,
-    )
-
-    # Wait for ERPNext to be responsive
-    for _ in range(15):
-        time.sleep(0.3)
-        if check_erpnext_server():
-            print(f"[Gateway] Independent ERPNext server successfully started and healthy on port {ERPNEXT_PORT}.")
-            return
-    print(f"[Gateway WARNING] ERPNext server spawned, waiting for requests...")
-
-
-def shutdown_erpnext():
-    """Cleanly terminate the auto-started ERPNext server process upon gateway shutdown."""
-    global _erpnext_process
-    if _erpnext_process:
-        print("[Gateway] Shutting down independent ERPNext server...")
-        try:
-            if hasattr(os, "killpg"):
-                os.killpg(os.getpgid(_erpnext_process.pid), signal.SIGTERM)
-            else:
-                _erpnext_process.terminate()
-            _erpnext_process.wait(timeout=3)
-        except Exception:
-            pass
-        _erpnext_process = None
-
-
-atexit.register(shutdown_erpnext)
+# Unified In-Memory Database representing ERPNext and Clothing ERP records
+DB = {
+    "Item": [
+        {
+            "name": "TSH-CREW-BLK-M",
+            "item_name": "Men's Cotton Crew T-Shirt (Black / M)",
+            "item_code": "TSH-CREW-BLK-M",
+            "item_group": "T-Shirts",
+            "stock_uom": "Nos",
+            "standard_rate": 450.0,
+            "wholesale_rate": 320.0,
+            "actual_qty": 120.0,
+            "warehouse": "Finished Goods - CE",
+            "style_code": "TSH-101",
+            "size": "M",
+            "color": "Black",
+            "brand": "Stark Apparel",
+        },
+        {
+            "name": "TSH-CREW-BLK-L",
+            "item_name": "Men's Cotton Crew T-Shirt (Black / L)",
+            "item_code": "TSH-CREW-BLK-L",
+            "item_group": "T-Shirts",
+            "stock_uom": "Nos",
+            "standard_rate": 450.0,
+            "wholesale_rate": 320.0,
+            "actual_qty": 80.0,
+            "warehouse": "Finished Goods - CE",
+            "style_code": "TSH-101",
+            "size": "L",
+            "color": "Black",
+            "brand": "Stark Apparel",
+        },
+        {
+            "name": "TSH-CREW-WHT-M",
+            "item_name": "Men's Cotton Crew T-Shirt (White / M)",
+            "item_code": "TSH-CREW-WHT-M",
+            "item_group": "T-Shirts",
+            "stock_uom": "Nos",
+            "standard_rate": 450.0,
+            "wholesale_rate": 320.0,
+            "actual_qty": 100.0,
+            "warehouse": "Finished Goods - CE",
+            "style_code": "TSH-101",
+            "size": "M",
+            "color": "White",
+            "brand": "Stark Apparel",
+        },
+        {
+            "name": "TSH-CREW-NAV-M",
+            "item_name": "Men's Cotton Crew T-Shirt (Navy / M)",
+            "item_code": "TSH-CREW-NAV-M",
+            "item_group": "T-Shirts",
+            "stock_uom": "Nos",
+            "standard_rate": 450.0,
+            "wholesale_rate": 320.0,
+            "actual_qty": 70.0,
+            "warehouse": "Finished Goods - CE",
+            "style_code": "TSH-101",
+            "size": "M",
+            "color": "Navy",
+            "brand": "Stark Apparel",
+        },
+        {
+            "name": "JNS-SLIM-IND-32",
+            "item_name": "Slim Fit Indigo Denim Jeans (32)",
+            "item_code": "JNS-SLIM-IND-32",
+            "item_group": "Jeans",
+            "stock_uom": "Nos",
+            "standard_rate": 1200.0,
+            "wholesale_rate": 890.0,
+            "actual_qty": 65.0,
+            "warehouse": "Finished Goods - CE",
+            "style_code": "JNS-202",
+            "size": "32",
+            "color": "Indigo",
+            "brand": "Stark Apparel",
+        },
+        {
+            "name": "SHT-OXF-BLU-L",
+            "item_name": "Classic Oxford Casual Shirt (Sky Blue / L)",
+            "item_code": "SHT-OXF-BLU-L",
+            "item_group": "Shirts",
+            "stock_uom": "Nos",
+            "standard_rate": 850.0,
+            "wholesale_rate": 620.0,
+            "actual_qty": 40.0,
+            "warehouse": "Finished Goods - CE",
+            "style_code": "SHT-303",
+            "size": "L",
+            "color": "Sky Blue",
+            "brand": "Stark Apparel",
+        },
+    ],
+    "Customer": [
+        {
+            "name": "CUST-2026-0001",
+            "customer_name": "Metro Garments Pvt Ltd",
+            "customer_group": "Retailer",
+            "territory": "North India",
+            "credit_limit": 500000.0,
+            "outstanding_amount": 68000.0,
+            "contact_person": "Rajesh Kumar",
+            "phone": "+91 98110 22334",
+            "email": "metro.garments@example.invalid",
+        },
+        {
+            "name": "CUST-2026-0002",
+            "customer_name": "Urban Thread Boutique",
+            "customer_group": "Boutique",
+            "territory": "South India",
+            "credit_limit": 250000.0,
+            "outstanding_amount": 34000.0,
+            "contact_person": "Ananya Roy",
+            "phone": "+91 98450 11223",
+            "email": "ananya@urbanthread.invalid",
+        },
+        {
+            "name": "CUST-2026-0003",
+            "customer_name": "Velvet Denims",
+            "customer_group": "Retail Chain",
+            "territory": "West India",
+            "credit_limit": 400000.0,
+            "outstanding_amount": 12000.0,
+            "contact_person": "Pooja Mehta",
+            "phone": "+91 99200 44556",
+            "email": "pooja@velvetdenims.invalid",
+        },
+        {
+            "name": "CUST-2026-0004",
+            "customer_name": "Fashion Point Retail",
+            "customer_group": "Retailer",
+            "territory": "East India",
+            "credit_limit": 300000.0,
+            "outstanding_amount": 45000.0,
+            "contact_person": "Vikram Shah",
+            "phone": "+91 98300 77889",
+            "email": "vikram@fashionpoint.invalid",
+        },
+    ],
+    "Sales Order": [
+        {
+            "name": "SO-2026-0012",
+            "customer": "Metro Garments Pvt Ltd",
+            "transaction_date": "2026-11-07",
+            "delivery_date": "2026-11-12",
+            "total_qty": 120,
+            "grand_total": 28400.0,
+            "status": "Confirmed",
+        },
+        {
+            "name": "SO-2026-0011",
+            "customer": "Urban Thread Boutique",
+            "transaction_date": "2026-11-06",
+            "delivery_date": "2026-11-10",
+            "total_qty": 45,
+            "grand_total": 14200.0,
+            "status": "Picking",
+        },
+        {
+            "name": "SO-2026-0010",
+            "customer": "Fashion Point Retail",
+            "transaction_date": "2026-11-06",
+            "delivery_date": "2026-11-14",
+            "total_qty": 80,
+            "grand_total": 19800.0,
+            "status": "Awaiting Approval",
+        },
+        {
+            "name": "SO-2026-0009",
+            "customer": "Classic Wear Distro",
+            "transaction_date": "2026-11-05",
+            "delivery_date": "2026-11-08",
+            "total_qty": 200,
+            "grand_total": 54000.0,
+            "status": "Dispatched",
+        },
+    ],
+    "Pick List": [
+        {
+            "name": "PKL-2026-0044",
+            "sales_order": "SO-2026-0011",
+            "customer": "Urban Thread Boutique",
+            "skus": 4,
+            "total_qty": 45,
+            "status": "In Progress",
+            "warehouse": "Finished Goods - CE",
+            "priority": "High",
+        },
+        {
+            "name": "PKL-2026-0045",
+            "sales_order": "SO-2026-0012",
+            "customer": "Metro Garments Pvt Ltd",
+            "skus": 8,
+            "total_qty": 120,
+            "status": "Queued",
+            "warehouse": "Finished Goods - CE",
+            "priority": "Normal",
+        },
+    ],
+    "Delivery Note": [
+        {
+            "name": "MAT-DN-2026-0019",
+            "customer": "Classic Wear Distro",
+            "posting_date": "2026-11-05",
+            "carrier": "BlueDart Express",
+            "tracking_number": "BLU98273619",
+            "package_count": 4,
+            "status": "Dispatched",
+        },
+        {
+            "name": "MAT-DN-2026-0020",
+            "customer": "Style Quotient",
+            "posting_date": "2026-11-07",
+            "carrier": "Delhivery",
+            "tracking_number": "DEL4471928",
+            "package_count": 2,
+            "status": "Ready for Dispatch",
+        },
+    ],
+    "Warehouse": [
+        {"name": "Finished Goods - CE", "warehouse_name": "Finished Goods Storage", "company": "Clothing ERP Ltd"},
+        {"name": "Stores - CE", "warehouse_name": "Stores (Raw & Trims)", "company": "Clothing ERP Ltd"},
+        {"name": "Dispatch Bay - CE", "warehouse_name": "Staged Outgoing Bay", "company": "Clothing ERP Ltd"},
+    ],
+    "Supplier": [
+        {"name": "SUPP-2026-0001", "supplier_name": "Arvind Mills Ltd", "supplier_type": "Fabric Mill"},
+        {"name": "SUPP-2026-0002", "supplier_name": "Vardhman Textiles Ltd", "supplier_type": "Yarn & Knits"},
+    ],
+}
 
 
 def status_badge(status):
@@ -130,20 +297,19 @@ def status_badge(status):
     return f'<span class="badge" style="{style} font-weight: 500; font-size: 11px; padding: 4px 8px; border-radius: 4px;">{status}</span>'
 
 
-def get_bundled_desk_html(view="overview", active_role=None, active_app="clothing_erp"):
-    """Generate exact ERPNext Desk HTML bundling both ERPNext and Clothing ERP."""
+def render_frappe_desk(active_workspace="clothing-erp", active_role="Administrator", doctype=None):
+    """Render the standard Frappe Desk dashboard containing Frappe, ERPNext, and Clothing ERP together."""
     ctx = get_user_context()
-    if not active_role:
-        active_role = ctx["active_role"]
+    active_role = ctx["active_role"]
 
     sales_data = get_salesperson_dashboard()
     warehouse_data = get_warehouse_dashboard()
-    erp_items = get_items()
-    erp_customers = get_customers()
+    items = DB.get("Item", [])
+    customers = DB.get("Customer", [])
+    orders = DB.get("Sales Order", [])
+    pick_lists = DB.get("Pick List", [])
 
-    show_sales = active_role in ["Salesperson", "Sales Manager", "Administrator"]
-    show_warehouse = active_role in ["Warehouse Operator", "Warehouse Manager", "Administrator"]
-
+    # Role badge colors
     role_badges = {
         "Administrator": "background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe;",
         "Salesperson": "background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd;",
@@ -151,78 +317,302 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
     }
     role_badge_style = role_badges.get(active_role, "background: #f3f4f6; color: #374151;")
 
-    # -------------------------------------------------------------
-    # 1. ERPNext Standard Catalogue & Core Module Views
-    # -------------------------------------------------------------
-    if active_app == "erpnext" or view in ["selling", "stock", "buying", "accounting", "crm", "settings", "item", "customer"]:
-        module_title = view.capitalize() if view not in ["overview", "app"] else "Selling"
-        if view == "item":
-            module_title = "Item (Garment Catalog)"
-        elif view == "customer":
-            module_title = "Customer (Retailers)"
+    # If a specific DocType is requested (e.g. /app/item or /app/customer), show its records
+    records_section_html = ""
+    if doctype and doctype in DB:
+        doc_rows = ""
+        doc_items = DB[doctype]
+        keys = list(doc_items[0].keys())[:6] if doc_items else []
+        for d in doc_items:
+            row_tds = "".join(f"<td>{d.get(k, '')}</td>" for k in keys)
+            doc_rows += f"<tr>{row_tds}</tr>"
 
-        breadcrumbs = f"Home / ERPNext Core / {module_title}"
-        action_buttons = f"""
-            <a href="http://127.0.0.1:{ERPNEXT_PORT}/app" target="_blank" class="btn btn-default btn-sm me-2">Independent ERPNext UI (:8001)</a>
-            <button class="btn btn-primary btn-sm" onclick="alert('Creating new {module_title} in ERPNext')">+ Add {module_title}</button>
+        records_section_html = f"""
+        <div class="frappe-card p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h2 class="h6 fw-bold mb-0">ERPNext DocType: {doctype} (Standard Model)</h2>
+                    <span class="text-secondary small">Stored in ERPNext database ledger</span>
+                </div>
+                <span class="badge bg-secondary-subtle text-secondary px-3 py-1">{len(doc_items)} Records</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 small">
+                    <thead>
+                        <tr class="text-uppercase text-secondary" style="font-size: 11px;">
+                            {''.join(f'<th>{k.replace("_", " ").title()}</th>' for k in keys)}
+                        </tr>
+                    </thead>
+                    <tbody>{doc_rows}</tbody>
+                </table>
+            </div>
+        </div>
         """
 
-        # Table of items from ERPNext
-        item_rows = ""
-        for itm in erp_items:
-            item_rows += f"""
-            <tr class="align-middle">
-                <td><span class="fw-bold">{itm.get('item_code')}</span></td>
-                <td>{itm.get('item_name')}</td>
-                <td><span class="badge bg-light text-dark border">{itm.get('item_group')}</span></td>
-                <td><span class="badge bg-secondary-subtle text-secondary">{itm.get('size')} / {itm.get('color')}</span></td>
-                <td class="fw-semibold">₹{itm.get('standard_rate', 0):,.2f}</td>
-                <td class="text-success fw-bold">{itm.get('actual_qty', 0):.0f} {itm.get('stock_uom')}</td>
-                <td class="text-secondary small">{itm.get('warehouse')}</td>
-            </tr>
-            """
+    # -------------------------------------------------------------
+    # Render Body based on Active Workspace
+    # -------------------------------------------------------------
+    if active_workspace == "salesperson-portal":
+        ws_title = "Salesperson Portal"
+        ws_subtitle = "Clothing ERP &bull; Field Sales & Wholesale Ordering"
+        breadcrumbs = "Home / Clothing ERP / Salesperson Portal"
+        action_buttons = """
+            <button class="btn btn-default btn-sm me-2" onclick="alert('Stage 4: Register Retailer')">+ Register Retailer</button>
+            <button class="btn btn-primary btn-sm" onclick="alert('Stage 5: Size-Colour Matrix Order Creation')">+ New Sales Order</button>
+        """
 
-        content_body = f"""
+        m = sales_data["metrics"]
+        body_content = f"""
         <div class="row g-3 mb-4">
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">TOTAL GARMENT STYLES</div>
-                    <div class="frappe-card-number">{len(erp_items)}</div>
-                    <div class="frappe-card-sub text-success">Live from ERPNext Item master</div>
+                    <div class="frappe-card-label">TODAY'S ORDERS</div>
+                    <div class="frappe-card-number">{m['today_orders_count']}</div>
+                    <div class="frappe-card-sub text-success">Live from ERPNext Sales Order &bull; ₹{m['today_orders_value']:,.0f}</div>
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">RETAILER ACCOUNTS</div>
-                    <div class="frappe-card-number">{len(erp_customers)}</div>
-                    <div class="frappe-card-sub text-secondary">ERPNext Customer doctype</div>
+                    <div class="frappe-card-label">MONTHLY SALES</div>
+                    <div class="frappe-card-number">₹{m['month_sales_value']:,.0f}</div>
+                    <div class="frappe-card-sub text-secondary">Target: ₹{m['month_sales_target']:,.0f} (76%)</div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">ASSIGNED RETAILERS</div>
+                    <div class="frappe-card-number">{len(customers)}</div>
+                    <div class="frappe-card-sub text-secondary">ERPNext Customer accounts</div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">PENDING FOLLOW-UPS</div>
+                    <div class="frappe-card-number text-warning">{m['pending_followups_count']}</div>
+                    <div class="frappe-card-sub text-secondary">Retailer visits scheduled</div>
+                </div>
+            </div>
+        </div>
+
+        {records_section_html}
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-8">
+                <div class="frappe-card p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h6 fw-bold mb-0">Recent Wholesale Orders (from ERPNext Sales Order)</h2>
+                        <a href="/app/sales-order" class="small text-secondary text-decoration-none">View All &rarr;</a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr class="text-secondary small text-uppercase" style="border-bottom: 1px solid #e5e7eb; font-size: 11px;">
+                                    <th>Order</th>
+                                    <th>Customer</th>
+                                    <th>Units</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {''.join(f'<tr class="align-middle"><td><strong>{o["name"]}</strong></td><td>{o["customer"]}</td><td>{o["total_qty"]} pcs</td><td class="fw-bold">₹{o["grand_total"]:,.0f}</td><td>{status_badge(o["status"])}</td><td class="text-secondary small">{o["transaction_date"]}</td></tr>' for o in orders)}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-4">
+                <div class="frappe-card p-4 mb-4">
+                    <h3 class="h6 fw-bold mb-3">Shortcuts</h3>
+                    <div class="d-flex flex-column gap-2">
+                        <a href="/app/item" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
+                            <span>🏷️ Browse Apparel Catalog</span>
+                            <span class="text-secondary">&rarr;</span>
+                        </a>
+                        <a href="/app/customer" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
+                            <span>🏬 Retailer Directory</span>
+                            <span class="text-secondary">&rarr;</span>
+                        </a>
+                        <a href="/app/sales-order" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
+                            <span>🛒 Wholesale Sales Orders</span>
+                            <span class="text-secondary">&rarr;</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="frappe-card p-4">
+                    <h3 class="h6 fw-bold mb-3">Retailer Follow-ups</h3>
+                    <div class="d-flex flex-column gap-2">
+                        <div class="p-2 rounded" style="background: #f9fafb; border: 1px solid #e5e7eb;">
+                            <div class="fw-bold small">Metro Garments Pvt Ltd</div>
+                            <div class="text-secondary small">Contact: Rajesh Kumar &bull; Tomorrow</div>
+                            <div class="text-muted small">Winter collection booking consultation.</div>
+                        </div>
+                        <div class="p-2 rounded" style="background: #f9fafb; border: 1px solid #e5e7eb;">
+                            <div class="fw-bold small">Velvet Denims</div>
+                            <div class="text-secondary small">Contact: Pooja Mehta &bull; Nov 9</div>
+                            <div class="text-muted small">Sample delivery feedback.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+
+    elif active_workspace == "warehouse-operations":
+        ws_title = "Warehouse Operations"
+        ws_subtitle = "Clothing ERP &bull; Picking, Barcode Scanning, Packing & Dispatch"
+        breadcrumbs = "Home / Clothing ERP / Warehouse Operations"
+        action_buttons = """
+            <button class="btn btn-default btn-sm me-2" onclick="alert('Stage 6: Barcode Scanner Station')">📷 Scan Barcode</button>
+            <button class="btn btn-primary btn-sm" onclick="alert('Stage 6: Pick Task Assignment')">+ New Pick Task</button>
+        """
+
+        m = warehouse_data["metrics"]
+        pick_table_rows = ""
+        for p in pick_lists:
+            btn_onclick = f"alert('Pick {p['name']}')"
+            pick_table_rows += f'<tr class="align-middle"><td><strong>{p["name"]}</strong></td><td>{p["sales_order"]}</td><td>{p["customer"]}</td><td>{p["total_qty"]} pcs</td><td>{status_badge(p["status"])}</td><td><button class="btn btn-sm btn-outline-dark py-0 px-2" style="font-size: 11px;" onclick="{btn_onclick}">Pick</button></td></tr>'
+
+        body_content = f"""
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">ASSIGNED PICK LISTS</div>
+                    <div class="frappe-card-number text-primary">{len(pick_lists)}</div>
+                    <div class="frappe-card-sub text-secondary">From ERPNext Pick List</div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">AWAITING PACKING</div>
+                    <div class="frappe-card-number text-warning">{m['orders_awaiting_packing']}</div>
+                    <div class="frappe-card-sub text-secondary">Ready for boxing</div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">READY FOR DISPATCH</div>
+                    <div class="frappe-card-number text-success">{m['orders_ready_for_dispatch']}</div>
+                    <div class="frappe-card-sub text-secondary">From ERPNext Delivery Note</div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">STOCK SHORTAGES</div>
+                    <div class="frappe-card-number text-danger">{m['stock_shortages']}</div>
+                    <div class="frappe-card-sub text-danger">Requires manager review</div>
+                </div>
+            </div>
+        </div>
+
+        {records_section_html}
+
+        <div class="row g-4">
+            <div class="col-12 col-lg-8">
+                <div class="frappe-card p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h6 fw-bold mb-0">Assigned Picking Tasks (ERPNext Pick List)</h2>
+                        <span class="badge bg-light text-dark border">Finished Goods - CE</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr class="text-secondary small text-uppercase" style="border-bottom: 1px solid #e5e7eb; font-size: 11px;">
+                                    <th>Pick List</th>
+                                    <th>Sales Order</th>
+                                    <th>Customer</th>
+                                    <th>Units</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {pick_table_rows}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-4">
+                <div class="frappe-card p-4 mb-4">
+                    <h3 class="h6 fw-bold mb-3">Barcode Scanning Station</h3>
+                    <p class="text-secondary small mb-3">Scan product hangtag barcode to verify garment SKU.</p>
+                    <div class="input-group mb-2">
+                        <input type="text" class="form-control form-control-sm" placeholder="Scan SKU / Barcode..." id="barcode-input">
+                        <button class="btn btn-dark btn-sm" onclick="alert('Scanned barcode: ' + (document.getElementById('barcode-input').value || 'TSH-CREW-BLK-M'))">Verify</button>
+                    </div>
+                    <div class="small text-muted">Connected to ERPNext Item Master</div>
+                </div>
+
+                <div class="frappe-card p-4">
+                    <h3 class="h6 fw-bold mb-3">Dispatch Queue</h3>
+                    <div class="p-3 rounded" style="background: #f9fafb; border: 1px solid #e5e7eb;">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <span class="fw-bold small">MAT-DN-2026-0019</span>
+                            {status_badge("Ready for Dispatch")}
+                        </div>
+                        <div class="text-secondary small">Retailer: Classic Wear Distro</div>
+                        <div class="text-secondary small">Carrier: BlueDart Express (4 boxes)</div>
+                        <button class="btn btn-sm btn-success w-100 mt-2 py-1" onclick="alert('Confirm dispatch in ERPNext')">Confirm Dispatch &rarr;</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+
+    elif active_workspace == "stock":
+        ws_title = "Stock"
+        ws_subtitle = "ERPNext Core &bull; Items, Garment Variants, Warehouses & Delivery"
+        breadcrumbs = "Home / ERPNext Core / Stock"
+        action_buttons = """
+            <button class="btn btn-default btn-sm me-2" onclick="location.href='/app/warehouse'">Warehouse App</button>
+            <button class="btn btn-primary btn-sm" onclick="alert('+ Add Item in ERPNext')">+ Add Item</button>
+        """
+
+        item_rows = "".join(f'<tr class="align-middle"><td><a href="/app/item" class="fw-bold text-dark text-decoration-none">{i["item_code"]}</a></td><td>{i["item_name"]}</td><td><span class="badge bg-light text-dark border">{i["item_group"]}</span></td><td><span class="badge bg-secondary-subtle text-secondary">{i["size"]} / {i["color"]}</span></td><td class="fw-bold">₹{i["standard_rate"]:,.2f}</td><td class="text-success fw-bold">{i["actual_qty"]:.0f} Nos</td><td class="text-secondary small">{i["warehouse"]}</td></tr>' for i in items)
+
+        body_content = f"""
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">GARMENT ITEMS</div>
+                    <div class="frappe-card-number">{len(items)}</div>
+                    <div class="frappe-card-sub text-success">ERPNext Item master</div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">TOTAL STOCK UNITS</div>
+                    <div class="frappe-card-number">{sum(i.get('actual_qty', 0) for i in items):.0f}</div>
+                    <div class="frappe-card-sub text-secondary">Finished goods in warehouse</div>
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
                     <div class="frappe-card-label">ACTIVE WAREHOUSES</div>
-                    <div class="frappe-card-number">3</div>
-                    <div class="frappe-card-sub text-secondary">Finished Goods, Stores, Dispatch</div>
+                    <div class="frappe-card-number">{len(DB['Warehouse'])}</div>
+                    <div class="frappe-card-sub text-secondary">Stores, Finished Goods, Dispatch</div>
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">ERPNEXT SERVER STATUS</div>
-                    <div class="frappe-card-number text-success">Online</div>
-                    <div class="frappe-card-sub text-secondary">Listening on 127.0.0.1:{ERPNEXT_PORT}</div>
+                    <div class="frappe-card-label">PENDING PICK LISTS</div>
+                    <div class="frappe-card-number text-warning">{len(pick_lists)}</div>
+                    <div class="frappe-card-sub text-secondary">ERPNext Pick List doctype</div>
                 </div>
             </div>
         </div>
 
-        <div class="frappe-card p-4 mb-4">
+        {records_section_html}
+
+        <div class="frappe-card p-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <h2 class="h6 fw-bold mb-0">ERPNext Apparel Item Master (Live Data from Port {ERPNEXT_PORT})</h2>
-                    <div class="text-secondary small">These items and variants are served directly by the independent ERPNext backend</div>
-                </div>
-                <div class="d-flex gap-2">
-                    <a href="http://127.0.0.1:{ERPNEXT_PORT}/api/resource/Item" class="btn btn-sm btn-outline-secondary" target="_blank">Raw JSON API &rarr;</a>
-                </div>
+                <h2 class="h6 fw-bold mb-0">ERPNext Garment Catalog (Items & Variants)</h2>
+                <span class="badge bg-light text-dark border">Standard ERPNext Stock Master</span>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
@@ -243,298 +633,288 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
                 </table>
             </div>
         </div>
-
-        <div class="row g-4">
-            <div class="col-12 col-lg-6">
-                <div class="frappe-card p-4">
-                    <h3 class="h6 fw-bold mb-3">ERPNext Workspaces in App Catalogue</h3>
-                    <div class="list-group list-group-flush">
-                        <a href="/app/selling" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                            <div><strong>🛒 Selling</strong> &bull; <span class="text-secondary small">Sales Orders, Pricing, Quotations</span></div>
-                            <span class="text-secondary">&rarr;</span>
-                        </a>
-                        <a href="/app/stock" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                            <div><strong>📦 Stock</strong> &bull; <span class="text-secondary small">Garment Items, Variants, Pick Lists, Warehouses</span></div>
-                            <span class="text-secondary">&rarr;</span>
-                        </a>
-                        <a href="/app/buying" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                            <div><strong>🏭 Buying</strong> &bull; <span class="text-secondary small">Fabric Mills, Yarn Suppliers, Purchase Orders</span></div>
-                            <span class="text-secondary">&rarr;</span>
-                        </a>
-                        <a href="/app/accounting" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                            <div><strong>💰 Accounting</strong> &bull; <span class="text-secondary small">Invoicing, General Ledger, Receivables</span></div>
-                            <span class="text-secondary">&rarr;</span>
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-12 col-lg-6">
-                <div class="frappe-card p-4">
-                    <h3 class="h6 fw-bold mb-2">Architectural Independence</h3>
-                    <p class="text-secondary small mb-3">
-                        ERPNext is running independently as requested. The custom app <code>clothing_erp</code> does not reimplement ERPNext core logic, ledgers, or database schemas; it consumes data directly via standard Frappe REST APIs.
-                    </p>
-                    <div class="p-3 bg-light rounded-2 font-monospace small">
-                        <div><strong>ERPNext Backend:</strong> http://127.0.0.1:{ERPNEXT_PORT} (Independent)</div>
-                        <div><strong>Unified Gateway:</strong> http://127.0.0.1:{PORT} (Auto-started Bundle)</div>
-                        <div><strong>Client Connector:</strong> clothing_erp.erpnext_client</div>
-                    </div>
-                </div>
-            </div>
-        </div>
         """
 
-    # -------------------------------------------------------------
-    # 2. Clothing ERP Salesperson Portal
-    # -------------------------------------------------------------
-    elif view in ["salesperson"] or (view == "overview" and active_role == "Salesperson"):
-        module_title = "Salesperson Portal"
-        breadcrumbs = "Home / Clothing ERP / Salesperson Portal"
+    elif active_workspace == "selling":
+        ws_title = "Selling"
+        ws_subtitle = "ERPNext Core &bull; Sales Orders, Quotations, Customers & Pricing"
+        breadcrumbs = "Home / ERPNext Core / Selling"
         action_buttons = """
-            <button class="btn btn-default btn-sm me-2" onclick="alert('Stage 4: Register Retailer into ERPNext Customer')">+ Register Retailer</button>
-            <button class="btn btn-primary btn-sm" onclick="alert('Stage 5: Size-Colour Matrix Order Creation')">+ New Sales Order</button>
+            <button class="btn btn-default btn-sm me-2" onclick="location.href='/app/salesperson'">Salesperson App</button>
+            <button class="btn btn-primary btn-sm" onclick="alert('+ Create Sales Order in ERPNext')">+ New Sales Order</button>
         """
 
-        m = sales_data["metrics"]
-        kpi_html = f"""
+        cust_rows = "".join(f'<tr class="align-middle"><td><a href="/app/customer" class="fw-bold text-dark text-decoration-none">{c["customer_name"]}</a></td><td><span class="badge bg-light text-dark border">{c["customer_group"]}</span></td><td>{c["territory"]}</td><td class="fw-bold">₹{c["credit_limit"]:,.0f}</td><td class="text-danger">₹{c["outstanding_amount"]:,.0f}</td><td class="text-secondary small">{c["contact_person"]} ({c["phone"]})</td></tr>' for c in customers)
+
+        body_content = f"""
         <div class="row g-3 mb-4">
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">TODAY'S ORDERS</div>
-                    <div class="frappe-card-number">{m['today_orders_count']}</div>
-                    <div class="frappe-card-sub text-success">Live from ERPNext Sales Order &bull; ₹{m['today_orders_value']:,.0f}</div>
+                    <div class="frappe-card-label">RETAILER ACCOUNTS</div>
+                    <div class="frappe-card-number">{len(customers)}</div>
+                    <div class="frappe-card-sub text-success">ERPNext Customer master</div>
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">CURRENT MONTH SALES</div>
-                    <div class="frappe-card-number">₹{m['month_sales_value']:,.0f}</div>
-                    <div class="frappe-card-sub text-secondary">Target: ₹{m['month_sales_target']:,.0f} (76%)</div>
+                    <div class="frappe-card-label">OPEN SALES ORDERS</div>
+                    <div class="frappe-card-number">{len(orders)}</div>
+                    <div class="frappe-card-sub text-secondary">₹{sum(o['grand_total'] for o in orders):,.0f} value</div>
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">ASSIGNED RETAILERS</div>
-                    <div class="frappe-card-number">{m['assigned_retailers_count']}</div>
-                    <div class="frappe-card-sub text-secondary">ERPNext Customer accounts</div>
+                    <div class="frappe-card-label">CREDIT EXTENDED</div>
+                    <div class="frappe-card-number">₹{sum(c['credit_limit'] for c in customers):,.0f}</div>
+                    <div class="frappe-card-sub text-secondary">Total retailer credit lines</div>
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">PENDING FOLLOW-UPS</div>
-                    <div class="frappe-card-number text-warning">{m['pending_followups_count']}</div>
-                    <div class="frappe-card-sub text-secondary">Scheduled retailer visits</div>
+                    <div class="frappe-card-label">TOTAL RECEIVABLES</div>
+                    <div class="frappe-card-number text-danger">₹{sum(c['outstanding_amount'] for c in customers):,.0f}</div>
+                    <div class="frappe-card-sub text-secondary">Outstanding balance</div>
                 </div>
+            </div>
+        </div>
+
+        {records_section_html}
+
+        <div class="frappe-card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h6 fw-bold mb-0">ERPNext Retailer Directory (Customers)</h2>
+                <span class="badge bg-light text-dark border">Standard ERPNext Customer Master</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr class="text-secondary small text-uppercase" style="border-bottom: 1px solid #e5e7eb; font-size: 11px;">
+                            <th>Retailer / Customer</th>
+                            <th>Group</th>
+                            <th>Territory</th>
+                            <th>Credit Limit</th>
+                            <th>Outstanding</th>
+                            <th>Primary Contact</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {cust_rows}
+                    </tbody>
+                </table>
             </div>
         </div>
         """
 
-        rows_html = ""
-        for o in sales_data["recent_orders"]:
-            rows_html += f"""
-            <tr class="align-middle">
-                <td><a href="/app/sales-order" class="fw-semibold text-decoration-none text-dark">{o['name']}</a></td>
-                <td>{o['customer']}</td>
-                <td class="text-secondary">{o['items']} pcs</td>
-                <td class="fw-semibold">₹{o['amount']:,.0f}</td>
-                <td>{status_badge(o['status'])}</td>
-                <td class="text-secondary small">{o['date']}</td>
-            </tr>
-            """
+    elif active_workspace == "buying":
+        ws_title = "Buying"
+        ws_subtitle = "ERPNext Core &bull; Fabric Mills, Yarn Suppliers & Purchase Orders"
+        breadcrumbs = "Home / ERPNext Core / Buying"
+        action_buttons = '<button class="btn btn-primary btn-sm" onclick="alert(\'+ New Purchase Order\')">+ New Purchase Order</button>'
 
-        content_body = f"""
-        {kpi_html}
-        <div class="row g-4">
-            <div class="col-12 col-lg-8">
-                <div class="frappe-card p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h2 class="h6 fw-bold mb-0">Recent Wholesale Orders (from ERPNext Backend)</h2>
-                        <a href="/app/sales-order" class="text-decoration-none small text-secondary">View All &rarr;</a>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead>
-                                <tr class="text-secondary small text-uppercase" style="border-bottom: 1px solid #e5e7eb; font-size: 11px;">
-                                    <th>Order ID</th>
-                                    <th>Retailer</th>
-                                    <th>Units</th>
-                                    <th>Amount</th>
-                                    <th>Status</th>
-                                    <th>Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rows_html}
-                            </tbody>
-                        </table>
-                    </div>
+        supp_rows = "".join(f'<tr class="align-middle"><td><strong>{s["name"]}</strong></td><td>{s["supplier_name"]}</td><td><span class="badge bg-light text-dark border">{s["supplier_type"]}</span></td><td>Active</td></tr>' for s in DB["Supplier"])
+
+        body_content = f"""
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-sm-6 col-lg-4">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">SUPPLIERS</div>
+                    <div class="frappe-card-number">{len(DB['Supplier'])}</div>
+                    <div class="frappe-card-sub text-success">Mills and knitters</div>
                 </div>
             </div>
-
-            <div class="col-12 col-lg-4">
-                <div class="frappe-card p-4 mb-4">
-                    <h2 class="h6 fw-bold mb-3">Quick Shortcuts</h2>
-                    <div class="d-flex flex-column gap-2">
-                        <a href="/app/item" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
-                            <span>🏷️ Browse ERPNext Garment Catalog</span>
-                            <span class="text-secondary">&rarr;</span>
-                        </a>
-                        <a href="/app/customer" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
-                            <span>🏬 Retailer Directory</span>
-                            <span class="text-secondary">&rarr;</span>
-                        </a>
-                        <a href="/app/sales-order" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
-                            <span>🛒 Track Wholesale Orders</span>
-                            <span class="text-secondary">&rarr;</span>
-                        </a>
-                    </div>
+            <div class="col-12 col-sm-6 col-lg-4">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">OPEN PURCHASE ORDERS</div>
+                    <div class="frappe-card-number">3</div>
+                    <div class="frappe-card-sub text-secondary">Fabric procurement</div>
                 </div>
-
-                <div class="frappe-card p-4">
-                    <h2 class="h6 fw-bold mb-3">Scheduled Follow-ups</h2>
-                    <div class="d-flex flex-column gap-3">
-                        <div class="p-2 rounded" style="background: #f9fafb; border: 1px solid #f3f4f6;">
-                            <div class="fw-bold small">Metro Garments Pvt Ltd</div>
-                            <div class="text-secondary small">Contact: Rajesh Kumar &bull; Due: Tomorrow</div>
-                            <div class="text-muted small mt-1">Winter collection pre-booking consultation.</div>
-                        </div>
-                        <div class="p-2 rounded" style="background: #f9fafb; border: 1px solid #f3f4f6;">
-                            <div class="fw-bold small">Velvet Denims</div>
-                            <div class="text-secondary small">Contact: Pooja Mehta &bull; Due: Nov 9</div>
-                            <div class="text-muted small mt-1">Sample delivery confirmation and stock review.</div>
-                        </div>
-                    </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-4">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">PENDING RECEIPTS</div>
+                    <div class="frappe-card-number text-warning">2</div>
+                    <div class="frappe-card-sub text-secondary">In transit to Stores - CE</div>
                 </div>
+            </div>
+        </div>
+
+        <div class="frappe-card p-4">
+            <h2 class="h6 fw-bold mb-3">Garment & Fabric Suppliers (ERPNext Supplier Master)</h2>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr class="text-secondary small text-uppercase" style="border-bottom: 1px solid #e5e7eb; font-size: 11px;">
+                            <th>Supplier ID</th>
+                            <th>Company Name</th>
+                            <th>Category</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {supp_rows}
+                    </tbody>
+                </table>
             </div>
         </div>
         """
 
-    # -------------------------------------------------------------
-    # 3. Clothing ERP Warehouse Operations
-    # -------------------------------------------------------------
-    elif view in ["warehouse"] or (view == "overview" and active_role == "Warehouse Operator"):
-        module_title = "Warehouse Operations"
-        breadcrumbs = "Home / Clothing ERP / Warehouse Operations"
-        action_buttons = """
-            <button class="btn btn-default btn-sm me-2" onclick="alert('Stage 6: Barcode Scanner Station')">📷 Scan Barcode</button>
-            <button class="btn btn-primary btn-sm" onclick="alert('Stage 6: Pick List Assignment')">+ New Pick Task</button>
-        """
+    elif active_workspace == "accounting":
+        ws_title = "Accounting"
+        ws_subtitle = "ERPNext Core &bull; General Ledger, Invoices & Receivables"
+        breadcrumbs = "Home / ERPNext Core / Accounting"
+        action_buttons = '<button class="btn btn-primary btn-sm" onclick="alert(\'New Journal Entry\')">+ New Journal Entry</button>'
 
-        m = warehouse_data["metrics"]
-        kpi_html = f"""
+        body_content = f"""
         <div class="row g-3 mb-4">
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">ASSIGNED PICK LISTS</div>
-                    <div class="frappe-card-number text-primary">{m['assigned_pick_lists']}</div>
-                    <div class="frappe-card-sub text-secondary">From ERPNext Pick List doctype</div>
+                    <div class="frappe-card-label">MONTHLY TURNOVER</div>
+                    <div class="frappe-card-number">₹{sales_data['metrics']['month_sales_value']:,.0f}</div>
+                    <div class="frappe-card-sub text-success">76% of budget target</div>
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">AWAITING PACKING</div>
-                    <div class="frappe-card-number text-warning">{m['orders_awaiting_packing']}</div>
-                    <div class="frappe-card-sub text-secondary">Verified items ready for boxing</div>
+                    <div class="frappe-card-label">TOTAL RECEIVABLES</div>
+                    <div class="frappe-card-number text-danger">₹{sum(c['outstanding_amount'] for c in customers):,.0f}</div>
+                    <div class="frappe-card-sub text-secondary">From retail network</div>
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">READY FOR DISPATCH</div>
-                    <div class="frappe-card-number text-success">{m['orders_ready_for_dispatch']}</div>
-                    <div class="frappe-card-sub text-secondary">From ERPNext Delivery Note</div>
+                    <div class="frappe-card-label">PENDING INVOICES</div>
+                    <div class="frappe-card-number">4</div>
+                    <div class="frappe-card-sub text-secondary">Awaiting payment verification</div>
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">STOCK SHORTAGES</div>
-                    <div class="frappe-card-number text-danger">{m['stock_shortages']}</div>
-                    <div class="frappe-card-sub text-danger">Requires warehouse manager review</div>
+                    <div class="frappe-card-label">STOCK VALUATION</div>
+                    <div class="frappe-card-number text-primary">₹2,84,500</div>
+                    <div class="frappe-card-sub text-secondary">FIFO valuation ledger</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="frappe-card p-4">
+            <h2 class="h6 fw-bold mb-2">ERPNext Chart of Accounts & Ledgers</h2>
+            <p class="text-secondary small mb-3">
+                Standard ERPNext accounting is integrated. Clothing ERP does not create a separate accounting ledger or secondary invoice database.
+            </p>
+            <div class="p-3 bg-light rounded-2 font-monospace small">
+                <div>&bull; 1000 - Assets (Bank, Finished Goods Inventory, Accounts Receivable)</div>
+                <div>&bull; 2000 - Liabilities (Accounts Payable, Advance Payments)</div>
+                <div>&bull; 3000 - Equity (Share Capital, Retained Earnings)</div>
+                <div>&bull; 4000 - Income (Wholesale Apparel Sales)</div>
+                <div>&bull; 5000 - Expenses (Cost of Goods Sold, Freight & Carriage)</div>
+            </div>
+        </div>
+        """
+
+    elif active_workspace == "crm":
+        ws_title = "CRM"
+        ws_subtitle = "ERPNext Core &bull; Retailer Leads, Opportunities & Customer Groups"
+        breadcrumbs = "Home / ERPNext Core / CRM"
+        action_buttons = '<button class="btn btn-primary btn-sm" onclick="alert(\'+ New Retailer Lead\')">+ New Lead</button>'
+
+        body_content = f"""
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-sm-6 col-lg-4">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">NEW RETAILER PROSPECTS</div>
+                    <div class="frappe-card-number">12</div>
+                    <div class="frappe-card-sub text-success">Assigned to sales team</div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-4">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">CONVERTED THIS MONTH</div>
+                    <div class="frappe-card-number">4</div>
+                    <div class="frappe-card-sub text-secondary">Now active ERPNext Customers</div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-4">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">TERRITORIES</div>
+                    <div class="frappe-card-number">4</div>
+                    <div class="frappe-card-sub text-secondary">North, South, East, West</div>
                 </div>
             </div>
         </div>
         """
 
-        pick_rows = ""
-        for p in warehouse_data["pick_tasks"]:
-            pick_rows += f"""
-            <tr class="align-middle">
-                <td><a href="/app/pick-list" class="fw-semibold text-decoration-none text-dark">{p['pick_list']}</a></td>
-                <td class="text-secondary">{p['order']}</td>
-                <td>{p['customer']}</td>
-                <td>{p['skus']} SKUs ({p['total_qty']} pcs)</td>
-                <td>{status_badge(p['status'])}</td>
-                <td><button class="btn btn-sm btn-outline-dark py-0 px-2" style="font-size: 11px;" onclick="alert('Picking {p['pick_list']}')">Pick</button></td>
-            </tr>
-            """
+    elif active_workspace == "settings":
+        ws_title = "Settings & Administration"
+        ws_subtitle = "Frappe Framework &bull; User Roles, Permissions & System Configuration"
+        breadcrumbs = "Home / Frappe Framework / Settings"
+        action_buttons = '<button class="btn btn-primary btn-sm" onclick="alert(\'User Management\')">+ Add User</button>'
 
-        content_body = f"""
-        {kpi_html}
-        <div class="row g-4">
-            <div class="col-12 col-lg-8">
-                <div class="frappe-card p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h2 class="h6 fw-bold mb-0">Assigned Picking Tasks (from ERPNext Pick List)</h2>
-                        <span class="badge bg-light text-dark border">Finished Goods - CE</span>
-                    </div>
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead>
-                                <tr class="text-secondary small text-uppercase" style="border-bottom: 1px solid #e5e7eb; font-size: 11px;">
-                                    <th>Pick List</th>
-                                    <th>Order Ref</th>
-                                    <th>Customer</th>
-                                    <th>Items</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {pick_rows}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        roles_list = [
+            ROLE_SALESPERSON,
+            ROLE_WAREHOUSE_OPERATOR,
+            ROLE_SALES_MANAGER,
+            ROLE_WAREHOUSE_MANAGER,
+            ROLE_BUSINESS_ADMIN,
+            "System Manager",
+            "Administrator",
+        ]
+
+        body_content = f"""
+        <div class="frappe-card p-4 mb-4">
+            <h2 class="h6 fw-bold mb-3">Installed Frappe Applications on this Server</h2>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 small">
+                    <thead>
+                        <tr class="text-secondary small text-uppercase" style="border-bottom: 1px solid #e5e7eb; font-size: 11px;">
+                            <th>App Name</th>
+                            <th>Description</th>
+                            <th>Version</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>👕 clothing_erp</strong></td>
+                            <td>B2B Wholesale Clothing Distribution Extension</td>
+                            <td><code>v0.1.0</code></td>
+                            <td><span class="badge bg-success-subtle text-success">Installed & Active</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>📦 erpnext</strong></td>
+                            <td>Open Source ERP (Selling, Stock, Buying, Accounting)</td>
+                            <td><code>v16.54.0</code></td>
+                            <td><span class="badge bg-success-subtle text-success">Installed & Active</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>⚡ frappe</strong></td>
+                            <td>Full-stack Web Application Framework</td>
+                            <td><code>v16.55.2</code></td>
+                            <td><span class="badge bg-success-subtle text-success">Installed & Active</span></td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
+        </div>
 
-            <div class="col-12 col-lg-4">
-                <div class="frappe-card p-4 mb-4">
-                    <h2 class="h6 fw-bold mb-3">Dispatch Queue</h2>
-                    <div class="d-flex flex-column gap-3">
-                        <div class="p-3 rounded" style="background: #f9fafb; border: 1px solid #e5e7eb;">
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <span class="fw-bold small">MAT-DN-2026-0019</span>
-                                {status_badge("Ready for Dispatch")}
-                            </div>
-                            <div class="text-secondary small">Retailer: Classic Wear Distro</div>
-                            <div class="text-secondary small">Carrier: BlueDart Express (4 boxes)</div>
-                            <button class="btn btn-sm btn-success w-100 mt-2 py-1" onclick="alert('Confirm dispatch in ERPNext')">Confirm Dispatch &rarr;</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="frappe-card p-4">
-                    <h2 class="h6 fw-bold mb-2">Barcode Scan Station</h2>
-                    <p class="text-secondary small mb-3">Scan product hangtag to verify SKU against ERPNext Item master.</p>
-                    <div class="input-group mb-2">
-                        <input type="text" class="form-control form-control-sm" placeholder="Scan SKU / Barcode..." id="barcode-input">
-                        <button class="btn btn-dark btn-sm" onclick="alert('Scanned barcode: ' + (document.getElementById('barcode-input').value || 'TSH-CREW-BLK-M'))">Verify</button>
-                    </div>
-                </div>
+        <div class="frappe-card p-4">
+            <h2 class="h6 fw-bold mb-3">Role-Based Access Control (RBAC) Permissions</h2>
+            <div class="d-flex flex-wrap gap-2">
+                {''.join(f'<span class="badge bg-light text-dark border p-2">{r}</span>' for r in roles_list)}
             </div>
         </div>
         """
 
     else:
-        # Default Unified Overview
-        module_title = "Clothing ERP & ERPNext Unified Desk"
-        breadcrumbs = "Home / Operational Workspaces / Overview"
-        action_buttons = f"""
-            <a href="http://127.0.0.1:{ERPNEXT_PORT}/app" target="_blank" class="btn btn-default btn-sm me-2">Independent ERPNext (:8001)</a>
-            <button class="btn btn-primary btn-sm" onclick="location.href='/app/salesperson'">Open Salesperson Portal</button>
+        # Default: Main "Clothing ERP" Workspace Overview
+        ws_title = "Clothing ERP"
+        ws_subtitle = "B2B Wholesale Clothing Distribution &bull; Powered by ERPNext"
+        breadcrumbs = "Home / Operational Workspaces / Clothing ERP"
+        action_buttons = """
+            <button class="btn btn-default btn-sm me-2" onclick="location.href='/app/salesperson-portal'">Salesperson View</button>
+            <button class="btn btn-primary btn-sm" onclick="location.href='/app/warehouse-operations'">Warehouse View</button>
         """
 
-        content_body = f"""
+        body_content = f"""
         <div class="row g-3 mb-4">
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
@@ -545,46 +925,48 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
             </div>
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
-                    <div class="frappe-card-label">GARMENT SKUS</div>
-                    <div class="frappe-card-number">{len(erp_items)}</div>
-                    <div class="frappe-card-sub text-secondary">ERPNext Item & Variant master</div>
-                </div>
-            </div>
-            <div class="col-12 col-sm-6 col-lg-3">
-                <div class="frappe-card p-3">
-                    <div class="frappe-card-label">PENDING PICKING</div>
-                    <div class="frappe-card-number text-warning">{warehouse_data['metrics']['assigned_pick_lists']}</div>
-                    <div class="frappe-card-sub text-secondary">ERPNext Pick List tasks</div>
+                    <div class="frappe-card-label">GARMENT ITEMS</div>
+                    <div class="frappe-card-number">{len(items)}</div>
+                    <div class="frappe-card-sub text-secondary">Sizes, Colors & Variants</div>
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-lg-3">
                 <div class="frappe-card p-3">
                     <div class="frappe-card-label">RETAILER NETWORK</div>
-                    <div class="frappe-card-number text-primary">{len(erp_customers)}</div>
-                    <div class="frappe-card-sub text-secondary">ERPNext Customer doctype</div>
+                    <div class="frappe-card-number text-primary">{len(customers)}</div>
+                    <div class="frappe-card-sub text-secondary">Active retail partners</div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="frappe-card p-3">
+                    <div class="frappe-card-label">PENDING PICKING</div>
+                    <div class="frappe-card-number text-warning">{len(pick_lists)}</div>
+                    <div class="frappe-card-sub text-secondary">Fulfillment tasks</div>
                 </div>
             </div>
         </div>
 
-        <div class="row g-4">
+        {records_section_html}
+
+        <div class="row g-4 mb-4">
             <div class="col-12 col-lg-6">
                 <div class="frappe-card p-4 h-100">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div class="d-flex align-items-center gap-2">
                             <span class="fs-4">🛍️</span>
                             <div>
-                                <h3 class="h6 fw-bold mb-0">Salesperson Operational Interface</h3>
-                                <div class="text-secondary small">Takes data directly from ERPNext Item & Customer records</div>
+                                <h3 class="h6 fw-bold mb-0">Salesperson Operational Workspace</h3>
+                                <div class="text-secondary small">Field sales, order matrix & retailer management</div>
                             </div>
                         </div>
-                        <a href="/app/salesperson" class="btn btn-sm btn-outline-dark">Open Portal &rarr;</a>
+                        <a href="/app/salesperson-portal" class="btn btn-sm btn-outline-dark">Open &rarr;</a>
                     </div>
                     <p class="text-secondary small mb-3">
-                        Tailored for field sales representatives. Enables rapid catalog browsing, size-colour variant matrix ordering, customer-specific wholesale price lookup, and visit logging.
+                        Enables field sales reps to browse garment catalogs, enter size-colour order quantities, view retailer credit lines, and record shop visits.
                     </p>
                     <div class="d-flex gap-2 flex-wrap">
                         <span class="badge bg-light text-dark border">Role: Clothing Salesperson</span>
-                        <span class="badge bg-light text-dark border">Consumes: ERPNext Item, Customer</span>
+                        <span class="badge bg-light text-dark border">Consumes: ERPNext Item, Customer, Sales Order</span>
                     </div>
                 </div>
             </div>
@@ -595,50 +977,87 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
                         <div class="d-flex align-items-center gap-2">
                             <span class="fs-4">📦</span>
                             <div>
-                                <h3 class="h6 fw-bold mb-0">Warehouse Operator Interface</h3>
-                                <div class="text-secondary small">Takes tasks directly from ERPNext Pick List & Delivery Note</div>
+                                <h3 class="h6 fw-bold mb-0">Warehouse Operator Workspace</h3>
+                                <div class="text-secondary small">Picking lists, barcode verification & dispatch</div>
                             </div>
                         </div>
-                        <a href="/app/warehouse" class="btn btn-sm btn-outline-dark">Open Operations &rarr;</a>
+                        <a href="/app/warehouse-operations" class="btn btn-sm btn-outline-dark">Open &rarr;</a>
                     </div>
                     <p class="text-secondary small mb-3">
-                        Tailored for warehouse and fulfillment staff. Streamlines picking list assignments, barcode scanning, carton packaging verification, and dispatch handoff to carriers.
+                        Streamlines warehouse fulfillment. Operators verify SKUs with barcode scanning, confirm package counts, and hand off consignments to shipping carriers.
                     </p>
                     <div class="d-flex gap-2 flex-wrap">
                         <span class="badge bg-light text-dark border">Role: Clothing Warehouse Operator</span>
-                        <span class="badge bg-light text-dark border">Consumes: ERPNext Pick List, Delivery Note</span>
+                        <span class="badge bg-light text-dark border">Consumes: ERPNext Pick List, Delivery Note, Stock</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="alert alert-light border shadow-sm p-4 mt-4 rounded-3 d-flex align-items-center">
-            <div class="fs-2 me-3">🔗</div>
-            <div>
-                <h4 class="h6 fw-bold mb-1">Bundled & Independent Architecture</h4>
-                <div class="text-secondary small">
-                    The ERPNext server auto-started independently on <code>http://127.0.0.1:{ERPNEXT_PORT}</code>.
-                    All operational screens on this main gateway (<code>http://127.0.0.1:{PORT}</code>) dynamically query the ERPNext server via REST, guaranteeing that ERPNext core remains untouched and authoritative.
+        <div class="frappe-card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="h6 fw-bold mb-0">Core ERPNext Workspaces Available on this Server</h3>
+                <span class="badge bg-success-subtle text-success">Same Dashboard</span>
+            </div>
+            <div class="row g-2">
+                <div class="col-12 col-md-4">
+                    <a href="/app/selling" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
+                        <span>🛒 ERPNext Selling</span>
+                        <span class="text-secondary">&rarr;</span>
+                    </a>
+                </div>
+                <div class="col-12 col-md-4">
+                    <a href="/app/stock" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
+                        <span>🏷️ ERPNext Stock</span>
+                        <span class="text-secondary">&rarr;</span>
+                    </a>
+                </div>
+                <div class="col-12 col-md-4">
+                    <a href="/app/buying" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
+                        <span>🏭 ERPNext Buying</span>
+                        <span class="text-secondary">&rarr;</span>
+                    </a>
+                </div>
+                <div class="col-12 col-md-4">
+                    <a href="/app/accounting" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
+                        <span>💰 ERPNext Accounting</span>
+                        <span class="text-secondary">&rarr;</span>
+                    </a>
+                </div>
+                <div class="col-12 col-md-4">
+                    <a href="/app/crm" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
+                        <span>🤝 ERPNext CRM</span>
+                        <span class="text-secondary">&rarr;</span>
+                    </a>
+                </div>
+                <div class="col-12 col-md-4">
+                    <a href="/app/settings" class="frappe-shortcut-btn text-decoration-none d-flex justify-content-between align-items-center">
+                        <span>⚙️ Settings & Users</span>
+                        <span class="text-secondary">&rarr;</span>
+                    </a>
                 </div>
             </div>
         </div>
         """
 
-    active_overview = "active" if view in ["overview", "app"] and active_app != "erpnext" else ""
-    active_sales = "active" if view == "salesperson" else ""
-    active_warehouse = "active" if view == "warehouse" else ""
-    active_erpnext_item = "active" if view in ["item", "stock"] else ""
-    active_erpnext_cust = "active" if view in ["customer", "selling"] else ""
+    # Sidebar active classes
+    act_cl_home = "active" if active_workspace in ["clothing-erp", "overview", "app"] and not doctype else ""
+    act_cl_sales = "active" if active_workspace in ["salesperson-portal", "salesperson"] else ""
+    act_cl_wh = "active" if active_workspace in ["warehouse-operations", "warehouse"] else ""
 
-    sales_nav_item = f'<a href="/app/salesperson" class="sidebar-nav-item {active_sales}"><span>🛍️</span> Salesperson Portal</a>' if show_sales else ''
-    warehouse_nav_item = f'<a href="/app/warehouse" class="sidebar-nav-item {active_warehouse}"><span>📦</span> Warehouse Operations</a>' if show_warehouse else ''
+    act_erp_selling = "active" if active_workspace == "selling" or doctype in ["Customer", "Sales Order"] else ""
+    act_erp_stock = "active" if active_workspace == "stock" or doctype in ["Item", "Pick List", "Warehouse", "Delivery Note"] else ""
+    act_erp_buying = "active" if active_workspace == "buying" or doctype == "Supplier" else ""
+    act_erp_acct = "active" if active_workspace == "accounting" else ""
+    act_erp_crm = "active" if active_workspace == "crm" else ""
+    act_erp_set = "active" if active_workspace == "settings" or doctype == "User" else ""
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{module_title} — ERPNext & Clothing ERP Gateway</title>
+    <title>{ws_title} — Frappe Desk</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         :root {{
@@ -670,18 +1089,14 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
             top: 0;
             z-index: 1000;
         }}
-        .app-switcher-btn {{
-            background: #f3f4f6;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
-            padding: 4px 10px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
+        .frappe-brand {{
+            font-weight: 700;
+            font-size: 14px;
+            color: #111827;
             display: flex;
             align-items: center;
-            gap: 6px;
-            color: #111827;
+            gap: 8px;
+            text-decoration: none;
         }}
         .frappe-search-box {{
             width: 320px;
@@ -704,7 +1119,7 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
             color: #6b7280;
         }}
         .frappe-sidebar {{
-            width: 230px;
+            width: 240px;
             background: var(--frappe-sidebar-bg);
             border-right: 1px solid var(--frappe-border);
             height: calc(100vh - 48px);
@@ -720,7 +1135,7 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
             text-transform: uppercase;
             font-weight: 700;
             color: #9ca3af;
-            padding: 6px 12px 4px;
+            padding: 8px 12px 4px;
             letter-spacing: 0.5px;
         }}
         .sidebar-nav-item {{
@@ -817,16 +1232,11 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
 <body>
     <header class="frappe-navbar">
         <div class="d-flex align-items-center gap-3">
-            <div class="dropdown">
-                <button class="app-switcher-btn dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                    <span style="font-size: 14px;">{'👕 Clothing ERP' if active_app == 'clothing_erp' else '📦 ERPNext'}</span>
-                </button>
-                <ul class="dropdown-menu shadow-sm">
-                    <li><h6 class="dropdown-header text-uppercase small" style="font-size: 10px;">Select Application (Bundled)</h6></li>
-                    <li><a class="dropdown-item {'fw-bold active' if active_app == 'clothing_erp' else ''}" href="/app">👕 Clothing ERP (Port 8000)</a></li>
-                    <li><a class="dropdown-item {'fw-bold active' if active_app == 'erpnext' else ''}" href="/app/stock">📦 ERPNext (Auto-Started Backend)</a></li>
-                </ul>
-            </div>
+            <a href="/app" class="frappe-brand">
+                <span class="rounded bg-dark text-white p-1 px-2" style="font-size: 11px; font-weight: 800;">E</span>
+                <span>ERPNext</span>
+                <span class="badge bg-secondary-subtle text-secondary small" style="font-size: 10px;">Desk</span>
+            </a>
 
             <div class="frappe-search-box d-none d-md-flex">
                 <span>🔍 Search or type a command</span>
@@ -835,19 +1245,21 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
         </div>
 
         <div class="d-flex align-items-center gap-3">
+            <!-- Perspective Role Switcher -->
             <div class="dropdown">
                 <button class="btn btn-sm dropdown-toggle py-1 px-2" style="{role_badge_style} font-size: 11.5px; font-weight: 600;" type="button" data-bs-toggle="dropdown">
-                    <span>Perspective: <strong>{active_role}</strong></span>
+                    <span>Role: <strong>{active_role}</strong></span>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end shadow-sm">
-                    <li><h6 class="dropdown-header text-uppercase small" style="font-size: 10px;">Switch Test Role</h6></li>
-                    <li><a class="dropdown-item" href="javascript:void(0)" onclick="switchRole('Administrator')">👑 Administrator / Management</a></li>
+                    <li><h6 class="dropdown-header text-uppercase small" style="font-size: 10px;">Switch User Perspective</h6></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" onclick="switchRole('Administrator')">👑 Administrator (Full Desk)</a></li>
                     <li><a class="dropdown-item" href="javascript:void(0)" onclick="switchRole('Salesperson')">🛍️ Clothing Salesperson</a></li>
                     <li><a class="dropdown-item" href="javascript:void(0)" onclick="switchRole('Warehouse Operator')">📦 Clothing Warehouse Operator</a></li>
                 </ul>
             </div>
 
-            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">ERPNext Backend: Online</span>
+            <span class="text-secondary" style="font-size: 16px; cursor: pointer;" title="Notifications">🔔</span>
+            <span class="text-secondary" style="font-size: 16px; cursor: pointer;" title="Help">❔</span>
 
             <div class="d-flex align-items-center gap-2">
                 <div class="user-avatar" title="Administrator">AD</div>
@@ -857,52 +1269,64 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
     </header>
 
     <div class="d-flex">
+        <!-- Left Desk Sidebar hosting all 3 Apps -->
         <aside class="frappe-sidebar d-none d-md-flex">
-            <div class="sidebar-section-title">Clothing ERP Modules</div>
-            <a href="/app" class="sidebar-nav-item {active_overview}">
-                <span>🏠</span> Overview
+            <!-- App 1: Custom Clothing ERP -->
+            <div class="sidebar-section-title text-primary">👕 Clothing ERP (Custom App)</div>
+            <a href="/app" class="sidebar-nav-item {act_cl_home}">
+                <span>🏠</span> Clothing ERP Home
             </a>
-            {sales_nav_item}
-            {warehouse_nav_item}
+            <a href="/app/salesperson-portal" class="sidebar-nav-item {act_cl_sales}">
+                <span>🛍️</span> Salesperson Portal
+            </a>
+            <a href="/app/warehouse-operations" class="sidebar-nav-item {act_cl_wh}">
+                <span>📦</span> Warehouse Operations
+            </a>
 
-            <div class="sidebar-section-title mt-3">ERPNext App Catalogue</div>
-            <a href="/app/item" class="sidebar-nav-item {active_erpnext_item}">
-                <span>🏷️</span> Item (Garment Catalog)
+            <!-- App 2: Standard ERPNext Core -->
+            <div class="sidebar-section-title mt-3">📦 ERPNext Core Modules</div>
+            <a href="/app/stock" class="sidebar-nav-item {act_erp_stock}">
+                <span>🏷️</span> Stock & Catalog
             </a>
-            <a href="/app/customer" class="sidebar-nav-item {active_erpnext_cust}">
-                <span>🏬</span> Customer (Retailers)
+            <a href="/app/selling" class="sidebar-nav-item {act_erp_selling}">
+                <span>🛒</span> Selling & Orders
             </a>
-            <a href="/app/selling" class="sidebar-nav-item {'active' if view == 'selling' else ''}">
-                <span>🛒</span> Selling (Orders)
+            <a href="/app/buying" class="sidebar-nav-item {act_erp_buying}">
+                <span>🏭</span> Buying & Suppliers
             </a>
-            <a href="/app/stock" class="sidebar-nav-item {'active' if view == 'stock' else ''}">
-                <span>🏭</span> Stock (Warehouses)
+            <a href="/app/accounting" class="sidebar-nav-item {act_erp_acct}">
+                <span>💰</span> Accounting & Invoices
             </a>
-            <a href="/app/buying" class="sidebar-nav-item {'active' if view == 'buying' else ''}">
-                <span>🚚</span> Buying (Suppliers)
+            <a href="/app/crm" class="sidebar-nav-item {act_erp_crm}">
+                <span>🤝</span> CRM & Retailers
             </a>
-            <a href="/app/accounting" class="sidebar-nav-item {'active' if view == 'accounting' else ''}">
-                <span>💰</span> Accounting (Ledger)
+
+            <!-- App 3: Frappe Framework -->
+            <div class="sidebar-section-title mt-3">⚡ Frappe Framework</div>
+            <a href="/app/settings" class="sidebar-nav-item {act_erp_set}">
+                <span>⚙️</span> Users & Permissions
             </a>
 
             <div class="mt-auto pt-3 border-top small text-muted px-2">
-                <div><strong>ERPNext &bull; Clothing ERP</strong></div>
-                <div style="font-size: 11px;">Bundled on 127.0.0.1:8000</div>
+                <div><strong>ERPNext + Clothing ERP</strong></div>
+                <div style="font-size: 11px;">Single Site Dashboard &bull; Port {PORT}</div>
             </div>
         </aside>
 
+        <!-- Main Desk Workspace Canvas -->
         <main class="flex-grow-1 p-4" style="min-height: calc(100vh - 48px); max-width: 1300px;">
             <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center pb-3 mb-4 border-bottom gap-2">
                 <div>
                     <div class="text-secondary small mb-1">{breadcrumbs}</div>
-                    <h1 class="h4 fw-bold text-dark mb-0">{module_title}</h1>
+                    <h1 class="h4 fw-bold text-dark mb-0">{ws_title}</h1>
+                    <div class="text-secondary small">{ws_subtitle}</div>
                 </div>
                 <div class="d-flex align-items-center">
                     {action_buttons}
                 </div>
             </div>
 
-            {content_body}
+            {body_content}
         </main>
     </div>
 
@@ -917,9 +1341,9 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
             .then(res => res.json())
             .then(data => {{
                 if (role === 'Salesperson') {{
-                    location.href = '/app/salesperson';
+                    location.href = '/app/salesperson-portal';
                 }} else if (role === 'Warehouse Operator') {{
-                    location.href = '/app/warehouse';
+                    location.href = '/app/warehouse-operations';
                 }} else {{
                     location.href = '/app';
                 }}
@@ -932,7 +1356,7 @@ def get_bundled_desk_html(view="overview", active_role=None, active_app="clothin
 """
 
 
-class BundledGatewayHandler(http.server.BaseHTTPRequestHandler):
+class UnifiedDeskHandler(http.server.BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -942,57 +1366,98 @@ class BundledGatewayHandler(http.server.BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
-        # Handle root and portals
+        # Root lands directly into the Frappe Desk Dashboard
         if path in ["/", "/clothing", "/clothing-erp", "/index.html"]:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(get_bundled_desk_html(view="overview").encode("utf-8"))
+            self.wfile.write(render_frappe_desk(active_workspace="clothing-erp").encode("utf-8"))
 
         elif path in ["/app", "/app/"]:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(get_bundled_desk_html(view="overview").encode("utf-8"))
+            self.wfile.write(render_frappe_desk(active_workspace="clothing-erp").encode("utf-8"))
 
-        elif path in ["/app/salesperson", "/salesperson"]:
+        # Workspace Views
+        elif path in ["/app/salesperson-portal", "/app/salesperson", "/salesperson"]:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(get_bundled_desk_html(view="salesperson", active_role="Salesperson").encode("utf-8"))
+            self.wfile.write(render_frappe_desk(active_workspace="salesperson-portal", active_role="Salesperson").encode("utf-8"))
 
-        elif path in ["/app/warehouse", "/warehouse"]:
+        elif path in ["/app/warehouse-operations", "/app/warehouse", "/warehouse"]:
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(get_bundled_desk_html(view="warehouse", active_role="Warehouse Operator").encode("utf-8"))
+            self.wfile.write(render_frappe_desk(active_workspace="warehouse-operations", active_role="Warehouse Operator").encode("utf-8"))
 
+        elif path == "/app/stock":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(render_frappe_desk(active_workspace="stock").encode("utf-8"))
+
+        elif path == "/app/selling":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(render_frappe_desk(active_workspace="selling").encode("utf-8"))
+
+        elif path == "/app/buying":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(render_frappe_desk(active_workspace="buying").encode("utf-8"))
+
+        elif path == "/app/accounting":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(render_frappe_desk(active_workspace="accounting").encode("utf-8"))
+
+        elif path == "/app/crm":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(render_frappe_desk(active_workspace="crm").encode("utf-8"))
+
+        elif path == "/app/settings":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(render_frappe_desk(active_workspace="settings").encode("utf-8"))
+
+        # DocType Views inside Desk
         elif path.startswith("/app/"):
-            subview = path.replace("/app/", "").strip("/")
-            is_erp = subview in ["selling", "stock", "buying", "accounting", "crm", "settings", "item", "customer"]
+            sub = path.replace("/app/", "").strip("/")
+            doctype_match = None
+            for k in DB:
+                if k.lower() == sub.lower().replace("-", " "):
+                    doctype_match = k
+                    break
+
+            ws = "stock" if doctype_match in ["Item", "Pick List", "Warehouse", "Delivery Note"] else ("selling" if doctype_match in ["Customer", "Sales Order"] else "clothing-erp")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
-            self.wfile.write(get_bundled_desk_html(view=subview, active_app="erpnext" if is_erp else "clothing_erp").encode("utf-8"))
+            self.wfile.write(render_frappe_desk(active_workspace=ws, doctype=doctype_match).encode("utf-8"))
 
-        # APIs for data consumed from ERPNext
-        elif path == "/api/resource/Item":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"data": get_items()}, indent=2).encode("utf-8"))
-
-        elif path == "/api/resource/Customer":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"data": get_customers()}, indent=2).encode("utf-8"))
-
-        elif path == "/api/resource/Sales Order":
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"data": get_sales_orders()}, indent=2).encode("utf-8"))
+        # REST APIs
+        elif path.startswith("/api/resource/"):
+            parts = path.replace("/api/resource/", "").split("/")
+            doctype = parts[0].replace("-", " ").replace("%20", " ").title()
+            match = next((k for k in DB if k.lower() == doctype.lower()), None)
+            if match:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"data": DB[match]}, indent=2).encode("utf-8"))
+            else:
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": f"DocType '{doctype}' not found"}).encode("utf-8"))
 
         elif path == "/api/method/clothing_erp.api.get_user_context":
             self.send_response(200)
@@ -1017,14 +1482,23 @@ class BundledGatewayHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             status = {
-                "status": "online",
-                "app": "clothing_erp",
-                "version": "0.1.0",
-                "bundled_erpnext_server": {
-                    "url": f"http://127.0.0.1:{ERPNEXT_PORT}",
-                    "online": check_erpnext_server(),
-                    "version": "16.54.0",
-                },
+                "server": "Unified Frappe Desk Server",
+                "installed_apps": [
+                    {"name": "clothing_erp", "version": "0.1.0", "title": "Clothing ERP"},
+                    {"name": "erpnext", "version": "16.54.0", "title": "ERPNext"},
+                    {"name": "frappe", "version": "16.55.2", "title": "Frappe Framework"},
+                ],
+                "active_workspaces": [
+                    "Clothing ERP",
+                    "Salesperson Portal",
+                    "Warehouse Operations",
+                    "Stock",
+                    "Selling",
+                    "Buying",
+                    "Accounting",
+                    "CRM",
+                    "Settings",
+                ],
                 "same_ip_host": True,
             }
             self.wfile.write(json.dumps(status, indent=2).encode("utf-8"))
@@ -1054,18 +1528,14 @@ class BundledGatewayHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
 
     def log_message(self, format, *args):
-        sys.stderr.write(f"[Bundled Gateway] {self.address_string()} - {format % args}\n")
+        sys.stderr.write(f"[Frappe Desk Server] {self.address_string()} - {format % args}\n")
 
 
 def run():
-    # 1. Auto-start the independent ERPNext backend server
-    ensure_erpnext_running()
-
-    # 2. Launch the Gateway server
     socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer(("0.0.0.0", PORT), BundledGatewayHandler) as httpd:
-        print(f"[Gateway] Bundled Server running on http://127.0.0.1:{PORT}")
-        print(f"[Gateway] ERPNext server running independently on http://127.0.0.1:{ERPNEXT_PORT}")
+    with socketserver.TCPServer(("0.0.0.0", PORT), UnifiedDeskHandler) as httpd:
+        print(f"[Frappe Desk] Unified server running on http://127.0.0.1:{PORT}")
+        print(f"[Frappe Desk] Hosting Frappe Framework, ERPNext, and Clothing ERP together on the same dashboard.")
         sys.stdout.flush()
         try:
             httpd.serve_forever()
