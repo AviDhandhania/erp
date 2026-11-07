@@ -1,45 +1,33 @@
-"""Tests for Clothing ERP homepage navigation placeholders and foundation hooks."""
-
-from importlib import import_module
+"""Root and login use Frappe's own launcher instead of a simulated Desk."""
 import unittest
+from unittest.mock import patch
+import frappe
+from clothing_erp.www import clothing
+from clothing_erp import hooks
 
 
-class TestClothingERPHomepageUnit(unittest.TestCase):
-	"""Unit tests verifying navigation placeholders without requiring a live database."""
+class TestLauncher(unittest.TestCase):
+    def test_guest_redirects_to_login_with_launcher_destination(self):
+        with patch.object(clothing, "frappe") as framework:
+            framework.session.user = "Guest"
+            framework.Redirect = frappe.Redirect
+            framework.local.flags = frappe._dict()
+            with self.assertRaises(frappe.Redirect):
+                clothing.get_context({})
+            self.assertEqual(framework.local.flags.redirect_location, "/login?redirect-to=%2Fdesk%2Fdesktop")
 
-	def test_required_placeholders_present(self):
-		"""Verify that all 7 required navigation placeholders are registered."""
-		clothing_module = import_module("clothing_erp.www.clothing")
-		items = clothing_module.get_navigation_items()
-		labels = {item["label"] for item in items}
-		expected = {"Admin", "Products", "Sales", "Retailers", "Warehouse", "Suppliers", "Reports"}
-		self.assertTrue(expected.issubset(labels), f"Missing placeholders: {expected - labels}")
+    def test_authenticated_visitor_opens_native_apps_screen(self):
+        with patch.object(clothing, "frappe") as framework:
+            framework.session.user = "test@example.invalid"
+            framework.Redirect = frappe.Redirect
+            framework.local.flags = frappe._dict()
+            with self.assertRaises(frappe.Redirect):
+                clothing.get_context({})
+            self.assertEqual(framework.local.flags.redirect_location, "/desk/desktop")
 
-	def test_placeholder_attributes(self):
-		"""Verify each navigation placeholder has required attributes."""
-		clothing_module = import_module("clothing_erp.www.clothing")
-		items = clothing_module.get_navigation_items()
-		for item in items:
-			self.assertIn("id", item)
-			self.assertIn("label", item)
-			self.assertIn("description", item)
-			self.assertIn("url", item)
-			self.assertIn("doctype", item)
-
-
-class TestClothingERPHomepageIntegration(unittest.TestCase):
-	"""Integration tests run within Frappe site test runner."""
-
-	def test_homepage_context_generation(self):
-		"""Verify get_context provides title, subtitle, and navigation items."""
-		try:
-			import frappe
-		except ImportError:
-			self.skipTest("Frappe framework not imported in current process")
-
-		clothing_module = import_module("clothing_erp.www.clothing")
-		context = frappe._dict()
-		res = clothing_module.get_context(context)
-		self.assertEqual(res.title, "Clothing ERP")
-		self.assertIn("navigation_items", res)
-		self.assertGreaterEqual(len(res.navigation_items), 7)
+    def test_app_registers_real_workspace_and_logo(self):
+        app = hooks.add_to_apps_screen[0]
+        self.assertEqual(app["route"], "/desk/clothing-erp")
+        self.assertEqual(app["title"], "Clothing ERP")
+        self.assertEqual(app["has_permission"], "clothing_erp.security.has_app_access")
+        self.assertTrue(app["logo"].endswith("clothing_erp_logo.svg"))

@@ -8,11 +8,15 @@ authors = [
     { name = "Clothing ERP Contributors", email = "team@clothing-erp.invalid" }
 ]
 description = "Open-source clothing distribution ERP extension for ERPNext"
-requires-python = ">=3.10"
+requires-python = ">=3.14,<3.15"
 readme = "README.md"
 dynamic = ["version"]
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/clothing_erp/clothing_erp"
-Repository = "https://github.com/clothing_erp/clothing_erp"
+Homepage = "https://github.com/AviDhandhania/erp"
+Repository = "https://github.com/AviDhandhania/erp"
+
+[tool.bench.frappe-dependencies]
+frappe = ">=16.55.2,<17.0.0"
+erpnext = ">=16.54.0,<17.0.0"

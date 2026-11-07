@@ -26,6 +26,12 @@
   },
   {
    "role": "System Manager"
+  },
+  {
+   "role": "Clothing Salesperson"
+  },
+  {
+   "role": "Clothing Warehouse Operator"
   }
  ],
  "shortcuts": [
@@ -135,5 +141,7 @@
    "onboard": 0,
    "type": "Link"
   }
- ]
+ ],
+ "module": "Clothing ERP",
+ "title": "Clothing ERP"
 }

@@ -102,5 +102,7 @@
    "onboard": 0,
    "type": "Link"
   }
- ]
+ ],
+ "module": "Clothing ERP",
+ "title": "Warehouse Operations"
 }

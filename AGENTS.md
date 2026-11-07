@@ -24,7 +24,7 @@ This document defines the strict operating boundaries and development rules for 
    - Always ask the user before performing destructive changes or system-wide operations (e.g., package installation, system services, drop-database).
 
 5. **Stage Scope Discipline**:
-   - Respect the current stage boundaries. **Do not implement products, sales, inventory, or accounting business logic until Stage 2 is explicitly requested.**
+   - Respect the current stage boundaries. Implement only the business workflows authorized in the current user request; deployment and foundation repair do not imply completion of later apparel features.
 
 ---
 
@@ -50,14 +50,14 @@ This document defines the strict operating boundaries and development rules for 
 
 ## 3. Technology Pins
 
-| Component | Pinned Version | Branch |
-| :--- | :--- | :--- |
-| **Frappe Framework** | `v16.55.2` | `version-16` |
-| **ERPNext** | `v16.54.0` | `version-16` |
-| **Python** | `3.11` / `3.12` | — |
-| **MariaDB** | `11.4` / `10.6` | LTS |
-| **Redis** | `7.x` | Alpine |
-| **Node.js** | `18.x` / `20.x` | LTS |
+Deployment pins live in `deploy/versions.env`: Frappe v16.55.2, ERPNext v16.54.0,
+Python 3.14.9, Node 24.22.2, Bench 5.31.1, Debian 13 MariaDB/Redis packages.
+Never assume the earlier Python 3.11/Node 18 requirements apply to v16.
+The existing local bench has an ERPNext develop checkout; do not downgrade a site's
+schema to match release pins. Use an isolated new site/bench for release validation.
+
+The canonical roadmap is this repository's `work.md`. Completed launch/role
+foundations are not completion of catalogue, ordering or warehouse workflows.
 
 ---
 
@@ -65,7 +65,9 @@ This document defines the strict operating boundaries and development rules for 
 
 - [ ] All new files belong strictly to `clothing_erp`.
 - [ ] Upstream `erpnext` and `frappe` repositories remain untouched (`git status` is clean).
-- [ ] Standalone unit tests pass (`python -m unittest discover -s clothing_erp/tests`).
-- [ ] Site tests pass (`bench --site <site-name> run-tests --app clothing_erp`).
-- [ ] Homepage navigation placeholders render properly in the browser.
+- [ ] Standalone unit tests pass (`python -m unittest discover -s clothing_erp/tests` (using a Frappe-capable Python environment)).
+- [ ] Site tests pass (`bench --site <site-name> run-tests --app clothing_erp --test-category all`).
+- [ ] The native launcher and app workspace render properly in the browser.
 - [ ] No secrets or temporary credentials committed.
+
+Deployment work also requires `python -m unittest discover -s deploy/tests -v`, shell syntax checks, and ShellCheck. Mocked host-command tests do not replace an actual Proxmox installation trial.

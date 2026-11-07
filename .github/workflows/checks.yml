@@ -1,0 +1,26 @@
+name: Verify app and installer
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: sudo apt-get update && sudo apt-get install -y libmariadb-dev pkg-config shellcheck
+      - run: |
+          . deploy/versions.env
+          uv python install "$PYTHON_VERSION"
+          uv venv --python "$PYTHON_VERSION"
+          git clone --depth 1 --branch "$FRAPPE_REF" https://github.com/frappe/frappe.git /tmp/frappe
+          uv pip install -e /tmp/frappe -e .
+      - run: uv run python -m unittest discover -s clothing_erp/tests -v
+      - run: uv run python -m unittest discover -s deploy/tests -v
+      - run: |
+          find deploy -name '*.sh' -print0 | xargs -0 -n1 bash -n
+          shellcheck -x deploy/*.sh deploy/proxmox/*.sh deploy/local/*.sh
+          uvx ruff check --select E9,F63,F7,F82 clothing_erp deploy
+      - run: ./deploy/build-installer.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clothing-erp-lxc-installer
+          path: dist/clothing-erp-lxc.run

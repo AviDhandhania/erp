@@ -1,189 +1,56 @@
-# Clothing ERP — Master Development Roadmap (`work.md`)
+# Clothing ERP roadmap and verified state
 
-This file is the single source of truth for the implementation of the `clothing_erp` application.
-In every subsequent prompt, check this file to identify the next task and update progress.
+This is the canonical roadmap. The workspace-level work.md points here.
 
----
+## Current foundation
 
-## Overall Progress Summary
+- [x] Independent clothing_erp app, version 0.2.0; no upstream core source edits.
+- [x] Real Frappe/ERPNext site and native launcher showing ERPNext, Clothing ERP, Framework.
+- [x] Root redirects through login to the native launcher.
+- [x] Three module-owned workspaces and five clothing roles.
+- [x] Permission-aware native dashboard queries; empty data produces zero/empty results.
+- [x] Remove preview-role authorization bypass and mock ERPNext HTTP clients.
+- [x] Restrict operational Customers, Warehouses, Sales Orders, Delivery Notes and Pick Lists.
+- [x] Native User Permissions for assignments; open ToDo required for operator pick lists.
+- [x] Regression unit tests and real database permission tests.
+- [x] Desktop launcher verified in Chromium against the real local site.
+- [x] Local nginx/systemd setup script for port 80, prepared for a sudo run.
+- [x] Stable deployment release pins; native services and nginx for an IP-based LXC.
+- [x] Proxmox installer with preflight checks, new CT only, generated passwords, health check.
+- [x] Portable single-file installer and tests for packaging and host command flow.
+- [ ] Test a full installation/reboot/restore on an actual Proxmox host.
+- [ ] Activate local port 80 using sudo (passwordless sudo is unavailable to this session).
 
-- **Stage 1 — Development Foundation**: [x] COMPLETED
-- **Stage 2 — Roles and Operational Interface Foundation**: [x] COMPLETED
-- **Stage 3 — Salesperson Catalogue**: [ ] PENDING (Next Stage)
-- **Stage 4 — Retailer Management**: [ ] PENDING
-- **Stage 5 — Salesperson Ordering**: [ ] PENDING
-- **Stage 6 — Warehouse Operations**: [ ] PENDING
-- **Stage 7 — Retailer-Direct Orders**: [ ] PENDING
-- **Stage 8 — Notifications and Operational Improvements**: [ ] PENDING
-- **Stage 9 — Security and Integration Testing**: [ ] PENDING
-- **Stage 10 — GitHub Release System**: [ ] PENDING
-- **Stage 11 — Proxmox LXC Installer**: [ ] PENDING
-- **Stage 12 — Update and Maintenance System**: [ ] PENDING
+The local pre-existing bench uses Frappe v16.55.2 and ERPNext develop 17.0.0-dev.
+It was not downgraded. New LXC deployments pin ERPNext v16.54.0 with Frappe v16.55.2.
+The local setup wizard was completed with the fictional TEST Clothing ERP Demo company.
+The production installer leaves the wizard available for the operator's real configuration.
+The previous Stage 2 checklist overstated completion: barcode scanning, follow-ups,
+packing queues and commercial workflows remain unimplemented. No mock data stands
+in for them now.
 
----
+## Apparel features still to build
 
-## Stage-by-Stage Specifications & Checklist
+1. Salesperson catalogue: native Items/variants, style/collection/fabric/fit/season,
+   images, size-colour matrix, stock visibility and permitted customer pricing.
+2. Retailer management: registration, duplicate checks, approval, customer linkage,
+   visit tracking and assignment management.
+3. Salesperson ordering: matrix cart, authoritative pricing, discounts/credit checks,
+   stock handling, idempotency, standard Sales Orders and lifecycle status.
+4. Warehouse operations: assigned picking, barcode verification, shortages, packing,
+   dispatch and standard Delivery Notes.
+5. Retailer-direct requests: authenticated intake and approval before Sales Orders.
+6. Realtime workflow notifications, reconciliation and operational reports.
+7. Full permission audit and cross-user integration/concurrency coverage.
+8. Release CI, reproducible release manifests and supported-host installation trials.
+9. Backup restore drills, upgrades and rollback tooling.
 
-### Stage 1 — Development Foundation [x] COMPLETED
-- [x] Inspect existing ERPNext repository, Git branch, and working tree (clean on `develop`, untouched).
-- [x] Check installed system tools on Arch Linux.
-- [x] Determine best local development setup (containerized Docker Compose / Dev Containers; user-space preview).
-- [x] Pin compatible versions: Frappe Framework `v16.55.2`, ERPNext `v16.54.0`, MariaDB 11.4 LTS.
-- [x] Create separate custom Frappe application `clothing_erp` in `/home/avi/GitHub/erp/clothing_erp`.
-- [x] Initialize independent Git repository on branch `main`.
-- [x] Create README.md and AGENTS.md defining project rules (zero modifications to ERPNext core).
-- [x] Add placeholder navigation for Admin, Products, Sales, Retailers, Warehouse, Suppliers, Reports.
-- [x] Verify local server starts and responds on port 8000.
-- [x] Write and run standalone unit tests (`test_home.py`).
+All business rules and permission enforcement belong in this custom app. Use
+standard ERPNext accounting, stock and commercial documents. Never add duplicate
+ledgers or implement business behavior by modifying upstream core.
 
----
-
-### Stage 2 — Roles and Operational Interface Foundation [x] IN PROGRESS
-**Acceptance Criterion:** Users can access only authorized functionality through ERPNext-identical Desk interfaces.
-- [x] Define operational and management roles:
-  - `Clothing Salesperson`
-  - `Clothing Warehouse Operator`
-  - `Clothing Sales Manager`
-  - `Clothing Warehouse Manager`
-  - `Clothing Business Administrator`
-- [x] Implement post-install role provisioning in `clothing_erp/install.py`.
-- [x] Create backend security & authorization module `clothing_erp/security.py`:
-  - Server-side role validation (`is_salesperson`, `is_warehouse_operator`, `is_sales_manager`, etc.).
-  - Decorators/guards for API methods (`require_role`, permission checks).
-  - Document-level permission queries for assigned retailers and warehouses.
-- [x] Implement Frappe Desk Workspaces:
-  - Main `Clothing ERP` Workspace.
-  - Dedicated `Salesperson Portal` Workspace.
-  - Dedicated `Warehouse Operations` Workspace.
-- [x] Match ERPNext Desk UI/UX design language exactly:
-  - Frappe Navbar with App Switcher (`Clothing ERP`, `ERPNext`, `Frappe`).
-  - Search bar (`Ctrl + K`), Notifications, User Avatar menu.
-  - Desk sidebar with Workspaces list.
-  - Number Cards (Today's Orders, Monthly Sales, Active Retailers, Pending Picking).
-  - Quick action shortcuts and card sections.
-  - Responsive mobile-first layout.
-- [x] Implement Salesperson operational interface foundation:
-  - Dashboard with orders, sales, assigned retailers, follow-ups.
-  - Quick actions for ordering, catalog, and visit logging.
-- [x] Implement Warehouse Operator operational interface foundation:
-  - Dashboard with assigned pick lists, packing queue, dispatch readiness.
-  - Barcode scanning foundation.
-- [x] Add server-side APIs for user context, role switching, and operational metrics.
-- [x] Write automated tests for roles, authorization checks, and interface endpoints (`test_roles.py`, `test_operational_interfaces.py`).
-- [x] Update documentation and commit changes locally.
-
----
-
-### Stage 3 — Salesperson Catalogue [ ] PENDING
-**Acceptance Criterion:** Salespeople can browse existing ERPNext clothing products and select variants.
-- [ ] Query standard ERPNext `Item` and `Item Variant` records.
-- [ ] Clothing custom fields: Style code, Collection, Fabric, Fit, Season.
-- [ ] Product images and thumbnail gallery.
-- [ ] Size-Colour variant matrix (e.g. Size on X-axis, Colour on Y-axis).
-- [ ] Stock availability display from specified warehouses.
-- [ ] Customer-specific wholesale price lists lookup.
-- [ ] Filters: Category, Brand, Size, Colour, Fit.
-- [ ] Mobile-optimized product card and matrix modal.
-- [ ] Automated tests for variant querying, stock lookup, and pricing permissions.
-
----
-
-### Stage 4 — Retailer Management [ ] PENDING
-**Acceptance Criterion:** Approved registrations become valid ERPNext Customers.
-- [ ] Retailer directory for assigned salesperson (`Customer` doctype).
-- [ ] Simplified retailer registration form (Shop name, contact, phone, GSTIN, territory).
-- [ ] Duplicate detection logic (phone, email, GSTIN).
-- [ ] Multi-tier approval flow (Pending -> Approved by Sales Manager).
-- [ ] Automatic creation/linking of ERPNext `Customer` on approval.
-- [ ] Retailer Visit tracking (Date, notes, follow-up date).
-- [ ] Salesperson-to-customer assignment restrictions.
-- [ ] Automated tests for registration, approval, and duplicate prevention.
-
----
-
-### Stage 5 — Salesperson Ordering [ ] PENDING
-**Acceptance Criterion:** Salespeople can create valid ERPNext Sales Orders using the custom UI.
-- [ ] Shopping cart with size-colour matrix quantities.
-- [ ] Server-side price recalculation and pricing rule validation.
-- [ ] Stock reservation and availability check before submission.
-- [ ] Credit policy and discount limit validation.
-- [ ] Convert submitted request into standard ERPNext `Sales Order`.
-- [ ] Idempotent submission to prevent duplicate orders.
-- [ ] Order tracking statuses (Requested, Awaiting Approval, Confirmed, Picking, Packing, Dispatched, Delivered).
-- [ ] Automated tests for cart operations, pricing validation, concurrency, and sales order creation.
-
----
-
-### Stage 6 — Warehouse Operations [ ] PENDING
-**Acceptance Criterion:** An order can be picked, packed, and dispatched while ERPNext maintains correct stock records.
-- [ ] Warehouse Operator Dashboard showing assigned `Pick List`s.
-- [ ] Barcode scanning and SKU verification interface.
-- [ ] Quantity verification and shortage reporting.
-- [ ] Packing session management and box/package count.
-- [ ] Dispatch confirmation with carrier and tracking reference.
-- [ ] Automatic generation of ERPNext `Delivery Note` and stock ledger updates.
-- [ ] Handling of stock exceptions, damaged goods, and partial deliveries.
-- [ ] Automated tests for picking, packing, dispatch, and delivery note generation.
-
----
-
-### Stage 7 — Retailer-Direct Orders [ ] PENDING
-**Acceptance Criterion:** Retailer requests can enter the same standard order workflow.
-- [ ] Secure request intake portal via tokenized link or OTP verification.
-- [ ] Retailer catalog browsing with retail pricing.
-- [ ] Request submission into `Clothing Order Request` (no direct unapproved sales order).
-- [ ] Manager approval workflow to convert request into ERPNext `Sales Order`.
-- [ ] Instant acknowledgement reference and status tracking.
-- [ ] Rate limiting and security controls.
-- [ ] Automated tests for token authentication, intake, and conversion.
-
----
-
-### Stage 8 — Notifications and Operational Improvements [ ] PENDING
-**Acceptance Criterion:** Authorized users receive correct updates and can track the order lifecycle.
-- [ ] Frappe real-time event publishing on order status transitions.
-- [ ] Warehouse task assignment alerts.
-- [ ] Out-of-stock and shortage notifications.
-- [ ] Reconnection handling and state refresh.
-- [ ] Role-specific operational summaries and performance metrics.
-- [ ] Automated tests for event emission and subscriber authorization.
-
----
-
-### Stage 9 — Security and Integration Testing [ ] PENDING
-**Acceptance Criterion:** Critical business workflows pass documented tests.
-- [ ] Comprehensive permission matrix audit.
-- [ ] Concurrency testing for simultaneous stock deductions.
-- [ ] Unauthorized direct URL and API access tests.
-- [ ] Multi-user end-to-end integration test (Salesperson -> Manager -> Warehouse).
-- [ ] Database migration rollback verification.
-- [ ] Data sanitization verification (no secrets in source).
-
----
-
-### Stage 10 — GitHub Release System [ ] PENDING
-**Acceptance Criterion:** A tested release can be installed on a clean server.
-- [ ] Semantic versioning configuration (`v0.2.0`, etc.).
-- [ ] GitHub Actions CI workflows for test execution and linting.
-- [ ] Docker image packaging and publishing to GitHub Container Registry.
-- [ ] Release manifest with pinned dependencies.
-- [ ] Release documentation and changelog.
-
----
-
-### Stage 11 — Proxmox LXC Installer [ ] PENDING
-**Acceptance Criterion:** A clean supported Proxmox host can install Clothing ERP using a documented helper-style script.
-- [ ] Helper-style Bash installer (`install-clothing-erp-lxc.sh`).
-- [ ] Preflight system checks (CPU, RAM, storage, network).
-- [ ] Unprivileged Debian LXC container creation.
-- [ ] Automated runtime configuration (MariaDB, Redis, Frappe Bench).
-- [ ] Site initialization, persistent volumes, and health verification.
-
----
-
-### Stage 12 — Update and Maintenance System [ ] PENDING
-**Acceptance Criterion:** A previously installed version can be upgraded to a tested newer release with documented recovery steps.
-- [ ] Update utility script (`clothing-erp update`).
-- [ ] Automated database and files backup before migration.
-- [ ] Release package verification and schema migration.
-- [ ] Rollback procedures and disaster recovery guide.
+Verification: 22 app tests passed through the real site runner, 8 installer/package
+tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
+checks passed with all three icons, the Clothing ERP workspace and a connected
+realtime socket through nginx. nginx configurations were checked on unprivileged
+test ports; activating port 80 still requires the local sudo setup command.
