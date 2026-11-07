@@ -75,12 +75,19 @@ def verify_locks(source, manifest):
         if sha256(path) != manifest["locks"][name]["sha256"]:
             raise ValueError(f"Dependency lock checksum mismatch: {name}")
         lines = [line.strip() for line in path.read_text().splitlines() if line.strip()]
-        if not lines or any(
-            not re.fullmatch(r"[A-Za-z0-9_.-]+==[A-Za-z0-9_.!+-]+", line)
-            for line in lines
-        ):
+
+        def exact(line):
+            return re.fullmatch(
+                r"[A-Za-z0-9_.-]+==[A-Za-z0-9_.!+-]+", line
+            ) or re.fullmatch(
+                r"[A-Za-z0-9_.-]+ @ git\+https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[a-f0-9]{40}",
+                line,
+            )
+
+        invalid = next((line for line in lines if not exact(line)), None)
+        if not lines or invalid is not None:
             raise ValueError(
-                "Dependency locks must contain exact index-package versions only"
+                f"Dependency locks require exact versions or full Git commit pins: {name}: {invalid!r}"
             )
 
 

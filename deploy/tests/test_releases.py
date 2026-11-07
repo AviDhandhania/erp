@@ -491,5 +491,25 @@ class TestDependencyLocks(unittest.TestCase):
             data["locks"]["python.txt"]["sha256"] = common.sha256(
                 root / "deploy/locks/python.txt"
             )
-            with self.assertRaisesRegex(ValueError, "exact index-package"):
+            with self.assertRaisesRegex(ValueError, "exact versions"):
+                common.verify_locks(root, data)
+
+
+class TestPinnedGitDependencies(unittest.TestCase):
+    def test_frappe_git_dependencies_keep_full_commits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "deploy/locks").mkdir(parents=True)
+            data = manifest()
+            for name in ("python.txt", "tools.txt"):
+                path = root / "deploy/locks" / name
+                path.write_text(
+                    "gunicorn @ git+https://github.com/frappe/gunicorn@54b59ca884c79dcf04d4882658a32bbaf17e999f\n"
+                )
+                data["locks"][name]["sha256"] = common.sha256(path)
+            common.verify_locks(root, data)
+            path = root / "deploy/locks/python.txt"
+            path.write_text("gunicorn @ git+https://github.com/frappe/gunicorn@main\n")
+            data["locks"]["python.txt"]["sha256"] = common.sha256(path)
+            with self.assertRaisesRegex(ValueError, "full Git commit"):
                 common.verify_locks(root, data)
