@@ -51,8 +51,10 @@ in for them now.
 - [x] Role-restricted Clothing Catalogue Desk page linked from the salesperson workspace.
 - [x] Responsive product cards and horizontally safe mobile variant tables.
 - [x] Native ERPNext Item templates and Item Variants; no duplicate product model.
+- [x] Colour-specific product templates/SKUs with Size as the only variant dimension.
 - [x] Search, leaf-category and brand filters with bounded server-side pagination.
-- [x] Product images, colour/size attributes, stock UOM and aggregate on-hand visibility.
+- [x] Product images, size attributes, stock UOM and aggregate on-hand visibility;
+  colour is part of the product identity/SKU rather than a variant attribute.
 - [x] Active generic selling-price lookup with future, expired, batch, supplier and
   customer-specific records excluded from the generic view.
 - [x] Touch-friendly quantity selection with an in-browser draft units/value summary.
@@ -68,11 +70,23 @@ The displayed stock is informational on-hand quantity, not a reservation or prom
 Stage 5 must recalculate prices, permissions and stock on the server when an order is
 submitted. The catalogue intentionally creates no Sales Order or stock transaction.
 
+## Stage 4 — retailer management
+
+- [x] Permission-aware assigned-retailer directory API with search and bounded pagination.
+- [x] Retailer detail API with contact fields and authorized recent Sales Order history.
+- [ ] Simplified Retailer Application DocType and submission form.
+- [ ] Duplicate detection across shop name, phone, email and GSTIN.
+- [ ] Manager approval/rejection and native Customer/contact/address creation.
+- [ ] Retailer Visit and follow-up records.
+
+Stage 4 is in progress; directory access is usable, but registration and approval are
+not marked complete until their document workflow and database tests exist.
+
 All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 31 app tests passed through the real site runner, 8 installer/package
+Verification: 33 app tests passed through the real site runner, 8 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
 checks passed with all three icons and the Clothing ERP workspace. Current local
 testing is intentionally direct on port 8000; nginx is deferred from this phase.

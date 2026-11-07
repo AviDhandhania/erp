@@ -56,3 +56,19 @@ class TestOperationalInterfaces(unittest.TestCase):
             result = api.get_salesperson_dashboard()
         self.assertEqual(result["monthly_sales"], currencies)
         self.assertNotIn("month_sales_value", result["metrics"])
+
+    def test_retailer_directory_rejects_unauthorized_users_before_query(self):
+        with patch.object(api, "require_role", side_effect=frappe.PermissionError), patch.object(frappe, "get_list") as query:
+            with self.assertRaises(frappe.PermissionError):
+                api.get_retailer_directory()
+            query.assert_not_called()
+
+    def test_retailer_directory_bounds_search_and_pagination(self):
+        rows = [frappe._dict(name=f"TEST Retailer {index}") for index in range(3)]
+        with patch.object(api, "require_role"), patch.object(frappe, "get_list", return_value=rows) as query:
+            result = api.get_retailer_directory(search="  TEST  ", page=0, page_size=2)
+        self.assertEqual(len(result["retailers"]), 2)
+        self.assertTrue(result["has_more"])
+        self.assertEqual(query.call_args.kwargs["start"], 0)
+        self.assertEqual(query.call_args.kwargs["limit"], 3)
+        self.assertNotIn("ignore_permissions", query.call_args.kwargs)

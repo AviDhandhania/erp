@@ -24,7 +24,7 @@ class TestSeedSafety(unittest.TestCase):
             self.assertTrue(product["code"].startswith("TEST-"))
             self.assertTrue(product["name"].startswith("TEST "))
             self.assertTrue(product["brand"].startswith("TEST "))
-            self.assertTrue(all(value.startswith("TEST ") for value in product["colours"]))
+            self.assertTrue(product["colour"])
             self.assertTrue(all(value.startswith("TEST ") for value in product["sizes"]))
 
     def test_seed_images_are_local_packaged_assets(self):

@@ -6,36 +6,78 @@ from erpnext.controllers.item_variant import create_variant
 SEED_REFERENCE = "Clothing ERP fictional catalogue seed"
 PRODUCTS = (
     {
-        "code": "TEST-CLASSIC-TEE",
-        "name": "TEST Classic Cotton T-shirt",
+        "code": "TEST-CLASSIC-TEE-BLK",
+        "name": "TEST Classic Cotton T-shirt — Black",
         "brand": "TEST Threadline",
         "description": "Fictional cotton T-shirt for Clothing ERP testing only.",
         "image": "/assets/clothing_erp/images/seed/test-classic-tee.jpg",
-        "colours": ("TEST Black", "TEST White", "TEST Navy"),
+        "colour": "Black",
         "sizes": ("TEST S", "TEST M", "TEST L", "TEST XL"),
         "rate": 499,
     },
     {
-        "code": "TEST-DENIM-JEANS",
-        "name": "TEST Straight Fit Denim Jeans",
+        "code": "TEST-CLASSIC-TEE-WHT",
+        "name": "TEST Classic Cotton T-shirt — White",
+        "brand": "TEST Threadline",
+        "description": "Fictional white cotton T-shirt for Clothing ERP testing only.",
+        "image": "/assets/clothing_erp/images/seed/test-classic-tee.jpg",
+        "colour": "White",
+        "sizes": ("TEST S", "TEST M", "TEST L", "TEST XL"),
+        "rate": 499,
+    },
+    {
+        "code": "TEST-CLASSIC-TEE-NVY",
+        "name": "TEST Classic Cotton T-shirt — Navy",
+        "brand": "TEST Threadline",
+        "description": "Fictional navy cotton T-shirt for Clothing ERP testing only.",
+        "image": "/assets/clothing_erp/images/seed/test-classic-tee.jpg",
+        "colour": "Navy",
+        "sizes": ("TEST S", "TEST M", "TEST L", "TEST XL"),
+        "rate": 499,
+    },
+    {
+        "code": "TEST-DENIM-JEANS-IND",
+        "name": "TEST Straight Fit Denim Jeans — Indigo",
         "brand": "TEST Denim Works",
         "description": "Fictional straight-fit jeans for Clothing ERP testing only.",
         "image": "/assets/clothing_erp/images/seed/test-denim-jeans.jpg",
-        "colours": ("TEST Indigo", "TEST Washed Black"),
+        "colour": "Indigo",
         "sizes": ("TEST 28", "TEST 30", "TEST 32", "TEST 34"),
         "rate": 1299,
     },
     {
-        "code": "TEST-FLEECE-HOODIE",
-        "name": "TEST Everyday Fleece Hoodie",
+        "code": "TEST-DENIM-JEANS-WBK",
+        "name": "TEST Straight Fit Denim Jeans — Washed Black",
+        "brand": "TEST Denim Works",
+        "description": "Fictional washed-black jeans for Clothing ERP testing only.",
+        "image": "/assets/clothing_erp/images/seed/test-denim-jeans.jpg",
+        "colour": "Washed Black",
+        "sizes": ("TEST 28", "TEST 30", "TEST 32", "TEST 34"),
+        "rate": 1299,
+    },
+    {
+        "code": "TEST-FLEECE-HOODIE-CHR",
+        "name": "TEST Everyday Fleece Hoodie — Charcoal",
         "brand": "TEST Threadline",
         "description": "Fictional fleece hoodie for Clothing ERP testing only.",
         "image": "/assets/clothing_erp/images/seed/test-fleece-hoodie.jpg",
-        "colours": ("TEST Charcoal", "TEST Maroon"),
+        "colour": "Charcoal",
+        "sizes": ("TEST M", "TEST L", "TEST XL"),
+        "rate": 999,
+    },
+    {
+        "code": "TEST-FLEECE-HOODIE-MRN",
+        "name": "TEST Everyday Fleece Hoodie — Maroon",
+        "brand": "TEST Threadline",
+        "description": "Fictional maroon fleece hoodie for Clothing ERP testing only.",
+        "image": "/assets/clothing_erp/images/seed/test-fleece-hoodie.jpg",
+        "colour": "Maroon",
         "sizes": ("TEST M", "TEST L", "TEST XL"),
         "rate": 999,
     },
 )
+
+LEGACY_COLOUR_TEMPLATE_CODES = ("TEST-CLASSIC-TEE", "TEST-DENIM-JEANS", "TEST-FLEECE-HOODIE")
 
 
 def _require_development_site():
@@ -132,35 +174,43 @@ def _ensure_template(product, item_group):
             "image": product["image"],
             "has_variants": 1,
             "variant_based_on": "Item Attribute",
-            "attributes": [{"attribute": "Colour"}, {"attribute": "Size"}],
+            "attributes": [{"attribute": "Size"}],
         }
     ).insert()
 
 
-def _variant_code(template_code, colour_index, size_index):
-    return f"{template_code}-C{colour_index:02d}-S{size_index:02d}"
+def _variant_code(template_code, size_index):
+    return f"{template_code}-S{size_index:02d}"
 
 
 def _ensure_variants(template, product):
     variants = []
-    for colour_index, colour in enumerate(product["colours"], 1):
-        for size_index, size in enumerate(product["sizes"], 1):
-            item_code = _variant_code(template.name, colour_index, size_index)
-            if frappe.db.exists("Item", item_code):
-                variant = frappe.get_doc("Item", item_code)
-                if variant.variant_of != template.name:
-                    frappe.throw(frappe._("Seed item code {0} belongs to another template.").format(item_code))
-                if variant.image != product["image"]:
-                    variant.image = product["image"]
-                    variant.save()
-            else:
-                variant = create_variant(template.name, {"Colour": colour, "Size": size})
-                variant.item_code = item_code
-                variant.item_name = f"{product['name']} — {colour.removeprefix('TEST ')} / {size.removeprefix('TEST ')}"
+    for size_index, size in enumerate(product["sizes"], 1):
+        item_code = _variant_code(template.name, size_index)
+        if frappe.db.exists("Item", item_code):
+            variant = frappe.get_doc("Item", item_code)
+            if variant.variant_of != template.name:
+                frappe.throw(frappe._("Seed item code {0} belongs to another template.").format(item_code))
+            if variant.image != product["image"]:
                 variant.image = product["image"]
-                variant.insert()
-            variants.append(variant)
+                variant.save()
+        else:
+            variant = create_variant(template.name, {"Size": size})
+            variant.item_code = item_code
+            variant.item_name = f"{product['name']} / {size.removeprefix('TEST ')}"
+            variant.image = product["image"]
+            variant.insert()
+        variants.append(variant)
     return variants
+
+
+def _retire_legacy_colour_templates():
+    """Hide only the obsolete fictional templates; their stock history remains intact."""
+    for template_code in LEGACY_COLOUR_TEMPLATE_CODES:
+        if frappe.db.exists("Item", template_code):
+            frappe.db.set_value("Item", template_code, "disabled", 1, update_modified=False)
+            for variant in frappe.get_all("Item", filters={"variant_of": template_code}, pluck="name"):
+                frappe.db.set_value("Item", variant, "disabled", 1, update_modified=False)
 
 
 def _ensure_price(item_code, price_list, rate):
@@ -224,8 +274,8 @@ def seed_catalogue():
     item_group = _ensure_item_group()
     for brand in {product["brand"] for product in PRODUCTS}:
         _ensure_brand(brand)
-    _ensure_attribute("Colour", sorted({value for product in PRODUCTS for value in product["colours"]}))
     _ensure_attribute("Size", sorted({value for product in PRODUCTS for value in product["sizes"]}))
+    _retire_legacy_colour_templates()
 
     all_variants = []
     for product in PRODUCTS:

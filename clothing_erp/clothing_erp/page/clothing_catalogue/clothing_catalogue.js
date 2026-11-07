@@ -124,15 +124,14 @@ class ClothingCatalogue {
 			? `<img src="${this.escape(product.image)}" alt="">`
 			: `<div class="catalogue-image-placeholder">${frappe.utils.icon("image", "lg")}</div>`;
 		const rows = product.variants.map((variant) => `<tr>
-			<td><strong>${this.escape(this.attribute(variant, ["colour", "color"]))}</strong><small>${this.escape(variant.item_code)}</small></td>
-			<td>${this.escape(this.attribute(variant, ["size"]))}</td>
+			<td><strong>${this.escape(this.attribute(variant, ["size"]))}</strong><small>${this.escape(variant.item_code)}</small></td>
 			<td>${variant.price == null ? `<span class="text-muted">${__("Not priced")}</span>` : format_currency(variant.price, variant.currency)}</td>
 			<td><span class="stock-pill ${variant.available ? "in-stock" : "out-of-stock"}">${format_number(variant.actual_qty)} ${this.escape(variant.uom)}</span></td>
 			<td><input class="form-control variant-qty" type="number" inputmode="numeric" min="0" step="1" aria-label="${__("Quantity for {0}", [this.escape(variant.item_code)])}" data-item-code="${this.escape(variant.item_code)}" data-rate="${variant.price || 0}" data-currency="${this.escape(variant.currency)}" value="${this.selection.get(variant.item_code)?.quantity || ""}" ${variant.price == null ? "disabled" : ""}></td>
 		</tr>`).join("");
 		return `<article class="catalogue-card">
 			<div class="catalogue-product-head">${image}<div><h3>${this.escape(product.item_name)}</h3><p>${this.escape(product.item_code)}</p><span>${this.escape(product.brand || product.item_group)}</span></div></div>
-			<div class="catalogue-table-wrap"><table class="table"><thead><tr><th>${__("Colour")}</th><th>${__("Size")}</th><th>${__("Price")}</th><th>${__("On hand")}</th><th>${__("Qty")}</th></tr></thead><tbody>${rows || `<tr><td colspan="5">${__("No enabled variants")}</td></tr>`}</tbody></table></div>
+			<div class="catalogue-table-wrap"><table class="table"><thead><tr><th>${__("Size / SKU")}</th><th>${__("Price")}</th><th>${__("On hand")}</th><th>${__("Qty")}</th></tr></thead><tbody>${rows || `<tr><td colspan="4">${__("No enabled variants")}</td></tr>`}</tbody></table></div>
 		</article>`;
 	}
 }

@@ -1,9 +1,9 @@
 """Authenticated APIs. All data is queried with native document permissions."""
 import frappe
 from clothing_erp import __version__
-from frappe.utils import today, get_first_day
+from frappe.utils import cint, today, get_first_day
 from clothing_erp.roles import ALL_ROLES, ROLE_BUSINESS_ADMIN, ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_WAREHOUSE_MANAGER, ROLE_WAREHOUSE_OPERATOR
-from clothing_erp.security import get_current_user, get_user_roles, get_active_operational_role, require_role, is_salesperson, is_warehouse_operator, is_clothing_admin
+from clothing_erp.security import get_current_user, get_user_roles, get_active_operational_role, require_role, is_salesperson, is_warehouse_operator, is_clothing_admin, has_retailer_access
 from clothing_erp.erpnext_client import get_sales_orders, get_pick_lists, get_delivery_notes
 
 @frappe.whitelist()
@@ -37,3 +37,47 @@ def get_warehouse_dashboard():
     return {"metrics": {"open_pick_lists": _count("Pick List", {"docstatus": ["!=", 2], "status": ["!=", "Completed"]}), "draft_delivery_notes": _count("Delivery Note", {"docstatus": 0})},
             "pick_tasks": get_pick_lists(), "delivery_notes": get_delivery_notes(),
             "shortcuts": [{"label": "Pick Lists", "url": "/desk/pick-list"}, {"label": "Delivery Notes", "url": "/desk/delivery-note"}]}
+
+
+@frappe.whitelist()
+def get_retailer_directory(search=None, page=1, page_size=20):
+    """Permission-aware retailer directory for the salesperson application."""
+    require_role({ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+    search = (search or "").strip()[:80]
+    page = max(cint(page), 1)
+    page_size = min(max(cint(page_size), 1), 50)
+    query = {
+        "doctype": "Customer",
+        "filters": {"disabled": 0},
+        "fields": ["name", "customer_name", "territory", "customer_group", "mobile_no", "email_id"],
+        "order_by": "customer_name asc, name asc",
+        "start": (page - 1) * page_size,
+        "limit": page_size + 1,
+    }
+    if search:
+        pattern = f"%{search}%"
+        query["or_filters"] = {"name": ["like", pattern], "customer_name": ["like", pattern], "mobile_no": ["like", pattern]}
+    rows = frappe.get_list(**query)
+    return {"retailers": rows[:page_size], "page": page, "has_more": len(rows) > page_size}
+
+
+@frappe.whitelist()
+def get_retailer_detail(customer):
+    """Return one assigned retailer and authorized recent order history."""
+    require_role({ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+    if not has_retailer_access(customer):
+        frappe.throw(frappe._("You do not have access to this retailer."), frappe.PermissionError)
+    retailer = frappe.get_doc("Customer", customer).as_dict(
+        no_nulls=True
+    )
+    allowed = {"name", "customer_name", "territory", "customer_group", "mobile_no", "email_id", "primary_address"}
+    return {
+        "retailer": {key: retailer[key] for key in allowed if key in retailer},
+        "recent_orders": frappe.get_list(
+            "Sales Order",
+            filters={"customer": customer, "docstatus": ["!=", 2]},
+            fields=["name", "transaction_date", "status", "currency", "grand_total"],
+            order_by="transaction_date desc, modified desc",
+            limit=10,
+        ),
+    }
