@@ -87,7 +87,10 @@ class ClothingCatalogue {
 	escape(value) { return frappe.utils.escape_html(value || ""); }
 
 	attribute(variant, candidates) {
-		const row = variant.attributes.find((entry) => candidates.includes(entry.attribute.toLowerCase()));
+		const row = variant.attributes.find((entry) => {
+			const attribute = entry.attribute.toLowerCase();
+			return candidates.some((candidate) => attribute === candidate || attribute.endsWith(` ${candidate}`));
+		});
 		return row ? row.value : "—";
 	}
 

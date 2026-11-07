@@ -125,6 +125,16 @@ system service. It contains the fictional **TEST Clothing ERP Demo** company. It
 pre-existing ERPNext develop checkout is not a release target and has not been
 downgraded.
 
+Populate the local catalogue with fictional ERPNext templates, variants, prices and
+submitted stock by running this idempotent development-only command:
+
+```bash
+cd /home/avi/GitHub/erp/frappe-bench
+../bench --site clothing.local execute clothing_erp.seed.seed_catalogue
+```
+
+It refuses non-developer sites and only uses clearly labelled `TEST` catalogue data.
+
 **Validation limits:** automated app/database/recovery tests run locally and in CI.
 Host-command tests simulate Proxmox. A complete install/update/reboot/restore on an
 actual Proxmox host remains a required deployment trial; it has not been claimed

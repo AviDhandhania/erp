@@ -58,6 +58,7 @@ in for them now.
 - [x] Touch-friendly quantity selection with an in-browser draft units/value summary.
 - [x] Backend role enforcement and native Item permission-aware template/variant queries.
 - [x] Real database integration test covering template, variant attributes, Item Price and Bin.
+- [x] Idempotent developer-only fictional seed command using submitted ERPNext stock receipts.
 - [ ] Add clothing metadata fields after confirming the exact naming and reporting needs.
 - [ ] Add an assigned-retailer context and ERPNext pricing-rule/customer-specific calculation.
 - [ ] Persist selected quantities only as part of the separately tested Stage 5 cart/order flow.
@@ -70,7 +71,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 28 app tests passed through the real site runner, 8 installer/package
+Verification: 30 app tests passed through the real site runner, 8 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
 checks passed with all three icons and the Clothing ERP workspace. Current local
 testing is intentionally direct on port 8000; nginx is deferred from this phase.
