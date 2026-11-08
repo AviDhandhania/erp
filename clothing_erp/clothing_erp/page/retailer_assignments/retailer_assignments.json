@@ -1,0 +1,19 @@
+{
+ "content": null,
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "module": "Clothing ERP",
+ "name": "retailer-assignments",
+ "owner": "Administrator",
+ "page_name": "retailer-assignments",
+ "roles": [
+  {"role": "Clothing Sales Manager"},
+  {"role": "Clothing Business Administrator"},
+  {"role": "System Manager"}
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "title": "Retailer Assignments"
+}

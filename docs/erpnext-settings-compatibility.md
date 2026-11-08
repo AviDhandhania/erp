@@ -26,7 +26,7 @@ controllers that apply before implementation.
 | Clothing catalogue metadata | Native Item templates plus app-owned Custom Fields | Style code, collection, fabric, fit and season are descriptive/reporting metadata on each colour-specific Item template. They do not create variants or replace Item Group, Brand or Size attributes. Filter values use permission-aware Item queries. |
 | Product galleries | File upload size/type/privacy policy and site file storage | Uploads use native File records. Cleanup invokes native File deletion and protects referenced, shared, private-policy and packaged assets. |
 | Retailer intake and approval | Customer naming/default validation, Selling Settings Customer Group/Territory, Contact, Address and User Permission | Salesperson intake forces the session user and uses configured selling defaults, falling back to app-owned leaf masters without changing Selling Settings. Approval inserts all records through native controllers and revalidates the assigned salesperson. |
-| Retailer reassignment | Customer User Permission | Manager actions replace the existing native permission atomically under a Customer row lock. The app stores only an immutable audit event, not a competing live assignment field. Bulk changes are bounded, preflighted and lock Customers in stable order. |
+| Retailer reassignment | Customer and Territory User Permissions | The Clothing ERP page replaces the existing Customer permission atomically under a row lock. Sales managers are restricted by native Territory permissions; system/business administrators have global scope. The app stores only an immutable audit event, not a competing live assignment field. |
 | Retailer visits and reporting | Customer User Permissions and app role scope | A salesperson can record a visit only for an assigned native Customer. The Desk report uses permission-aware `get_list` queries and the same Retailer Visit permission conditions. |
 | Dashboard and directories | Native document permissions, User Permissions, currencies and submitted document state | Queries use permission-aware lists and keep currency totals separated. |
 
@@ -49,9 +49,10 @@ movement.
 
 This matrix is reviewed whenever a new ERPNext version is added to the release manifest.
 
-The existing developer bench intentionally runs ERPNext `develop` with Frappe v16 and
-is not a production compatibility target. A native Sales Order party-load test exposed
-a Contact-schema mismatch in that mixed checkout. The draft endpoint reports that known
-incompatibility clearly. Clothing ERP does not patch around core schema differences:
-release CI must validate full order creation and submission on the exact pinned
-Frappe/ERPNext pair before Stage 5 can be marked complete.
+The existing developer bench intentionally runs ERPNext `develop` with Frappe v16 and is
+not a production compatibility target. Its patch log had recorded ERPNext's v16 Contact
+field migration although ERPNext's own field was absent. Clothing ERP now invokes the
+upstream idempotent installer when those upstream-owned columns are missing; it does not
+copy their definitions or alter upstream source. Local native draft insertion and replay
+pass. Release CI must still validate full creation and submission on the exact pinned pair
+before Stage 5 can be marked complete.

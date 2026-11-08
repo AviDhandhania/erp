@@ -94,16 +94,19 @@ Sales Order controller. Stock remains unreserved until a later native submission
   Administrator can exercise the catalogue order controls immediately.
 - [x] Unit and static UI coverage for authorization, quantity validation, permission-aware
   Item selection, payload construction, duplicate retry and catalogue wiring.
-- [ ] Run the native draft database integration test on the exact pinned Frappe/ERPNext pair.
+- [x] Run local native draft creation and duplicate-request replay against the real database;
+  repair a missing ERPNext-owned Contact field through ERPNext's supported installer.
+- [ ] Run the same native draft database integration test on the exact pinned release pair.
 - [ ] Add native submission coverage for credit limits, stock reservation, workflow and
   approval rules, Sales Person commission, concurrent stock changes and duplicate requests.
 - [ ] Cover delivery/cancellation lifecycle and status reconciliation before closing Stage 5.
 
-The mixed local developer bench cannot execute native Sales Order party loading because
-its ERPNext develop checkout expects a newer Contact schema than its Frappe v16 database.
-Clothing ERP detects that known incompatibility and returns a clear error; it does not add
-fake core fields or bypass ERPNext. Draft integration and submission remain open until the
-exact pinned release environment passes them.
+The local site had logged ERPNext's Contact-field migration without retaining ERPNext's
+own `is_billing_contact` Custom Field. Migration now detects the missing ERPNext-owned
+columns and reruns ERPNext's supported field installer instead of copying field definitions
+or patching core. A real draft for two units produced `SAL-ORD-2026-00001` at INR 998, and
+the same request token returned that order without duplication. Pinned-release submission
+coverage remains open.
 
 ## Stage 4 — retailer management
 
@@ -120,9 +123,11 @@ exact pinned release environment passes them.
 - [x] Manager-only Retailer Visit Report with date, retailer, salesperson and outcome
   filters, outcome chart and operational summary counts; it is absent from salesperson
   navigation and rejects direct salesperson execution.
-- [x] Manager-only single-retailer reassignment from the native Customer form, backed by
-  an atomic replacement of the native Customer User Permission.
-- [x] Bounded bulk reassignment from the native Customer list with sorted row locking,
+- [x] Manager-only Retailer Assignments page owned entirely by Clothing ERP; native Customer
+  forms/lists contain no custom reassignment controls.
+- [x] Territory-scoped Clothing Sales Managers can manage only Customers covered by their
+  native Territory User Permissions; system/business administrators retain global scope.
+- [x] Atomic single and bounded bulk reassignment services with sorted row locking,
   full-selection preflight and all-or-nothing request behavior.
 - [x] Immutable Retailer Assignment History recording previous/new salesperson, reason,
   actor and timestamp for every actual assignment change.
@@ -137,10 +142,10 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 63 app tests passed through the real site runner, 32 installer/package
+Verification: 67 app tests passed through the real site runner, 32 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
-checks passed with all three icons, the Clothing ERP workspace and the directly visible
-Customer-list reassignment action. Current local testing is intentionally direct on port
+checks passed with all three icons, the Clothing ERP workspace and the role-scoped
+Clothing ERP Retailer Assignments page. Current local testing is intentionally direct on port
 8000; nginx is deferred from this phase.
 
 ## ERPNext settings compatibility contract
@@ -155,7 +160,8 @@ Customer-list reassignment action. Current local testing is intentionally direct
 - [x] Retailer approval revalidates the assigned enabled Clothing Salesperson and uses
   native Customer, Contact, Address and User Permission documents.
 - [x] Retailer reassignment replaces native User Permissions atomically, records immutable
-  app-owned history and invalidates affected user permission caches.
+  app-owned history, invalidates affected user permission caches and enforces manager
+  Territory scope before reading or changing an assignment.
 - [x] Gallery upload restrictions, privacy, storage and deletion use native File lifecycle
   checks; the app only removes confirmed unreferenced local uploads.
 - [x] Current custom APIs retain native role and User Permission enforcement.

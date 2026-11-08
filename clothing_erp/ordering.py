@@ -208,12 +208,4 @@ def create_draft_sales_order(customer, items, request_id, delivery_date=None):
         if existing := _existing_order(request_id, customer):
             return _result(existing, replay=True)
         raise
-    except frappe.db.OperationalError as error:
-        if "is_billing_contact" in str(error):
-            frappe.throw(
-                frappe._(
-                    "Draft ordering is unavailable on this mixed developer bench because its ERPNext and Frappe Contact schemas do not match. Use the pinned release environment for native Sales Order testing."
-                )
-            )
-        raise
     return _result(order)

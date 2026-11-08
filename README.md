@@ -155,10 +155,11 @@ rates: the server rechecks access and Items, and ERPNext recalculates commercial
 Submission, credit checks, reservation, approval and cancellation remain native ERPNext
 operations and are not automated by this catalogue stage.
 
-The pre-existing local mixed-version developer bench cannot complete native Sales Order
-party loading; the endpoint reports that incompatibility instead of patching ERPNext core.
-The release compatibility job must pass the full draft/submission integration on the exact
-pinned Frappe/ERPNext pair before Stage 5 is considered complete.
+If ERPNext's historical patch log exists but its own Contact/Address Custom Fields are
+missing, Clothing ERP reruns ERPNext's supported idempotent field installer during migrate.
+No upstream source or substitute field definition is maintained by this app. Local native
+draft creation and idempotent replay are verified; submission still requires the exact
+pinned-release compatibility gate before Stage 5 is complete.
 
 ### Retailer workflow
 
@@ -179,6 +180,12 @@ Clothing ERP launcher and do not see the full ERPNext app tile. Administrator, S
 Manager and Clothing Business Administrator users retain the ERPNext tile. This is
 navigation scoping; document permissions and server-side assignment checks remain the
 security boundary.
+
+Retailer reassignment lives only at **Clothing ERP → Retailer Assignments**. Administrator,
+System Manager and Clothing Business Administrator users can manage all territories. A
+Clothing Sales Manager must have a native Territory User Permission and can see or change
+only Customers in that territory. The native ERPNext Customer form and list contain no
+Clothing ERP reassignment controls.
 5. The salesperson records meetings from **Retailer Visits**. Choosing
    **Follow-up Required** requires a non-past follow-up date.
 

@@ -1,0 +1,9 @@
+.retailer-assignments { padding-bottom: 2rem; }
+.retailer-assignment-toolbar { max-width: 28rem; margin-bottom: 1rem; }
+.assignment-status { margin-bottom: 1rem; }
+.assignment-table-wrap { overflow-x: auto; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); }
+.assignment-table-wrap .table { margin: 0; min-width: 48rem; }
+.assignment-table-wrap td { vertical-align: middle; }
+.assignment-table-wrap td small { display: block; color: var(--text-muted); }
+.assignment-empty { padding: 2rem; text-align: center; color: var(--text-muted); }
+.assignment-pagination { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; }

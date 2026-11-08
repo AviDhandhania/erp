@@ -1,10 +1,11 @@
+import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import frappe
 
-from clothing_erp import retailer_assignment
+from clothing_erp import hooks, retailer_assignment
 from clothing_erp.clothing_erp.doctype.retailer_application import retailer_application
 
 
@@ -54,14 +55,50 @@ class TestRetailerWorkflow(unittest.TestCase):
         self.assertEqual(application.territory, "Default Territory")
         self.assertEqual(application.customer_group, "Default Group")
 
-    def test_reassignment_controls_are_directly_visible(self):
+    def test_reassignment_controls_live_only_in_clothing_erp(self):
         app_root = Path(__file__).parents[1]
-        form_script = (app_root / "public/js/customer_assignment.js").read_text()
-        list_script = (app_root / "public/js/customer_list.js").read_text()
-        self.assertIn('frm.add_custom_button(__("Reassign Salesperson")', form_script)
-        self.assertNotIn('}, __("Clothing ERP"));', form_script)
-        self.assertIn('add_inner_button(__("Reassign Salesperson")', list_script)
-        self.assertNotIn("add_actions_menu_item", list_script)
+        page_root = app_root / "clothing_erp/page/retailer_assignments"
+        page = json.loads((page_root / "retailer_assignments.json").read_text())
+        script = (page_root / "retailer_assignments.js").read_text()
+        self.assertNotIn("Customer", hooks.doctype_js)
+        self.assertFalse((app_root / "public/js/customer_assignment.js").exists())
+        self.assertFalse((app_root / "public/js/customer_list.js").exists())
+        self.assertEqual(
+            {row["role"] for row in page["roles"]},
+            {
+                "Clothing Sales Manager",
+                "Clothing Business Administrator",
+                "System Manager",
+            },
+        )
+        self.assertIn("get_reassignment_directory", script)
+        self.assertIn("reassign_retailer", script)
+
+    def test_sales_manager_cannot_manage_another_territory(self):
+        with (
+            patch.object(
+                retailer_assignment,
+                "_manager_territories",
+                return_value=["TEST North"],
+            ),
+            patch.object(frappe, "throw", side_effect=frappe.PermissionError),
+            self.assertRaises(frappe.PermissionError),
+        ):
+            retailer_assignment._assert_customer_scope(
+                "TEST South Retailer", territory="TEST South"
+            )
+
+    def test_manager_without_territory_gets_no_reassignment_directory(self):
+        with (
+            patch.object(retailer_assignment, "require_role"),
+            patch.object(retailer_assignment, "_manager_territories", return_value=[]),
+            patch.object(retailer_assignment, "_active_salespeople", return_value=[]),
+            patch.object(frappe, "get_list") as get_list,
+        ):
+            result = retailer_assignment.get_reassignment_directory()
+        self.assertTrue(result["scope_required"])
+        self.assertEqual(result["retailers"], [])
+        get_list.assert_not_called()
 
     def test_reassignment_requires_manager_before_reading_assignment_state(self):
         with (

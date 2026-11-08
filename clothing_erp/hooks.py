@@ -12,12 +12,7 @@ app_home = "/desk/clothing-erp"
 required_apps = ["erpnext"]
 
 doctype_js = {
-	"Customer": "public/js/customer_assignment.js",
 	"Retailer Application": "public/js/retailer_application.js",
-}
-
-doctype_list_js = {
-	"Customer": "public/js/customer_list.js",
 }
 
 add_to_apps_screen = [

@@ -1,16 +1,67 @@
 """Manager-controlled retailer assignment backed by native User Permissions."""
 
 import frappe
-from frappe.utils import now_datetime
+from frappe.utils import cint, now_datetime
 
 from clothing_erp.clothing_erp.doctype.retailer_application.retailer_application import (
     _validate_salesperson,
 )
 from clothing_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
-from clothing_erp.security import get_current_user, require_role
+from clothing_erp.security import (
+    assigned_documents,
+    get_current_user,
+    get_user_roles,
+    require_role,
+)
 
 MANAGER_ROLES = {ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}
 MAX_BULK_REASSIGNMENTS = 100
+MAX_DIRECTORY_PAGE_SIZE = 50
+
+
+def _is_assignment_admin(user=None):
+    user = get_current_user(user)
+    roles = get_user_roles(user)
+    return (
+        user == "Administrator"
+        or "System Manager" in roles
+        or ROLE_BUSINESS_ADMIN in roles
+    )
+
+
+def _manager_territories(user=None):
+    """None means unrestricted admin; an empty list means no manager scope."""
+    if _is_assignment_admin(user):
+        return None
+    return assigned_documents("Territory", user)
+
+
+def _assert_customer_scope(customer, territory=None):
+    territories = _manager_territories()
+    if territories is None:
+        return
+    territory = territory or frappe.db.get_value("Customer", customer, "territory")
+    if not territory or territory not in territories:
+        frappe.throw(
+            frappe._("You are not authorized to manage retailers in this territory."),
+            frappe.PermissionError,
+        )
+
+
+def _active_salespeople():
+    users = frappe.get_all(
+        "Has Role",
+        filters={"role": ROLE_SALESPERSON, "parenttype": "User"},
+        pluck="parent",
+    )
+    if not users:
+        return []
+    return frappe.get_all(
+        "User",
+        filters={"name": ["in", users], "enabled": 1, "user_type": "System User"},
+        fields=["name", "full_name"],
+        order_by="full_name asc, name asc",
+    )
 
 
 def _clear_assignment_caches(*users):
@@ -28,12 +79,14 @@ def _clear_assignment_caches(*users):
 def _lock_customer(customer):
     frappe.db.sql("SELECT name FROM `tabCustomer` WHERE name = %s FOR UPDATE", customer)
     details = frappe.db.get_value(
-        "Customer", customer, ["name", "disabled"], as_dict=True
+        "Customer", customer, ["name", "disabled", "territory"], as_dict=True
     )
     if not details:
         frappe.throw(frappe._("Retailer {0} does not exist.").format(customer))
     if details.disabled:
         frappe.throw(frappe._("A disabled retailer cannot be reassigned."))
+    _assert_customer_scope(customer, details.territory)
+    return details
 
 
 def _assignments(customer):
@@ -68,6 +121,59 @@ def _single_assignment(customer):
 
 
 @frappe.whitelist()
+def get_reassignment_directory(search=None, page=1, page_size=20):
+    """Return only retailers in the manager's native Territory scope."""
+    require_role(MANAGER_ROLES)
+    page = max(1, min(cint(page), 10_000))
+    page_size = max(1, min(cint(page_size), MAX_DIRECTORY_PAGE_SIZE))
+    territories = _manager_territories()
+    if territories == []:
+        return {
+            "retailers": [],
+            "salespeople": _active_salespeople(),
+            "territories": [],
+            "pagination": {"page": page, "has_more": False},
+            "scope_required": True,
+        }
+
+    filters = {"disabled": 0}
+    if territories is not None:
+        filters["territory"] = ["in", territories]
+    search = (search or "").strip()[:140]
+    or_filters = None
+    if search:
+        pattern = f"%{search}%"
+        or_filters = {"name": ["like", pattern], "customer_name": ["like", pattern]}
+    rows = frappe.get_list(
+        "Customer",
+        filters=filters,
+        or_filters=or_filters,
+        fields=["name", "customer_name", "territory"],
+        order_by="customer_name asc, name asc",
+        start=(page - 1) * page_size,
+        limit=page_size + 1,
+    )
+    has_more = len(rows) > page_size
+    rows = rows[:page_size]
+    retailers = []
+    for row in rows:
+        assignment = _single_assignment(row.name)
+        retailers.append(
+            {
+                **row,
+                "current_salesperson": assignment.user if assignment else None,
+            }
+        )
+    return {
+        "retailers": retailers,
+        "salespeople": _active_salespeople(),
+        "territories": territories,
+        "pagination": {"page": page, "has_more": has_more},
+        "scope_required": False,
+    }
+
+
+@frappe.whitelist()
 def get_retailer_assignment(customer):
     require_role(MANAGER_ROLES)
     customer = (customer or "").strip()[:140]
@@ -75,6 +181,7 @@ def get_retailer_assignment(customer):
         frappe.throw(frappe._("Select a retailer."))
     if not frappe.db.exists("Customer", customer):
         frappe.throw(frappe._("Retailer {0} does not exist.").format(customer))
+    _assert_customer_scope(customer)
     assignment = _single_assignment(customer)
     history = frappe.get_list(
         "Retailer Assignment History",
@@ -93,6 +200,7 @@ def get_retailer_assignment(customer):
     return {
         "customer": customer,
         "current_salesperson": assignment.user if assignment else None,
+        "salespeople": _active_salespeople(),
         "history": history,
     }
 
