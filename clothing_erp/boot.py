@@ -6,6 +6,11 @@ from clothing_erp.roles import (
 )
 from clothing_erp.security import get_current_user, get_user_roles
 
+try:
+    import clothing_erp.insights_compat  # noqa: F401
+except Exception:
+    pass
+
 
 def restrict_erpnext_app_visibility(bootinfo):
     """Hide upstream app tiles (ERPNext, Insights) from operational Clothing ERP users.

@@ -42,6 +42,10 @@ after_migrate = "clothing_erp.install.after_migrate"
 
 extend_bootinfo = "clothing_erp.boot.restrict_erpnext_app_visibility"
 
+override_whitelisted_methods = {
+	"insights.setup.setup_wizard.setup_demo_data": "clothing_erp.insights_compat.setup_demo_data",
+}
+
 doc_events = {
 	"Item": {
 		"on_update": "clothing_erp.gallery.cleanup_removed_gallery_files",
