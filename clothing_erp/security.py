@@ -151,7 +151,8 @@ def retailer_record_has_permission(doc, user=None, ptype=None, **kwargs):
 def operational_document_has_permission(doc, user=None, ptype=None, **kwargs):
     roles = get_user_roles(user)
     if doc.doctype in ("Sales Order", "Delivery Note") and ROLE_SALESPERSON in roles and not is_sales_manager(user):
-        if not has_retailer_access(doc.get("customer"), user):
+        customer = doc.get("customer")
+        if customer and not has_retailer_access(customer, user):
             return False
     if doc.doctype in ("Pick List", "Delivery Note") and ROLE_WAREHOUSE_OPERATOR in roles and not is_warehouse_manager(user):
         rows = doc.get("locations" if doc.doctype == "Pick List" else "items") or []

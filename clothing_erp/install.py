@@ -16,6 +16,35 @@ from clothing_erp.roles import (
 )
 
 
+def _ensure_custom_docperm(doctype, role, ptypes):
+    perm_name = frappe.db.get_value(
+        "Custom DocPerm",
+        {"parent": doctype, "role": role, "permlevel": 0},
+        "name",
+    )
+    if perm_name:
+        doc = frappe.get_doc("Custom DocPerm", perm_name)
+        changed = False
+        for ptype in ptypes:
+            if not getattr(doc, ptype, 0):
+                setattr(doc, ptype, 1)
+                changed = True
+        if changed:
+            doc.save(ignore_permissions=True)
+    else:
+        values = {
+            "doctype": "Custom DocPerm",
+            "parent": doctype,
+            "parenttype": "DocType",
+            "parentfield": "permissions",
+            "role": role,
+            "permlevel": 0,
+        }
+        for ptype in ptypes:
+            values[ptype] = 1
+        frappe.get_doc(values).insert(ignore_permissions=True)
+
+
 def after_install():
     ensure_erpnext_contact_fields()
     ensure_retailer_defaults()
@@ -100,7 +129,7 @@ def after_install():
                     "is_custom": 1,
                 }
             ).insert(ignore_permissions=True)
-    # Workflow writes will be granted with their respective implementation stages.
+    # Workflow writes and permissions provisioned by Gemini
     for role in ALL_ROLES:
         name = role["role_name"]
         doctypes = {"Item", "Item Group", "Brand", "UOM"}
@@ -111,6 +140,8 @@ def after_install():
                 "Sales Order",
                 "Territory",
                 "Customer Group",
+                "Account",
+                "Price List",
             }
         if name in {
             ROLE_WAREHOUSE_OPERATOR,
@@ -119,10 +150,19 @@ def after_install():
         }:
             doctypes |= {"Warehouse", "Pick List", "Delivery Note"}
         for doctype in sorted(doctypes):
-            if not frappe.db.exists(
-                "Custom DocPerm", {"parent": doctype, "role": name, "permlevel": 0}
-            ):
-                add_permission(doctype, name, ptype="read")
+            if doctype == "Sales Order":
+                if name == ROLE_SALESPERSON:
+                    _ensure_custom_docperm(doctype, name, ["read", "write", "create"])
+                elif name in {ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}:
+                    _ensure_custom_docperm(
+                        doctype,
+                        name,
+                        ["read", "write", "create", "submit", "cancel", "amend"],
+                    )
+                else:
+                    _ensure_custom_docperm(doctype, name, ["read"])
+            else:
+                _ensure_custom_docperm(doctype, name, ["read"])
     frappe.clear_cache()
 
 

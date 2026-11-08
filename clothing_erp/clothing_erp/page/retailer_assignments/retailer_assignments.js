@@ -1,3 +1,4 @@
+// Retailer Assignments Page (Updated by Gemini)
 frappe.pages["retailer-assignments"].on_page_load = (wrapper) => {
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,
@@ -23,13 +24,13 @@ class RetailerAssignments {
 				<div class="assignment-search-box">
 					<div class="input-group">
 						<input class="form-control assignment-search" type="text" placeholder="${__("ID")}" autocomplete="off">
-						<div class="input-group-btn">
+						<div class="input-group-btn mr-0">
 							<button type="button" class="btn btn-default match-type-dropdown-btn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="${__("Match Type")}">
 								<span class="match-type-icon">≈</span>
 							</button>
 							<ul class="dropdown-menu match-type-dropdown-menu dropdown-menu-right">
-								<li class="dropdown-item" data-match-type="=">${__("Equals")}</li>
-								<li class="dropdown-item" data-match-type="like">${__("Like")}</li>
+								<li class="dropdown-item" data-match-type="like">${__("Like (≈)")}</li>
+								<li class="dropdown-item" data-match-type="=">${__("Equals (=)")}</li>
 							</ul>
 						</div>
 					</div>
@@ -124,6 +125,20 @@ class RetailerAssignments {
 				this.open_reassignment(customer);
 			}
 		});
+
+		$(window).on("resize.retailer-assignments", frappe.utils.debounce(() => {
+			this.set_result_height();
+		}, 150));
+	}
+
+	set_result_height() {
+		const $rows = this.$root.find(".assignment-rows");
+		if (!$rows.length) return;
+		const offsetTop = $rows.offset()?.top || 0;
+		const pagingH = this.$root.find(".assignment-pagination-wrap").outerHeight(true) || 50;
+		const windowH = window.innerHeight || $(window).height();
+		const minHeight = Math.max(windowH - offsetTop - pagingH - 25, 200);
+		$rows.css("min-height", `${minHeight}px`);
 	}
 
 	escape(value) {
@@ -149,6 +164,7 @@ class RetailerAssignments {
 				`<div class="assignment-empty text-muted">${__("No Territory is assigned to your manager account. Ask an administrator to add a Territory User Permission.")}</div>`
 			);
 			this.$root.find(".assignment-pagination-wrap").empty();
+			this.set_result_height();
 			return;
 		}
 
@@ -163,6 +179,7 @@ class RetailerAssignments {
 			);
 			this.$root.find(".assignment-pagination-wrap").empty();
 			this.$root.find(".list-count").text("");
+			this.set_result_height();
 			return;
 		}
 
@@ -201,7 +218,7 @@ class RetailerAssignments {
 						</div>
 					</div>
 					<div class="level-right list-col-action">
-						<button class="btn btn-default btn-sm reassign-retailer" data-customer="${id}">
+						<button class="btn btn-action btn-default btn-xs reassign-retailer" data-customer="${id}">
 							${__("Reassign")}
 						</button>
 					</div>
@@ -216,22 +233,26 @@ class RetailerAssignments {
 			<div class="list-paging-area level">
 				<div class="level-left">
 					<div class="btn-group">
-						<button class="btn btn-default btn-sm active" disabled>20</button>
+						<button type="button" class="btn btn-default btn-xs active" disabled>20</button>
+						<button type="button" class="btn btn-default btn-xs" disabled>100</button>
+						<button type="button" class="btn btn-default btn-xs" disabled>500</button>
 					</div>
 					<span class="text-muted ml-3" style="font-size: var(--text-sm);">${__("Page {0}", [page])}</span>
 				</div>
 				<div class="level-right">
 					<div class="btn-group">
-						<button class="btn btn-default btn-sm" data-assignment-page="${page - 1}" ${page === 1 ? "disabled" : ""}>
-							${__("Previous")}
+						<button type="button" class="btn btn-default btn-sm btn-paging" data-assignment-page="${page - 1}" ${page === 1 ? "disabled" : ""}>
+							${__("Prev")}
 						</button>
-						<button class="btn btn-default btn-sm" data-assignment-page="${page + 1}" ${data.pagination.has_more ? "" : "disabled"}>
+						<button type="button" class="btn btn-default btn-sm btn-paging" data-assignment-page="${page + 1}" ${data.pagination.has_more ? "" : "disabled"}>
 							${__("Next")}
 						</button>
 					</div>
 				</div>
 			</div>
 		`);
+
+		this.set_result_height();
 	}
 
 	async open_reassignment(customer) {

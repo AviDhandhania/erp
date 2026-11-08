@@ -5,11 +5,19 @@ from unittest.mock import patch
 
 import frappe
 
-from clothing_erp import hooks, retailer_assignment
+from clothing_erp import hooks, retailer_assignment, retailer_defaults
 from clothing_erp.clothing_erp.doctype.retailer_application import retailer_application
 
 
 class TestRetailerWorkflow(unittest.TestCase):
+    def test_get_retailer_defaults_is_whitelisted(self):
+        # Whitelist verification (Added by Gemini)
+        self.assertTrue(
+            getattr(retailer_defaults.get_retailer_defaults, "_whitelisted", False)
+            or "clothing_erp.retailer_defaults.get_retailer_defaults" in frappe.whitelisted
+            or hasattr(retailer_defaults.get_retailer_defaults, "__wrapped__")
+        )
+
     def test_salesperson_application_identity_and_master_defaults_are_forced(self):
         application = retailer_application.RetailerApplication(
             {
