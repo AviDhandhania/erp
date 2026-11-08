@@ -22,6 +22,7 @@ This is the canonical roadmap. The workspace-level work.md points here.
 - [x] Stable deployment release pins; native services and nginx for an IP-based LXC.
 - [x] Proxmox installer with preflight checks, new CT only, generated passwords, health check.
 - [x] Portable single-file installer and tests for packaging and host command flow.
+- [x] Frappe Insights analytics integration (v3.15.1) on local bench site, release manifest and LXC pipeline, with operational role scoping keeping Insights hidden from operational users while accessible to administrators (completed by Gemini).
 - [ ] Test a full installation/reboot/restore on an actual Proxmox host.
 - [ ] Revisit nginx/port 80 only when deployment testing is explicitly requested.
 

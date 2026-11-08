@@ -17,8 +17,8 @@ import common
 import lifecycle
 
 
-def manifest(version="v0.3.0"):
-    return {
+def manifest(version="v0.3.0", include_insights=False):
+    data = {
         "schema": 1,
         "platform": "debian13-native-v1",
         "version": version,
@@ -38,11 +38,34 @@ def manifest(version="v0.3.0"):
         },
         "archive": {"name": f"clothing-erp-{version}.tar.gz", "sha256": "d" * 64},
     }
+    if include_insights:
+        data["insights"] = {"ref": "v3.15.1", "commit": "c" * 40}
+    return data
 
 
 class TestReleaseContract(unittest.TestCase):
     def test_stable_contract_accepts_exact_pins(self):
         self.assertEqual(common.validate_manifest(manifest())["version"], "v0.3.0")
+        with_insights = manifest(include_insights=True)
+        self.assertEqual(
+            common.validate_manifest(with_insights)["insights"]["ref"], "v3.15.1"
+        )
+
+    def test_insights_pin_validation(self):
+        bad_format = manifest(include_insights=True)
+        bad_format["insights"]["ref"] = "develop"
+        with self.assertRaises(ValueError):
+            common.validate_manifest(bad_format)
+
+        too_old = manifest(include_insights=True)
+        too_old["insights"]["ref"] = "v3.14.0"
+        with self.assertRaises(ValueError):
+            common.validate_manifest(too_old)
+
+        bad_commit = manifest(include_insights=True)
+        bad_commit["insights"]["commit"] = "invalid"
+        with self.assertRaises(ValueError):
+            common.validate_manifest(bad_commit)
 
     def test_rejects_unstable_tags_and_unsupported_components(self):
         for bad in ("main", "v0.3.0-rc1", "v00.3.0", "v0.3.0/../../etc"):

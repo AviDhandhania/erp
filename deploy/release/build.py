@@ -104,6 +104,11 @@ def build(version, output, *, locks=None, resolve_for_ci=False):
         "archive": {"name": name, "sha256": sha256(output / name)},
         "locks": lock_metadata,
     }
+    if "INSIGHTS_REF" in pins:
+        manifest["insights"] = {
+            "ref": pins["INSIGHTS_REF"],
+            "commit": resolve("insights", pins["INSIGHTS_REF"]),
+        }
     validate_manifest(manifest, allow_unlocked=resolve_for_ci)
     (output / "release.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"

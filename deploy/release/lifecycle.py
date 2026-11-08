@@ -141,7 +141,10 @@ class Manager:
         return self.state["current"]
 
     def ensure_clean(self):
-        for name in ("frappe", "erpnext", "clothing_erp"):
+        apps = ["frappe", "erpnext", "clothing_erp"]
+        if (self.active / "apps/insights").exists():
+            apps.append("insights")
+        for name in apps:
             result = self.run(
                 ["git", "status", "--porcelain"],
                 bench=self.active / "apps" / name,
@@ -476,7 +479,10 @@ class Manager:
             if marker.exists() and json.loads(
                 (destination / "bench/.clothing-release.json").read_text()
             ) == json.loads((source / "release.json").read_text()):
-                for app in ("frappe", "erpnext", "clothing_erp"):
+                staged_apps = ["frappe", "erpnext", "clothing_erp"]
+                if (destination / "bench/apps/insights").exists():
+                    staged_apps.append("insights")
+                for app in staged_apps:
                     result = self.run(
                         ["git", "status", "--porcelain"],
                         bench=destination / "bench/apps" / app,
@@ -545,7 +551,10 @@ class Manager:
         result = self.bench(
             target, "list-apps", "--format", "json", capture_output=True, text=True
         )
-        if not {"frappe", "erpnext", "clothing_erp"}.issubset(
+        expected = {"frappe", "erpnext", "clothing_erp"}
+        if (target / "apps/insights").exists():
+            expected.add("insights")
+        if not expected.issubset(
             json.loads(result.stdout).get("clothing.local", [])
         ):
             raise RuntimeError("The database is missing an expected installed app")
@@ -594,7 +603,10 @@ class Manager:
                 raise RuntimeError(
                     "Use rollback --yes to restore an older release with its data"
                 )
-            for app in ("frappe", "erpnext"):
+            upstream_apps = ["frappe", "erpnext"]
+            if "insights" in manifest and "insights" in previous_manifest:
+                upstream_apps.append("insights")
+            for app in upstream_apps:
                 if version_tuple(manifest[app]["ref"]) < version_tuple(
                     previous_manifest[app]["ref"]
                 ):
@@ -611,9 +623,12 @@ class Manager:
                     "v" + previous_manifest["runtime"][runtime]
                 ):
                     raise RuntimeError(f"Refusing runtime downgrade: {runtime}")
+            check_keys = ["frappe", "erpnext", "runtime"]
+            if "insights" in manifest or "insights" in previous_manifest:
+                check_keys.append("insights")
             if app_only and any(
-                manifest[key] != previous_manifest[key]
-                for key in ("frappe", "erpnext", "runtime")
+                manifest.get(key) != previous_manifest.get(key)
+                for key in check_keys
             ):
                 raise RuntimeError(
                     "App-only update would change upstream/runtime pins; run a full update"
@@ -790,9 +805,13 @@ def main():
                 f"Clothing ERP: {current['version'] if current else 'legacy (no release manifest)'}"
             )
             if current:
-                print(
-                    f"ERPNext: {current['erpnext']['ref']} | Frappe: {current['frappe']['ref']}"
-                )
+                details = [
+                    f"ERPNext: {current['erpnext']['ref']}",
+                    f"Frappe: {current['frappe']['ref']}",
+                ]
+                if "insights" in current:
+                    details.append(f"Insights: {current['insights']['ref']}")
+                print(" | ".join(details))
                 print(
                     f"Python: {current['runtime']['python']} | Node: {current['runtime']['node']} | Bench: {current['runtime']['bench']}"
                 )
@@ -829,9 +848,13 @@ def main():
                         f"Installed: {installed['version'] if installed else 'legacy'}"
                     )
                     print(f"Available: {manifest['version']} (verified stable release)")
-                    print(
-                        f"ERPNext {manifest['erpnext']['ref']} | Frappe {manifest['frappe']['ref']}"
-                    )
+                    details = [
+                        f"ERPNext {manifest['erpnext']['ref']}",
+                        f"Frappe {manifest['frappe']['ref']}",
+                    ]
+                    if "insights" in manifest:
+                        details.append(f"Insights {manifest['insights']['ref']}")
+                    print(" | ".join(details))
                     print("Update with: clothing-erp update")
                 else:
                     manager.update(manifest, source, app_only=args.app_only)

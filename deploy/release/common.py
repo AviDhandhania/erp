@@ -45,6 +45,14 @@ def validate_manifest(data, *, allow_unlocked=False):
         minimum = "v16.55.2" if app == "frappe" else "v16.54.0"
         if version_tuple(component["ref"]) < version_tuple(minimum):
             raise ValueError(f"{app} pin is older than the supported baseline")
+    if "insights" in data:
+        component = data["insights"]
+        if not re.fullmatch(
+            r"v3\.[0-9]+\.[0-9]+", component["ref"]
+        ) or not SHA.fullmatch(component["commit"]):
+            raise ValueError("Invalid or unsupported insights pin")
+        if version_tuple(component["ref"]) < version_tuple("v3.15.1"):
+            raise ValueError("insights pin is older than the supported baseline")
     for key in ("python", "node", "bench", "uv"):
         if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", data["runtime"][key]):
             raise ValueError(f"Invalid {key} pin")

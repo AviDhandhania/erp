@@ -10,6 +10,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("version")
 parser.add_argument("--frappe", default="")
 parser.add_argument("--erpnext", default="")
+parser.add_argument("--insights", default="")
 args = parser.parse_args()
 version_tuple(args.version)
 if subprocess.check_output(["git", "status", "--porcelain"], text=True).strip():
@@ -23,9 +24,14 @@ pins = Path("deploy/versions.env")
 text = pins.read_text()
 import re
 
-for name, value in (("FRAPPE", args.frappe), ("ERPNEXT", args.erpnext)):
+for name, value in (
+    ("FRAPPE", args.frappe),
+    ("ERPNEXT", args.erpnext),
+    ("INSIGHTS", args.insights),
+):
     if value:
-        if not re.fullmatch(r"v16\.[0-9]+\.[0-9]+", value):
-            raise SystemExit("Only stable v16 upstream releases are supported")
+        pattern = r"v3\.[0-9]+\.[0-9]+" if name == "INSIGHTS" else r"v16\.[0-9]+\.[0-9]+"
+        if not re.fullmatch(pattern, value):
+            raise SystemExit(f"Only stable upstream releases are supported for {name}")
         text = re.sub(rf"^{name}_REF=.*$", f"{name}_REF={value}", text, flags=re.M)
 pins.write_text(text)

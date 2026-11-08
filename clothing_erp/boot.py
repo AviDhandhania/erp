@@ -8,7 +8,7 @@ from clothing_erp.security import get_current_user, get_user_roles
 
 
 def restrict_erpnext_app_visibility(bootinfo):
-    """Hide the ERPNext launcher/dock from non-administrative Clothing ERP users.
+    """Hide upstream app tiles (ERPNext, Insights) from operational Clothing ERP users.
 
     This is navigation scoping, not an authorization boundary. Document permissions and
     the app's server-side assignment checks remain authoritative.
@@ -22,7 +22,7 @@ def restrict_erpnext_app_visibility(bootinfo):
         return
 
     for app in bootinfo.get("app_data") or []:
-        if app.get("app_name") == "erpnext":
+        if app.get("app_name") in ("erpnext", "insights"):
             app.update(
                 on_apps_screen=False,
                 app_route="",
