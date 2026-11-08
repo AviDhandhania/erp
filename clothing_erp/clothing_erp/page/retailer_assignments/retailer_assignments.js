@@ -10,7 +10,7 @@ frappe.pages["retailer-assignments"].on_page_load = (wrapper) => {
 class RetailerAssignments {
 	constructor(page) {
 		this.page = page;
-		this.state = { page: 1, search: "", match_type: "like" };
+		this.state = { page: 1, page_size: 20, search: "", match_type: "like" };
 		this.salespeople = [];
 		this.setup_dom();
 		this.bind();
@@ -19,60 +19,41 @@ class RetailerAssignments {
 
 	setup_dom() {
 		this.page.main.html(`<div class="retailer-assignments">
-			<div class="assignment-filter-area">
-				<div class="assignment-search-box">
-					<div class="input-group">
-						<input class="form-control assignment-search" type="text" placeholder="${__("ID")}" autocomplete="off">
-						<div class="input-group-btn mr-0">
-							<button type="button" class="btn btn-default match-type-dropdown-btn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="${__("Match Type")}">
-								<span class="match-type-icon">≈</span>
-							</button>
-							<ul class="dropdown-menu match-type-dropdown-menu dropdown-menu-right">
-								<li class="dropdown-item" data-match-type="like">${__("Like (≈)")}</li>
-								<li class="dropdown-item" data-match-type="=">${__("Equals (=)")}</li>
-							</ul>
+			<section class="assignment-panel" aria-label="${__("Retailer assignments")}">
+				<div class="assignment-toolbar">
+					<div class="assignment-search-box">
+						<div class="input-group">
+							<input class="form-control assignment-search" type="search" placeholder="${__("Search retailer ID or shop name")}" aria-label="${__("Search retailer ID or shop name")}" autocomplete="off">
+							<div class="input-group-btn">
+								<button type="button" class="btn btn-default match-type-dropdown-btn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="${__("Match Type")}">
+									<span class="match-type-icon">≈</span>
+								</button>
+								<ul class="dropdown-menu match-type-dropdown-menu dropdown-menu-right">
+									<li class="dropdown-item" data-match-type="like">${__("Like (≈)")}</li>
+									<li class="dropdown-item" data-match-type="=">${__("Equals (=)")}</li>
+								</ul>
+							</div>
 						</div>
 					</div>
-				</div>
-				<div class="assignment-scope-info text-muted"></div>
-			</div>
-			<div class="frappe-list">
-				<div class="result-container">
-					<div class="result">
-						<div class="list-row-container">
-							<header class="level list-row-head text-muted">
-								<div class="level-left list-header-subject">
-									<div class="list-row-col list-col-id list-subject level">
-										<span class="level-item select-like">
-											<input class="list-header-checkbox list-check-all" type="checkbox" title="${__("Select All")}">
-										</span>
-										<span class="level-item list-header-title">${__("ID")}</span>
-										<div class="list-col-resize-handle"></div>
-									</div>
-									<div class="list-row-col list-col-shop ellipsis">
-										<span>${__("Shop Name")}</span>
-										<div class="list-col-resize-handle"></div>
-									</div>
-									<div class="list-row-col list-col-territory ellipsis hidden-xs">
-										<span>${__("Territory")}</span>
-										<div class="list-col-resize-handle"></div>
-									</div>
-									<div class="list-row-col list-col-salesperson ellipsis hidden-xs">
-										<span>${__("Current Salesperson")}</span>
-									</div>
-								</div>
-								<div class="level-right list-col-action-head">
-									<span class="list-count text-muted"></span>
-								</div>
-							</header>
-						</div>
-						<div class="assignment-rows">
-							<div class="assignment-loading text-muted">${__("Loading authorized retailers…")}</div>
-						</div>
+					<div class="assignment-toolbar-meta">
+						<span class="assignment-scope-info text-muted"></span>
+						<span class="assignment-item-count text-muted"></span>
 					</div>
-					<div class="assignment-pagination-wrap"></div>
 				</div>
-			</div>
+				<div class="assignment-table" role="table">
+					<div class="assignment-table-head assignment-grid" role="row">
+						<div role="columnheader">${__("ID")}</div>
+						<div role="columnheader">${__("Shop Name")}</div>
+						<div class="assignment-territory" role="columnheader">${__("Territory")}</div>
+						<div role="columnheader">${__("Current Salesperson")}</div>
+						<div class="assignment-action-heading" role="columnheader">${__("Action")}</div>
+					</div>
+					<div class="assignment-rows" role="rowgroup">
+						<div class="assignment-loading text-muted">${__("Loading authorized retailers…")}</div>
+					</div>
+				</div>
+				<div class="assignment-pagination-wrap"></div>
+			</section>
 		</div>`);
 		this.$root = this.page.main.find(".retailer-assignments");
 	}
@@ -100,13 +81,14 @@ class RetailerAssignments {
 			}
 		});
 
-		this.$root.on("change", ".list-check-all", (event) => {
-			const isChecked = $(event.currentTarget).is(":checked");
-			this.$root.find(".list-row-checkbox").prop("checked", isChecked);
-		});
-
 		this.$root.on("click", "[data-assignment-page]", (event) => {
 			this.state.page = Number(event.currentTarget.dataset.assignmentPage);
+			this.refresh();
+		});
+
+		this.$root.on("click", "[data-assignment-page-size]", (event) => {
+			this.state.page_size = Number(event.currentTarget.dataset.assignmentPageSize);
+			this.state.page = 1;
 			this.refresh();
 		});
 
@@ -115,7 +97,7 @@ class RetailerAssignments {
 			this.open_reassignment(event.currentTarget.dataset.customer);
 		});
 
-		this.$root.on("click", ".list-row", (event) => {
+		this.$root.on("click", ".assignment-row", (event) => {
 			if ($(event.target).is("input, button, a")) {
 				return;
 			}
@@ -125,19 +107,12 @@ class RetailerAssignments {
 			}
 		});
 
-		$(window).on("resize.retailer-assignments", frappe.utils.debounce(() => {
-			this.set_result_height();
-		}, 150));
-	}
-
-	set_result_height() {
-		const $rows = this.$root.find(".assignment-rows");
-		if (!$rows.length) return;
-		const offsetTop = $rows.offset()?.top || 0;
-		const pagingH = this.$root.find(".assignment-pagination-wrap").outerHeight(true) || 50;
-		const windowH = window.innerHeight || $(window).height();
-		const minHeight = Math.max(windowH - offsetTop - pagingH - 25, 200);
-		$rows.css("min-height", `${minHeight}px`);
+		this.$root.on("keydown", ".assignment-row", (event) => {
+			if (event.key === "Enter" || event.key === " ") {
+				event.preventDefault();
+				this.open_reassignment(event.currentTarget.dataset.customer);
+			}
+		});
 	}
 
 	escape(value) {
@@ -145,11 +120,16 @@ class RetailerAssignments {
 	}
 
 	async refresh() {
+		this.$root.find(".assignment-rows").html(
+			`<div class="assignment-loading text-muted">${__("Loading authorized retailers…")}</div>`
+		);
 		const { message } = await frappe.call({
 			method: "clothing_erp.retailer_assignment.get_reassignment_directory",
 			args: {
 				page: this.state.page,
+				page_size: this.state.page_size,
 				search: this.state.search,
+				match_type: this.state.match_type,
 			},
 		});
 		this.salespeople = message.salespeople || [];
@@ -159,11 +139,11 @@ class RetailerAssignments {
 	render(data) {
 		if (data.scope_required) {
 			this.$root.find(".assignment-scope-info").text("");
+			this.$root.find(".assignment-item-count").text("");
 			this.$root.find(".assignment-rows").html(
 				`<div class="assignment-empty text-muted">${__("No Territory is assigned to your manager account. Ask an administrator to add a Territory User Permission.")}</div>`
 			);
 			this.$root.find(".assignment-pagination-wrap").empty();
-			this.set_result_height();
 			return;
 		}
 
@@ -176,13 +156,12 @@ class RetailerAssignments {
 			this.$root.find(".assignment-rows").html(
 				`<div class="assignment-empty text-muted">${__("No authorized retailers found.")}</div>`
 			);
-			this.$root.find(".assignment-pagination-wrap").empty();
-			this.$root.find(".list-count").text("");
-			this.set_result_height();
+			this.$root.find(".assignment-item-count").text(__("0 items"));
+			this.render_pagination(data.pagination);
 			return;
 		}
 
-		this.$root.find(".list-count").text(
+		this.$root.find(".assignment-item-count").text(
 			data.retailers.length === 1 ? __("1 item") : __("{0} items", [data.retailers.length])
 		);
 
@@ -193,65 +172,43 @@ class RetailerAssignments {
 			const salesperson = this.escape(row.current_salesperson || __("Unassigned"));
 			const salespersonClass = row.current_salesperson ? "" : "text-muted";
 
-			return `<div class="list-row-container" tabindex="1">
-				<div class="level list-row" data-customer="${id}">
-					<div class="level-left list-header-subject ellipsis">
-						<div class="list-row-col list-col-id list-subject level">
-							<span class="level-item select-like">
-								<input class="list-row-checkbox" type="checkbox" data-customer="${id}">
-							</span>
-							<span class="level-item bold ellipsis">
-								<a class="ellipsis bold reassign-retailer" data-customer="${id}" title="${id}">
-									${id}
-								</a>
-							</span>
-						</div>
-						<div class="list-row-col list-col-shop ellipsis">
-							<span class="ellipsis" title="${shopName}">${shopName}</span>
-						</div>
-						<div class="list-row-col list-col-territory ellipsis hidden-xs">
-							<span class="ellipsis text-muted" title="${territory}">${territory}</span>
-						</div>
-						<div class="list-row-col list-col-salesperson ellipsis hidden-xs">
-							<span class="ellipsis ${salespersonClass}" title="${salesperson}">${salesperson}</span>
-						</div>
-					</div>
-					<div class="level-right list-col-action">
-						<button class="btn btn-action btn-default btn-xs reassign-retailer" data-customer="${id}">
-							${__("Reassign")}
-						</button>
-					</div>
+			return `<div class="assignment-row assignment-grid" data-customer="${id}" role="row" tabindex="0">
+				<div class="assignment-id ellipsis" role="cell">
+					<button type="button" class="assignment-id-button reassign-retailer ellipsis" data-customer="${id}" title="${id}">${id}</button>
+				</div>
+				<div class="ellipsis" role="cell" title="${shopName}">${shopName}</div>
+				<div class="assignment-territory ellipsis text-muted" role="cell" title="${territory}">${territory}</div>
+				<div class="ellipsis ${salespersonClass}" role="cell" title="${salesperson}">${salesperson}</div>
+				<div class="assignment-action" role="cell">
+					<button type="button" class="btn btn-default btn-xs reassign-retailer" data-customer="${id}">${__("Reassign")}</button>
 				</div>
 			</div>`;
 		}).join("");
 
 		this.$root.find(".assignment-rows").html(rowsHtml);
+		this.render_pagination(data.pagination);
+	}
 
-		const page = data.pagination.page;
+	render_pagination(pagination) {
+		const page = pagination.page;
+		const pageSizes = [20, 50].map((size) => `
+			<button type="button" class="btn btn-default btn-xs assignment-page-size ${this.state.page_size === size ? "active" : ""}"
+				data-assignment-page-size="${size}" aria-pressed="${this.state.page_size === size}">${size}</button>`).join("");
 		this.$root.find(".assignment-pagination-wrap").html(`
-			<div class="list-paging-area level">
-				<div class="level-left">
-					<div class="btn-group">
-						<button type="button" class="btn btn-default btn-xs active" disabled>20</button>
-						<button type="button" class="btn btn-default btn-xs" disabled>100</button>
-						<button type="button" class="btn btn-default btn-xs" disabled>500</button>
-					</div>
-					<span class="text-muted ml-3" style="font-size: var(--text-sm);">${__("Page {0}", [page])}</span>
+			<div class="assignment-pagination">
+				<div class="assignment-page-size-control">
+					<span class="text-muted">${__("Rows per page")}</span>
+					<div class="btn-group">${pageSizes}</div>
 				</div>
-				<div class="level-right">
+				<div class="assignment-page-nav">
+					<span class="assignment-page-label text-muted">${__("Page {0}", [page])}</span>
 					<div class="btn-group">
-						<button type="button" class="btn btn-default btn-sm btn-paging" data-assignment-page="${page - 1}" ${page === 1 ? "disabled" : ""}>
-							${__("Prev")}
-						</button>
-						<button type="button" class="btn btn-default btn-sm btn-paging" data-assignment-page="${page + 1}" ${data.pagination.has_more ? "" : "disabled"}>
-							${__("Next")}
-						</button>
+						<button type="button" class="btn btn-default btn-sm" data-assignment-page="${page - 1}" ${page === 1 ? "disabled" : ""}>${__("Previous")}</button>
+						<button type="button" class="btn btn-default btn-sm" data-assignment-page="${page + 1}" ${pagination.has_more ? "" : "disabled"}>${__("Next")}</button>
 					</div>
 				</div>
 			</div>
 		`);
-
-		this.set_result_height();
 	}
 
 	async open_reassignment(customer) {

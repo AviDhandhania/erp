@@ -103,6 +103,7 @@ class TestRetailerWorkflow(unittest.TestCase):
         page_root = app_root / "clothing_erp/page/retailer_assignments"
         page = json.loads((page_root / "retailer_assignments.json").read_text())
         script = (page_root / "retailer_assignments.js").read_text()
+        styles = (page_root / "retailer_assignments.css").read_text()
         self.assertNotIn("Customer", hooks.doctype_js)
         self.assertFalse((app_root / "public/js/customer_assignment.js").exists())
         self.assertFalse((app_root / "public/js/customer_list.js").exists())
@@ -116,6 +117,11 @@ class TestRetailerWorkflow(unittest.TestCase):
         )
         self.assertIn("get_reassignment_directory", script)
         self.assertIn("reassign_retailer", script)
+        self.assertIn("page_size: this.state.page_size", script)
+        self.assertIn("[20, 50]", script)
+        self.assertNotIn("set_result_height", script)
+        self.assertNotIn("position: sticky", styles)
+        self.assertIn("grid-template-columns", styles)
 
     def test_sales_manager_cannot_manage_another_territory(self):
         with (
@@ -142,6 +148,27 @@ class TestRetailerWorkflow(unittest.TestCase):
         self.assertTrue(result["scope_required"])
         self.assertEqual(result["retailers"], [])
         get_list.assert_not_called()
+
+    def test_reassignment_directory_honors_exact_search_and_page_size_limit(self):
+        with (
+            patch.object(retailer_assignment, "require_role"),
+            patch.object(retailer_assignment, "_manager_territories", return_value=None),
+            patch.object(retailer_assignment, "_active_salespeople", return_value=[]),
+            patch.object(frappe, "get_list", return_value=[]) as get_list,
+        ):
+            retailer_assignment.get_reassignment_directory(
+                search="TEST Boutique", page=2, page_size=500, match_type="="
+            )
+        query = get_list.call_args.kwargs
+        self.assertEqual(
+            query["or_filters"],
+            {
+                "name": ["=", "TEST Boutique"],
+                "customer_name": ["=", "TEST Boutique"],
+            },
+        )
+        self.assertEqual(query["start"], 50)
+        self.assertEqual(query["limit"], 51)
 
     def test_reassignment_requires_manager_before_reading_assignment_state(self):
         with (

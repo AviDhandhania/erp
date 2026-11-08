@@ -1,266 +1,248 @@
 .retailer-assignments {
-	display: flex;
-	flex-direction: column;
-	min-height: calc(100vh - 140px);
-	padding-bottom: 0.5rem;
+	width: 100%;
+	box-sizing: border-box;
+	padding: var(--padding-sm, 10px) var(--padding-md, 16px) var(--padding-xl, 24px);
 }
 
-/* Filter bar matching Frappe Desk standard filters in Image 2 */
-.retailer-assignments .assignment-filter-area {
+.retailer-assignments .assignment-panel {
+	width: 100%;
+	background: var(--card-bg, #fff);
+	border: 1px solid var(--border-color, #e5e7eb);
+	border-radius: var(--border-radius-lg, 8px);
+	overflow: hidden;
+}
+
+.retailer-assignments .assignment-toolbar {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin-bottom: 0.75rem;
-	gap: 1rem;
+	gap: var(--margin-md, 16px);
+	min-height: 56px;
+	padding: var(--padding-sm, 10px) var(--padding-md, 16px);
+	border-bottom: 1px solid var(--border-color, #e5e7eb);
 }
 
 .retailer-assignments .assignment-search-box {
-	width: 220px;
+	width: min(360px, 100%);
 }
 
 .retailer-assignments .assignment-search-box .input-group {
 	display: flex;
-	align-items: center;
-	background-color: var(--control-bg, #f3f4f6);
-	border: 1px solid var(--border-color, #e5e7eb);
+	align-items: stretch;
+	width: 100%;
+	height: 34px;
+	background: var(--control-bg, #f3f4f6);
+	border: 1px solid var(--border-color, #dfe2e5);
 	border-radius: var(--border-radius, 6px);
-	height: 30px;
-	overflow: hidden;
+	overflow: visible;
 }
 
-.retailer-assignments .assignment-search-box .assignment-search {
-	border: none !important;
+.retailer-assignments .assignment-search {
+	min-width: 0;
+	height: 32px !important;
+	padding: 0 12px !important;
 	background: transparent !important;
+	border: 0 !important;
 	box-shadow: none !important;
-	height: 100% !important;
 	font-size: var(--text-sm, 13px) !important;
-	color: var(--text-color, #1f2937);
-	padding: 0 10px !important;
-	outline: none !important;
-	flex: 1;
 }
 
-.retailer-assignments .assignment-search-box .assignment-search::placeholder {
-	color: var(--text-muted, #9ca3af);
-}
-
-.retailer-assignments .assignment-search-box .match-type-dropdown-btn {
-	border: none !important;
-	background: transparent !important;
-	box-shadow: none !important;
-	height: 100% !important;
-	padding: 0 8px !important;
+.retailer-assignments .assignment-search-box .input-group-btn {
+	position: relative;
 	display: flex;
-	align-items: center;
-	justify-content: center;
+	border-left: 1px solid var(--border-color, #dfe2e5);
+}
+
+.retailer-assignments .match-type-dropdown-btn {
+	width: 36px;
+	height: 32px !important;
+	padding: 0 !important;
+	background: transparent !important;
+	border: 0 !important;
+	box-shadow: none !important;
 	color: var(--text-muted, #6b7280);
-	font-size: 14px;
-	line-height: 1;
+}
+
+.retailer-assignments .match-type-dropdown-menu {
+	min-width: 140px;
+}
+
+.retailer-assignments .match-type-dropdown-menu .dropdown-item {
 	cursor: pointer;
 }
 
-.retailer-assignments .assignment-search-box .match-type-dropdown-btn:hover {
-	color: var(--text-color, #111827);
+.retailer-assignments .assignment-toolbar-meta {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--margin-sm, 12px);
+	min-width: 0;
+	font-size: var(--text-sm, 13px);
 }
 
 .retailer-assignments .assignment-scope-info {
-	font-size: var(--text-sm, 12px);
+	max-width: 520px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-/* List View Container matching standard Frappe Desk */
-.retailer-assignments .frappe-list {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-	margin: 0;
+.retailer-assignments .assignment-item-count {
+	padding-left: var(--padding-sm, 10px);
+	border-left: 1px solid var(--border-color, #e5e7eb);
+	white-space: nowrap;
 }
 
-.retailer-assignments .result-container {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
+.retailer-assignments .assignment-table {
+	width: 100%;
 }
 
-.retailer-assignments .result {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-}
-
-.retailer-assignments .assignment-rows {
-	flex: 1;
-	display: flex;
-	flex-direction: column;
-}
-
-.retailer-assignments .list-row-container {
-	display: flex;
-	flex-direction: column;
-	border-radius: var(--radius, 8px);
-	padding: 0;
-	transition: background-color 0.15s ease;
-}
-
-.retailer-assignments .list-row-container:hover {
-	background-color: var(--highlight-color, #f9fafb);
-}
-
-.retailer-assignments .list-row-head {
-	background-color: var(--subtle-fg, #f4f5f6);
-	border-radius: var(--radius, 8px);
-	height: var(--list-row-height, 38px);
-	display: flex;
+.retailer-assignments .assignment-grid {
+	display: grid;
+	grid-template-columns: minmax(150px, 1.05fr) minmax(180px, 1.4fr) minmax(150px, 1fr) minmax(180px, 1.2fr) 96px;
 	align-items: center;
-	padding: 0 var(--padding-sm, 10px);
+	column-gap: var(--margin-md, 16px);
+	padding: 0 var(--padding-md, 16px);
+}
+
+.retailer-assignments .assignment-table-head {
+	min-height: 38px;
+	background: var(--subtle-fg, #f5f6f7);
+	border-bottom: 1px solid var(--border-color, #e5e7eb);
+	color: var(--text-muted, #6b7280);
 	font-size: var(--text-sm, 13px);
 	font-weight: var(--font-weight-medium, 500);
-	color: var(--text-muted, #6b7280);
-	border-bottom: none;
 }
 
-.retailer-assignments .list-row {
-	height: var(--list-row-height, 42px);
-	display: flex;
-	align-items: center;
-	padding: 0 var(--padding-sm, 10px);
-	border-bottom: 1px solid var(--border-color, #f0f0f0);
-	font-size: var(--text-sm, 13px);
-	cursor: pointer;
-}
-
-.retailer-assignments .list-header-subject {
-	display: flex;
-	align-items: center;
-	flex: 1;
-	min-width: 0;
-}
-
-/* Specific column widths matching standard Frappe Desk */
-.retailer-assignments .list-col-id {
-	flex: 0 0 240px;
-	min-width: 200px;
-	max-width: 260px;
-	position: relative;
-	display: flex;
-	align-items: center;
-}
-
-.retailer-assignments .list-col-shop {
-	flex: 1.2;
-	min-width: 140px;
-	position: relative;
-	padding-left: 12px;
-}
-
-.retailer-assignments .list-col-territory {
-	flex: 1;
-	min-width: 140px;
-	position: relative;
-	padding-left: 12px;
-}
-
-.retailer-assignments .list-col-salesperson {
-	flex: 1;
-	min-width: 140px;
-	padding-left: 12px;
-}
-
-/* Action button area */
-.retailer-assignments .list-col-action-head {
-	flex: 0 0 110px;
+.retailer-assignments .assignment-action-heading,
+.retailer-assignments .assignment-action {
 	text-align: right;
 }
 
-.retailer-assignments .list-col-action {
-	flex: 0 0 110px;
-	display: flex;
-	justify-content: flex-end;
-	align-items: center;
-}
-
-/* Reassign button styled to standard Frappe Desk btn-xs dimensions */
-.retailer-assignments .reassign-retailer.btn-xs {
-	font-size: var(--text-xs, 11px);
-	padding: 2px 10px;
-	height: 24px;
-	line-height: 20px;
-	border-radius: var(--border-radius-sm, 4px);
-	font-weight: 500;
-	border: 1px solid var(--border-color, #d1d5db);
-	background-color: var(--control-bg, #f3f4f6);
-	color: var(--text-color, #1f2937);
-	transition: all 0.15s ease;
-}
-
-.retailer-assignments .reassign-retailer.btn-xs:hover {
-	background-color: var(--btn-default-hover-bg, #e5e7eb);
-	border-color: var(--gray-400, #9ca3af);
-	color: var(--text-color, #111827);
-}
-
-/* Vertical divider handle (|) matching Image 2 */
-.retailer-assignments .list-col-resize-handle {
-	position: absolute;
-	right: 0;
-	top: 50%;
-	transform: translateY(-50%);
-	width: 1px;
-	height: 14px;
-	background-color: var(--border-color, #d1d5db);
-	opacity: 0.6;
-}
-
-.retailer-assignments .select-like {
-	padding: 0 10px 0 0;
-	display: flex;
-	align-items: center;
-}
-
-.retailer-assignments .select-like input[type="checkbox"] {
+.retailer-assignments .assignment-row {
+	min-height: 44px;
+	border-bottom: 1px solid var(--border-color, #edf0f2);
+	font-size: var(--text-sm, 13px);
 	cursor: pointer;
-	margin: 0;
-	width: 14px;
-	height: 14px;
-	accent-color: var(--primary, #1b68b3);
+	transition: background-color 120ms ease;
 }
 
-.retailer-assignments .list-row-id,
-.retailer-assignments .bold {
+.retailer-assignments .assignment-row:last-child {
+	border-bottom: 0;
+}
+
+.retailer-assignments .assignment-row:hover,
+.retailer-assignments .assignment-row:focus-visible {
+	background: var(--highlight-color, #f8f9fa);
+	outline: none;
+}
+
+.retailer-assignments .assignment-id-button {
+	display: block;
+	max-width: 100%;
+	padding: 0;
+	background: transparent;
+	border: 0;
+	color: var(--text-color, #1f2937);
+	font: inherit;
 	font-weight: 600;
-	color: var(--text-color, #111827);
+	text-align: left;
 }
 
-.retailer-assignments .list-row-id:hover,
-.retailer-assignments a.bold:hover {
+.retailer-assignments .assignment-id-button:hover,
+.retailer-assignments .assignment-id-button:focus-visible {
+	color: var(--primary, #2490ef);
 	text-decoration: underline;
-	color: var(--primary, #1b68b3);
+	outline: none;
 }
 
-.retailer-assignments .assignment-empty {
-	padding: 3rem 1rem;
-	text-align: center;
-	font-size: var(--text-md, 14px);
+.retailer-assignments .assignment-action .btn {
+	min-width: 76px;
 }
 
+.retailer-assignments .assignment-empty,
 .retailer-assignments .assignment-loading {
-	padding: 2rem 1rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 160px;
+	padding: var(--padding-xl, 24px);
 	text-align: center;
 	font-size: var(--text-sm, 13px);
 }
 
-/* Paging area anchored to the bottom */
 .retailer-assignments .assignment-pagination-wrap {
-	margin-top: auto;
-	position: sticky;
-	bottom: 0;
-	background-color: var(--card-bg, #ffffff);
-	padding: var(--padding-sm, 10px) 0 0.5rem 0;
 	border-top: 1px solid var(--border-color, #e5e7eb);
-	z-index: 2;
+	background: var(--card-bg, #fff);
 }
 
-.retailer-assignments .list-paging-area {
+.retailer-assignments .assignment-pagination {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	gap: var(--margin-md, 16px);
+	min-height: 52px;
+	padding: var(--padding-sm, 10px) var(--padding-md, 16px);
+}
+
+.retailer-assignments .assignment-page-size-control,
+.retailer-assignments .assignment-page-nav {
+	display: flex;
+	align-items: center;
+	gap: var(--margin-sm, 10px);
+	font-size: var(--text-sm, 13px);
+}
+
+.retailer-assignments .assignment-page-size.active {
+	background: var(--fg-color, #fff);
+	border-color: var(--gray-500, #687178);
+	color: var(--text-color, #1f2937);
+	box-shadow: inset 0 0 0 1px var(--gray-500, #687178);
+}
+
+.retailer-assignments .assignment-page-label {
+	min-width: 52px;
+	text-align: right;
+	white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+	.retailer-assignments .assignment-grid {
+		grid-template-columns: minmax(140px, 1fr) minmax(160px, 1.3fr) minmax(170px, 1.15fr) 90px;
+	}
+
+	.retailer-assignments .assignment-territory {
+		display: none;
+	}
+}
+
+@media (max-width: 767px) {
+	.retailer-assignments .assignment-toolbar,
+	.retailer-assignments .assignment-pagination {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.retailer-assignments .assignment-search-box {
+		width: 100%;
+	}
+
+	.retailer-assignments .assignment-toolbar-meta,
+	.retailer-assignments .assignment-pagination {
+		justify-content: space-between;
+	}
+
+	.retailer-assignments .assignment-grid {
+		grid-template-columns: minmax(120px, 1fr) minmax(150px, 1.2fr) 82px;
+		column-gap: var(--margin-sm, 10px);
+	}
+
+	.retailer-assignments .assignment-grid > :nth-child(4) {
+		display: none;
+	}
+
+	.retailer-assignments .assignment-page-size-control,
+	.retailer-assignments .assignment-page-nav {
+		justify-content: space-between;
+	}
 }

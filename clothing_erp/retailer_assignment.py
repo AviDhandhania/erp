@@ -121,7 +121,7 @@ def _single_assignment(customer):
 
 
 @frappe.whitelist()
-def get_reassignment_directory(search=None, page=1, page_size=20):
+def get_reassignment_directory(search=None, page=1, page_size=20, match_type="like"):
     """Return only retailers in the manager's native Territory scope."""
     require_role(MANAGER_ROLES)
     page = max(1, min(cint(page), 10_000))
@@ -140,10 +140,14 @@ def get_reassignment_directory(search=None, page=1, page_size=20):
     if territories is not None:
         filters["territory"] = ["in", territories]
     search = (search or "").strip()[:140]
+    match_type = "=" if match_type == "=" else "like"
     or_filters = None
     if search:
-        pattern = f"%{search}%"
-        or_filters = {"name": ["like", pattern], "customer_name": ["like", pattern]}
+        value = search if match_type == "=" else f"%{search}%"
+        or_filters = {
+            "name": [match_type, value],
+            "customer_name": [match_type, value],
+        }
     rows = frappe.get_list(
         "Customer",
         filters=filters,

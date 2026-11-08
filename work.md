@@ -133,6 +133,8 @@ coverage remains open.
   navigation and rejects direct salesperson execution.
 - [x] Manager-only Retailer Assignments page owned entirely by Clothing ERP; native Customer
   forms/lists contain no custom reassignment controls.
+- [x] Responsive Retailer Assignments list layout with contained columns, functional 20/50
+  row limits and pagination directly below the results instead of pinned to the viewport.
 - [x] Territory-scoped Clothing Sales Managers can manage only Customers covered by their
   native Territory User Permissions; system/business administrators retain global scope.
 - [x] Atomic single and bounded bulk reassignment services with sorted row locking,
@@ -150,7 +152,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 83 app tests passed through the real site runner and 34 installer/package
+Verification: 84 app tests passed through the real site runner and 34 installer/package
 tests passed. Chromium checks verified that salesperson intake hides server-owned master
 fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
 resulting native Sales Order. Desktop/mobile Chromium
