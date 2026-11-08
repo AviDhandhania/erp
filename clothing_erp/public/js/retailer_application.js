@@ -18,8 +18,24 @@ function clothing_erp_scope_retailer_application(frm) {
 	if (!clothing_erp_is_salesperson_only()) return;
 
 	frm.set_df_property("salesperson", "read_only", 1);
-	frm.toggle_display(["territory", "customer_group"], false);
 	if (!frm.is_new()) return;
 
-	frm.set_value("salesperson", frappe.session.user);
+	if (!frm.doc.salesperson) {
+		frm.set_value("salesperson", frappe.session.user);
+	}
+	if (!frm.doc.territory || !frm.doc.customer_group) {
+		frappe.call({
+			method: "clothing_erp.retailer_defaults.get_retailer_defaults",
+			callback: (r) => {
+				if (r.message) {
+					if (!frm.doc.territory && r.message.territory) {
+						frm.set_value("territory", r.message.territory);
+					}
+					if (!frm.doc.customer_group && r.message.customer_group) {
+						frm.set_value("customer_group", r.message.customer_group);
+					}
+				}
+			},
+		});
+	}
 }

@@ -99,3 +99,40 @@ class TestLauncher(unittest.TestCase):
         self.assertTrue(bootinfo.app_data[0].on_apps_screen)
         self.assertTrue(bootinfo.app_data[1].on_apps_screen)
         self.assertTrue(bootinfo.app_data[2].on_apps_screen)
+
+    def test_insights_tile_hidden_from_non_admin_insights_user(self):
+        bootinfo = frappe._dict(
+            app_data=[
+                frappe._dict(app_name="insights", on_apps_screen=True, dock=["Insights"]),
+                frappe._dict(app_name="frappe", on_apps_screen=True, dock=["Desk"]),
+            ]
+        )
+        with (
+            patch.object(boot, "get_current_user", return_value="analyst@example.com"),
+            patch.object(
+                boot,
+                "get_user_roles",
+                return_value={"Insights User"},
+            ),
+        ):
+            boot.restrict_erpnext_app_visibility(bootinfo)
+        self.assertFalse(bootinfo.app_data[0].on_apps_screen)
+        self.assertEqual(bootinfo.app_data[0].dock, [])
+        self.assertEqual(bootinfo.app_data[0].app_route, "")
+        self.assertTrue(bootinfo.app_data[1].on_apps_screen)
+
+    def test_insights_tile_remains_for_system_manager_and_insights_admin(self):
+        for role in ("System Manager", "Insights Admin"):
+            with self.subTest(role=role):
+                bootinfo = frappe._dict(
+                    app_data=[
+                        frappe._dict(app_name="insights", on_apps_screen=True, dock=["Insights"]),
+                    ]
+                )
+                with (
+                    patch.object(boot, "get_current_user", return_value="admin@example.com"),
+                    patch.object(boot, "get_user_roles", return_value={role}),
+                ):
+                    boot.restrict_erpnext_app_visibility(bootinfo)
+                self.assertTrue(bootinfo.app_data[0].on_apps_screen)
+

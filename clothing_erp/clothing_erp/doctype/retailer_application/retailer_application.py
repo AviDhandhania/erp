@@ -141,8 +141,15 @@ class RetailerApplication(Document):
         if ROLE_SALESPERSON in get_user_roles() and not is_sales_manager():
             self.salesperson = get_current_user()
             defaults = _salesperson_application_defaults()
-            self.territory = defaults.territory
-            self.customer_group = defaults.customer_group
+            if not getattr(self, "territory", None):
+                self.territory = defaults.territory
+            elif not frappe.db.exists("Territory", self.territory):
+                frappe.throw(frappe._("Territory {0} does not exist.").format(self.territory))
+
+            if not getattr(self, "customer_group", None):
+                self.customer_group = defaults.customer_group
+            elif not frappe.db.exists("Customer Group", self.customer_group):
+                frappe.throw(frappe._("Customer Group {0} does not exist.").format(self.customer_group))
         _validate_salesperson(self.salesperson)
         if self.is_new() and find_duplicates(self):
             frappe.throw(

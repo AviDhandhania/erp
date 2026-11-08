@@ -42,6 +42,10 @@ after_migrate = "clothing_erp.install.after_migrate"
 
 extend_bootinfo = "clothing_erp.boot.restrict_erpnext_app_visibility"
 
+before_request = [
+	"clothing_erp.insights_compat.enforce_insights_admin_access",
+]
+
 override_whitelisted_methods = {
 	"insights.setup.setup_wizard.setup_demo_data": "clothing_erp.insights_compat.setup_demo_data",
 }

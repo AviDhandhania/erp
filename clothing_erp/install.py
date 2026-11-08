@@ -105,7 +105,13 @@ def after_install():
         name = role["role_name"]
         doctypes = {"Item", "Item Group", "Brand", "UOM"}
         if name in {ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}:
-            doctypes |= {"Company", "Customer", "Sales Order"}
+            doctypes |= {
+                "Company",
+                "Customer",
+                "Sales Order",
+                "Territory",
+                "Customer Group",
+            }
         if name in {
             ROLE_WAREHOUSE_OPERATOR,
             ROLE_WAREHOUSE_MANAGER,

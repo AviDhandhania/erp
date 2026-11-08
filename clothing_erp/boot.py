@@ -1,36 +1,42 @@
 """Keep Clothing ERP operational users inside their purpose-built application."""
 
+from clothing_erp.insights_compat import is_insights_admin
 from clothing_erp.roles import (
     ALL_ROLES,
     ROLE_BUSINESS_ADMIN,
 )
 from clothing_erp.security import get_current_user, get_user_roles
 
-try:
-    import clothing_erp.insights_compat  # noqa: F401
-except Exception:
-    pass
-
 
 def restrict_erpnext_app_visibility(bootinfo):
-    """Hide upstream app tiles (ERPNext, Insights) from operational Clothing ERP users.
-
-    This is navigation scoping, not an authorization boundary. Document permissions and
-    the app's server-side assignment checks remain authoritative.
+    """Enforce app visibility scoping:
+    1. Frappe Insights is strictly available only to admins.
+    2. ERPNext is hidden from operational Clothing ERP users.
     """
     user = get_current_user()
     roles = get_user_roles(user)
     clothing_roles = {row["role_name"] for row in ALL_ROLES}
     is_clothing_user = bool(roles & clothing_roles)
-    is_administrator = user == "Administrator" or "System Manager" in roles
-    if not is_clothing_user or is_administrator or ROLE_BUSINESS_ADMIN in roles:
-        return
+    is_admin = user == "Administrator" or "System Manager" in roles or ROLE_BUSINESS_ADMIN in roles
 
-    for app in bootinfo.get("app_data") or []:
-        if app.get("app_name") in ("erpnext", "insights"):
-            app.update(
-                on_apps_screen=False,
-                app_route="",
-                desk_route="",
-                dock=[],
-            )
+    # 1. Enforce admin-only for Insights: non-admins must never see Insights tile
+    if not is_insights_admin(user, roles=roles):
+        for app in bootinfo.get("app_data") or []:
+            if app.get("app_name") in ("insights", "insights_v2"):
+                app.update(
+                    on_apps_screen=False,
+                    app_route="",
+                    desk_route="",
+                    dock=[],
+                )
+
+    # 2. Operational Clothing users should not see ERPNext
+    if is_clothing_user and not is_admin:
+        for app in bootinfo.get("app_data") or []:
+            if app.get("app_name") == "erpnext":
+                app.update(
+                    on_apps_screen=False,
+                    app_route="",
+                    desk_route="",
+                    dock=[],
+                )
