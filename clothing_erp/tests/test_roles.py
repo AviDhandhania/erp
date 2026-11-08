@@ -55,3 +55,18 @@ class TestSecurity(unittest.TestCase):
             self.assertFalse(security.operational_document_has_permission(doc, user="test@example.invalid"))
             db.exists.return_value = "TEST-TASK"
             self.assertTrue(security.operational_document_has_permission(doc, user="test@example.invalid"))
+
+    def test_salesperson_cannot_access_user_management(self):
+        # Verification that operational users cannot access framework users (Added by Gemini)
+        doc = frappe._dict(doctype="User", name="test@example.invalid")
+        with patch.object(security, "get_user_roles", return_value={ROLE_SALESPERSON}):
+            self.assertFalse(security.user_has_permission(doc, user="test@example.invalid"))
+            self.assertEqual(security.user_query_conditions("test@example.invalid"), "1=0")
+
+    def test_manager_and_admin_can_access_user_management(self):
+        # Verification that managers and admins retain access (Added by Gemini)
+        doc = frappe._dict(doctype="User", name="test@example.invalid")
+        with patch.object(security, "get_user_roles", return_value={ROLE_SALESPERSON, ROLE_SALES_MANAGER}):
+            self.assertTrue(security.user_has_permission(doc, user="test@example.invalid"))
+            self.assertEqual(security.user_query_conditions("test@example.invalid"), "")
+        self.assertTrue(security.user_has_permission(doc, user="Administrator"))

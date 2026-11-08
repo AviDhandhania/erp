@@ -69,6 +69,7 @@ has_permission = {
 	"Pick List": "clothing_erp.security.operational_document_has_permission",
 	"Retailer Application": "clothing_erp.security.retailer_record_has_permission",
 	"Retailer Visit": "clothing_erp.security.retailer_record_has_permission",
+	"User": "clothing_erp.security.user_has_permission",
 }
 
 permission_query_conditions = {
@@ -79,4 +80,5 @@ permission_query_conditions = {
 	"Pick List": "clothing_erp.security.pick_list_conditions",
 	"Retailer Application": "clothing_erp.security.retailer_application_conditions",
 	"Retailer Visit": "clothing_erp.security.retailer_visit_conditions",
+	"User": "clothing_erp.security.user_query_conditions",
 }

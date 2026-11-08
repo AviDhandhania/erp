@@ -161,3 +161,33 @@ def operational_document_has_permission(doc, user=None, ptype=None, **kwargs):
         if doc.doctype == "Pick List":
             return bool(frappe.db.exists("ToDo", {"reference_type": "Pick List", "reference_name": doc.name, "allocated_to": get_current_user(user), "status": "Open"}))
     return True
+
+
+def user_has_permission(doc, user=None, ptype=None, **kwargs):
+    """Keep operational Clothing ERP users out of framework user management. (By Gemini)"""
+    user = get_current_user(user)
+    if not user or user == "Administrator":
+        return True
+    roles = get_user_roles(user)
+    if is_clothing_admin(user) or "System Manager" in roles:
+        return True
+    if ROLE_SALESPERSON in roles and not is_sales_manager(user):
+        return False
+    if ROLE_WAREHOUSE_OPERATOR in roles and not is_warehouse_manager(user):
+        return False
+    return True
+
+
+def user_query_conditions(user=None):
+    """Restrict operational clothing roles from listing framework user records. (By Gemini)"""
+    user = get_current_user(user)
+    if not user or user == "Administrator":
+        return ""
+    roles = get_user_roles(user)
+    if is_clothing_admin(user) or "System Manager" in roles:
+        return ""
+    if ROLE_SALESPERSON in roles and not is_sales_manager(user):
+        return "1=0"
+    if ROLE_WAREHOUSE_OPERATOR in roles and not is_warehouse_manager(user):
+        return "1=0"
+    return ""
