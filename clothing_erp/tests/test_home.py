@@ -1,9 +1,12 @@
 """Root and login use Frappe's own launcher instead of a simulated Desk."""
+
 import unittest
 from unittest.mock import patch
+
 import frappe
+
+from clothing_erp import boot, hooks
 from clothing_erp.www import clothing
-from clothing_erp import hooks
 
 
 class TestLauncher(unittest.TestCase):
@@ -14,7 +17,10 @@ class TestLauncher(unittest.TestCase):
             framework.local.flags = frappe._dict()
             with self.assertRaises(frappe.Redirect):
                 clothing.get_context({})
-            self.assertEqual(framework.local.flags.redirect_location, "/login?redirect-to=%2Fdesk%2Fdesktop")
+            self.assertEqual(
+                framework.local.flags.redirect_location,
+                "/login?redirect-to=%2Fdesk%2Fdesktop",
+            )
 
     def test_authenticated_visitor_opens_native_apps_screen(self):
         with patch.object(clothing, "frappe") as framework:
@@ -31,3 +37,52 @@ class TestLauncher(unittest.TestCase):
         self.assertEqual(app["title"], "Clothing ERP")
         self.assertEqual(app["has_permission"], "clothing_erp.security.has_app_access")
         self.assertTrue(app["logo"].endswith("clothing_erp_logo.svg"))
+
+    def test_erpnext_tile_is_hidden_for_operational_clothing_users(self):
+        restricted_roles = (
+            "Clothing Salesperson",
+            "Clothing Sales Manager",
+            "Clothing Warehouse Operator",
+            "Clothing Warehouse Manager",
+        )
+        for role in restricted_roles:
+            with self.subTest(role=role):
+                bootinfo = frappe._dict(
+                    app_data=[
+                        frappe._dict(
+                            app_name="erpnext", on_apps_screen=True, dock=["Sales"]
+                        ),
+                        frappe._dict(
+                            app_name="clothing_erp",
+                            on_apps_screen=True,
+                            dock=["Clothing ERP"],
+                        ),
+                    ]
+                )
+                with (
+                    patch.object(
+                        boot, "get_current_user", return_value="user@example.com"
+                    ),
+                    patch.object(boot, "get_user_roles", return_value={role}),
+                ):
+                    boot.restrict_erpnext_app_visibility(bootinfo)
+                self.assertFalse(bootinfo.app_data[0].on_apps_screen)
+                self.assertEqual(bootinfo.app_data[0].dock, [])
+                self.assertTrue(bootinfo.app_data[1].on_apps_screen)
+
+    def test_erpnext_tile_remains_for_clothing_business_admin(self):
+        bootinfo = frappe._dict(
+            app_data=[
+                frappe._dict(app_name="erpnext", on_apps_screen=True, dock=["Sales"])
+            ]
+        )
+        with (
+            patch.object(boot, "get_current_user", return_value="admin@example.com"),
+            patch.object(
+                boot,
+                "get_user_roles",
+                return_value={"Clothing Business Administrator"},
+            ),
+        ):
+            boot.restrict_erpnext_app_visibility(bootinfo)
+        self.assertTrue(bootinfo.app_data[0].on_apps_screen)

@@ -13,6 +13,7 @@ required_apps = ["erpnext"]
 
 doctype_js = {
 	"Customer": "public/js/customer_assignment.js",
+	"Retailer Application": "public/js/retailer_application.js",
 }
 
 doctype_list_js = {
@@ -43,6 +44,8 @@ website_route_rules = [
 # Lifecycle Installation & Migrations
 after_install = "clothing_erp.install.after_install"
 after_migrate = "clothing_erp.install.after_migrate"
+
+extend_bootinfo = "clothing_erp.boot.restrict_erpnext_app_visibility"
 
 doc_events = {
 	"Item": {

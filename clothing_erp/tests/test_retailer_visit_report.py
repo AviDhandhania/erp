@@ -14,7 +14,10 @@ class TestRetailerVisitReport(unittest.TestCase):
             frappe._dict(outcome="Follow-up Required"),
             frappe._dict(outcome="Issue Reported"),
         ]
-        with patch.object(frappe, "get_list", return_value=rows) as get_list:
+        with (
+            patch.object(retailer_visit_report, "require_role"),
+            patch.object(frappe, "get_list", return_value=rows) as get_list,
+        ):
             columns, data, _, chart, summary = retailer_visit_report.execute(
                 {
                     "from_date": "2026-11-01",
@@ -40,6 +43,7 @@ class TestRetailerVisitReport(unittest.TestCase):
 
     def test_report_rejects_reversed_date_range_before_query(self):
         with (
+            patch.object(retailer_visit_report, "require_role"),
             patch.object(frappe, "throw", side_effect=frappe.ValidationError),
             patch.object(frappe, "get_list") as get_list,
             self.assertRaises(frappe.ValidationError),
@@ -53,3 +57,16 @@ class TestRetailerVisitReport(unittest.TestCase):
                 for call in get_list.call_args_list
             )
         )
+
+    def test_salesperson_is_rejected_before_report_queries(self):
+        with (
+            patch.object(
+                retailer_visit_report,
+                "require_role",
+                side_effect=frappe.PermissionError,
+            ),
+            patch.object(frappe, "get_list") as get_list,
+            self.assertRaises(frappe.PermissionError),
+        ):
+            retailer_visit_report.execute({})
+        get_list.assert_not_called()

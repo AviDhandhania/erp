@@ -12,7 +12,6 @@
  "report_name": "Retailer Visit Report",
  "report_type": "Script Report",
  "roles": [
-  {"role": "Clothing Salesperson"},
   {"role": "Clothing Sales Manager"},
   {"role": "Clothing Business Administrator"},
   {"role": "System Manager"}

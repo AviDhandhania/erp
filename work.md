@@ -12,6 +12,9 @@ This is the canonical roadmap. The workspace-level work.md points here.
 - [x] Remove preview-role authorization bypass and mock ERPNext HTTP clients.
 - [x] Restrict operational Customers, Warehouses, Sales Orders, Delivery Notes and Pick Lists.
 - [x] Native User Permissions for assignments; open ToDo required for operator pick lists.
+- [x] Role-scoped launcher: operational sales/warehouse roles and their managers see
+  Clothing ERP but not the full ERPNext app tile; system and Clothing Business
+  administrators retain it.
 - [x] Regression unit tests and real database permission tests.
 - [x] Desktop launcher verified in Chromium against the real local site.
 - [x] Direct local development server at `http://localhost:8000`, without nginx.
@@ -107,13 +110,16 @@ exact pinned release environment passes them.
 - [x] Permission-aware assigned-retailer directory API with search and bounded pagination.
 - [x] Retailer detail API with contact fields and authorized recent Sales Order history.
 - [x] Simplified Retailer Application DocType and submission form.
+- [x] Salesperson-only applications force the logged-in salesperson and server-owned
+  Customer Group/Territory defaults; those master fields are hidden from intake users.
 - [x] Duplicate detection across normalized shop name, phone, email and GSTIN.
 - [x] Manager-only approval/rejection with immutable review results.
 - [x] Approval creates native Customer, Contact and billing/shipping Address records.
 - [x] Approval assigns the Customer through a native User Permission for the salesperson.
 - [x] Retailer Visit records with outcomes, notes and required future follow-up dates.
-- [x] Permission-aware Retailer Visit Report with date, retailer, salesperson and outcome
-  filters, outcome chart and operational summary counts.
+- [x] Manager-only Retailer Visit Report with date, retailer, salesperson and outcome
+  filters, outcome chart and operational summary counts; it is absent from salesperson
+  navigation and rejects direct salesperson execution.
 - [x] Manager-only single-retailer reassignment from the native Customer form, backed by
   an atomic replacement of the native Customer User Permission.
 - [x] Bounded bulk reassignment from the native Customer list with sorted row locking,
@@ -131,7 +137,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 59 app tests passed through the real site runner, 32 installer/package
+Verification: 63 app tests passed through the real site runner, 32 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
 checks passed with all three icons, the Clothing ERP workspace and the directly visible
 Customer-list reassignment action. Current local testing is intentionally direct on port

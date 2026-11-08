@@ -9,6 +9,51 @@ from clothing_erp.clothing_erp.doctype.retailer_application import retailer_appl
 
 
 class TestRetailerWorkflow(unittest.TestCase):
+    def test_salesperson_application_identity_and_master_defaults_are_forced(self):
+        application = retailer_application.RetailerApplication(
+            {
+                "doctype": "Retailer Application",
+                "shop_name": " TEST Boutique ",
+                "contact_person": " TEST Person ",
+                "phone": "+91 90000 11111",
+                "salesperson": "other@example.invalid",
+                "territory": "Other Territory",
+                "customer_group": "Other Group",
+            }
+        )
+        defaults = frappe._dict(
+            territory="Default Territory", customer_group="Default Group"
+        )
+        with (
+            patch.object(
+                retailer_application,
+                "get_user_roles",
+                return_value={"Clothing Salesperson"},
+            ),
+            patch.object(retailer_application, "is_sales_manager", return_value=False),
+            patch.object(
+                retailer_application,
+                "get_current_user",
+                return_value="sales@example.com",
+            ),
+            patch.object(
+                retailer_application,
+                "_salesperson_application_defaults",
+                return_value=defaults,
+            ),
+            patch.object(
+                retailer_application.RetailerApplication,
+                "is_new",
+                return_value=True,
+            ),
+            patch.object(retailer_application, "_validate_salesperson"),
+            patch.object(retailer_application, "find_duplicates", return_value=[]),
+        ):
+            application.validate()
+        self.assertEqual(application.salesperson, "sales@example.com")
+        self.assertEqual(application.territory, "Default Territory")
+        self.assertEqual(application.customer_group, "Default Group")
+
     def test_reassignment_controls_are_directly_visible(self):
         app_root = Path(__file__).parents[1]
         form_script = (app_root / "public/js/customer_assignment.js").read_text()

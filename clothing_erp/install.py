@@ -4,6 +4,7 @@ import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.permissions import add_permission
 
+from clothing_erp.retailer_defaults import ensure_retailer_defaults
 from clothing_erp.roles import (
     ALL_ROLES,
     ROLE_BUSINESS_ADMIN,
@@ -15,6 +16,7 @@ from clothing_erp.roles import (
 
 
 def after_install():
+    ensure_retailer_defaults()
     create_custom_fields(
         {
             "Item": [

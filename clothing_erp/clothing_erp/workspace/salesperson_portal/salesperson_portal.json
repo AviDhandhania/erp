@@ -111,16 +111,6 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Retailer Visit Report",
-   "link_count": 0,
-   "link_to": "Retailer Visit Report",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
   }
  ],
  "module": "Clothing ERP",

@@ -4,8 +4,14 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
+from clothing_erp.retailer_defaults import get_retailer_defaults
 from clothing_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
-from clothing_erp.security import get_current_user, get_user_roles, require_role
+from clothing_erp.security import (
+    get_current_user,
+    get_user_roles,
+    is_sales_manager,
+    require_role,
+)
 
 
 def _phone(value):
@@ -95,6 +101,19 @@ def _validate_salesperson(user):
         )
 
 
+def _salesperson_application_defaults():
+    defaults = get_retailer_defaults()
+    if not frappe.db.exists("Territory", defaults.territory) or not frappe.db.exists(
+        "Customer Group", defaults.customer_group
+    ):
+        frappe.throw(
+            frappe._(
+                "The default Territory or Customer Group configured in Selling Settings does not exist."
+            )
+        )
+    return defaults
+
+
 class RetailerApplication(Document):
     def validate(self):
         if not self.is_new():
@@ -119,10 +138,11 @@ class RetailerApplication(Document):
         self.gstin = (self.gstin or "").strip().upper()
         if len(self.phone) < 7:
             frappe.throw(frappe._("Enter a valid phone number."))
-        if ROLE_SALESPERSON in get_user_roles() and not (
-            {ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN} & get_user_roles()
-        ):
+        if ROLE_SALESPERSON in get_user_roles() and not is_sales_manager():
             self.salesperson = get_current_user()
+            defaults = _salesperson_application_defaults()
+            self.territory = defaults.territory
+            self.customer_group = defaults.customer_group
         _validate_salesperson(self.salesperson)
         if self.is_new() and find_duplicates(self):
             frappe.throw(

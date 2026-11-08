@@ -6,6 +6,9 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, getdate
 
+from clothing_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER
+from clothing_erp.security import require_role
+
 OUTCOMES = (
     "Order Expected",
     "Follow-up Required",
@@ -16,6 +19,7 @@ OUTCOMES = (
 
 
 def execute(filters=None):
+    require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
     filters = frappe._dict(filters or {})
     _validate_dates(filters)
     data = _get_data(filters)

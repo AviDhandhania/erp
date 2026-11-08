@@ -163,7 +163,9 @@ pinned Frappe/ERPNext pair before Stage 5 is considered complete.
 ### Retailer workflow
 
 1. A salesperson opens **Salesperson Portal → Register Retailer**, completes the
-   Retailer Application and saves it. The salesperson is set from the logged-in user.
+   Retailer Application and saves it. The salesperson is set and locked from the logged-in
+   user. Territory and Customer Group are server defaults and are not shown to a
+   salesperson, so they do not need permission to maintain ERPNext master data.
 2. Duplicate shop names, phone numbers, email addresses and GSTINs are rejected before
    submission, including common phone-prefix and letter-case differences.
 3. A Clothing Manager, Clothing Business Administrator or System Manager opens
@@ -171,6 +173,12 @@ pinned Frappe/ERPNext pair before Stage 5 is considered complete.
 4. Approval creates the standard ERPNext Customer, Contact and Address records and a
    native User Permission assigning that Customer to the salesperson. Rejection requires
    a reason. A reviewed application cannot be edited or reviewed again.
+
+Clothing salespeople, sales managers, warehouse operators and warehouse managers use the
+Clothing ERP launcher and do not see the full ERPNext app tile. Administrator, System
+Manager and Clothing Business Administrator users retain the ERPNext tile. This is
+navigation scoping; document permissions and server-side assignment checks remain the
+security boundary.
 5. The salesperson records meetings from **Retailer Visits**. Choosing
    **Follow-up Required** requires a non-past follow-up date.
 
