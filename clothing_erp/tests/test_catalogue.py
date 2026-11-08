@@ -299,3 +299,9 @@ class TestCatalogue(unittest.TestCase):
             catalogue_script,
         )
         self.assertIn("View photos ({0})", catalogue_script)
+        self.assertIn(
+            'class="btn btn-primary btn-sm create-sales-order"', catalogue_script
+        )
+        self.assertIn(
+            "clothing_erp.ordering.create_draft_sales_order", catalogue_script
+        )

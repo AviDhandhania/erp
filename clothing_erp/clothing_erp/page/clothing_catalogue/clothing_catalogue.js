@@ -8,6 +8,7 @@ class ClothingCatalogue {
 		this.page = page;
 		this.state = { page: 1, search: "", item_group: "", brand: "", customer: "", collection: "", fabric: "", fit: "", season: "" };
 		this.selection = new Map();
+		this.order_request_id = null;
 		this.products = new Map();
 		this.page.main.html(`<div class="clothing-catalogue">
 			<div class="catalogue-toolbar">
@@ -49,6 +50,7 @@ class ClothingCatalogue {
 			this.state[field] = event.target.value;
 			if (field === "customer") {
 				this.selection.clear();
+				this.order_request_id = null;
 				this.render_selection();
 			}
 			this.state.page = 1;
@@ -76,13 +78,16 @@ class ClothingCatalogue {
 			} else {
 				this.selection.delete(input.dataset.itemCode);
 			}
+			this.order_request_id = null;
 			this.render_selection();
 		});
 		this.$root.on("click", ".clear-selection", () => {
 			this.selection.clear();
+			this.order_request_id = null;
 			this.$root.find(".variant-qty").val("");
 			this.render_selection();
 		});
+		this.$root.on("click", ".create-sales-order", () => this.create_sales_order());
 		this.$root.on("click", ".catalogue-photo-trigger", (event) => {
 			this.open_gallery(this.products.get(event.currentTarget.dataset.itemCode));
 		});
@@ -173,7 +178,44 @@ class ClothingCatalogue {
 		const money = Object.entries(totals).map(([currency, total]) => format_currency(total, currency)).join(" · ");
 		this.$root.find(".catalogue-selection").html(rows.length ? `
 			<div><strong>${__("Draft selection")}</strong><span>${__("{0} variants · {1} units", [rows.length, units])}${money ? ` · ${money}` : ""}</span></div>
-			<button class="btn btn-default btn-sm clear-selection">${__("Clear")}</button>` : "");
+			<div class="catalogue-selection-actions">
+				<button class="btn btn-default btn-sm clear-selection">${__("Clear")}</button>
+				<button class="btn btn-primary btn-sm create-sales-order" ${this.state.customer ? "" : "disabled"}>${this.state.customer ? __("Create draft order") : __("Select retailer first")}</button>
+			</div>` : "");
+	}
+
+	async create_sales_order() {
+		if (!this.state.customer || !this.selection.size) return;
+		const delivery_date = await new Promise((resolve) => {
+			frappe.prompt([{
+				fieldname: "delivery_date",
+				fieldtype: "Date",
+				label: __("Delivery Date"),
+				default: frappe.datetime.now_date(),
+				reqd: 1,
+			}], ({ delivery_date: value }) => resolve(value), __("Create Draft Sales Order"), __("Create Draft"));
+		});
+		this.order_request_id ||= frappe.utils.get_random(40);
+		const items = [...this.selection.entries()].map(([item_code, row]) => ({
+			item_code,
+			qty: row.quantity,
+		}));
+		const { message } = await frappe.call({
+			method: "clothing_erp.ordering.create_draft_sales_order",
+			type: "POST",
+			args: {
+				customer: this.state.customer,
+				items: JSON.stringify(items),
+				request_id: this.order_request_id,
+				delivery_date,
+			},
+			freeze: true,
+			freeze_message: __("Creating Sales Order with current ERPNext pricing…"),
+		});
+		this.selection.clear();
+		this.order_request_id = null;
+		frappe.show_alert({ message: __("Draft Sales Order {0} created", [message.name]), indicator: "green" });
+		frappe.set_route("Form", "Sales Order", message.name);
 	}
 
 	product_card(product) {

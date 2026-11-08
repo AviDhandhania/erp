@@ -70,7 +70,20 @@ def after_install():
                     "insert_after": "custom_clothing_fit",
                     "in_standard_filter": 1,
                 },
-            ]
+            ],
+            "Sales Order": [
+                {
+                    "fieldname": "custom_clothing_request_id",
+                    "fieldtype": "Data",
+                    "label": "Clothing Order Request ID",
+                    "insert_after": "customer",
+                    "hidden": 1,
+                    "read_only": 1,
+                    "no_copy": 1,
+                    "unique": 1,
+                    "description": "Idempotency key for Sales Orders created from the Clothing ERP catalogue.",
+                }
+            ],
         }
     )
     for role in ALL_ROLES:
@@ -88,7 +101,7 @@ def after_install():
         name = role["role_name"]
         doctypes = {"Item", "Item Group", "Brand", "UOM"}
         if name in {ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}:
-            doctypes |= {"Customer", "Sales Order"}
+            doctypes |= {"Company", "Customer", "Sales Order"}
         if name in {
             ROLE_WAREHOUSE_OPERATOR,
             ROLE_WAREHOUSE_MANAGER,

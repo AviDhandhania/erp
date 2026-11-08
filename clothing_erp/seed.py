@@ -4,6 +4,7 @@ import frappe
 from erpnext.controllers.item_variant import create_variant
 
 SEED_REFERENCE = "Clothing ERP fictional catalogue seed"
+SEED_RETAILER = "TEST Catalogue Boutique"
 PRODUCTS = (
     {
         "code": "TEST-CLASSIC-TEE-BLK",
@@ -240,6 +241,40 @@ def _ensure_brand(name):
         ).insert()
 
 
+def _ensure_retailer():
+    customer_group = "TEST Clothing Retailers"
+    territory = "TEST Clothing Territory"
+    if not frappe.db.exists("Customer Group", customer_group):
+        frappe.get_doc(
+            {
+                "doctype": "Customer Group",
+                "customer_group_name": customer_group,
+                "parent_customer_group": "All Customer Groups",
+                "is_group": 0,
+            }
+        ).insert()
+    if not frappe.db.exists("Territory", territory):
+        frappe.get_doc(
+            {
+                "doctype": "Territory",
+                "territory_name": territory,
+                "parent_territory": "All Territories",
+                "is_group": 0,
+            }
+        ).insert()
+    if not frappe.db.exists("Customer", SEED_RETAILER):
+        frappe.get_doc(
+            {
+                "doctype": "Customer",
+                "customer_name": SEED_RETAILER,
+                "customer_type": "Company",
+                "customer_group": customer_group,
+                "territory": territory,
+            }
+        ).insert()
+    return SEED_RETAILER
+
+
 def _ensure_attribute(name, values):
     attribute = frappe.db.exists("Item Attribute", name)
     if attribute:
@@ -432,6 +467,7 @@ def seed_catalogue():
         frappe.throw(frappe._("Configure a default Selling Price List before seeding."))
 
     item_group = _ensure_item_group()
+    retailer = _ensure_retailer()
     for brand in {product["brand"] for product in PRODUCTS}:
         _ensure_brand(brand)
     _ensure_attribute(
@@ -452,6 +488,7 @@ def seed_catalogue():
         "company": company.name,
         "warehouse": company.default_warehouse,
         "price_list": price_list,
+        "retailer": retailer,
         "templates": len(PRODUCTS),
         "variants": len(all_variants),
         "stock_entry": stock_entry,

@@ -20,17 +20,22 @@ class TestSeedSafety(unittest.TestCase):
                 seed._require_development_site()
 
     def test_all_seed_records_are_clearly_fictional(self):
+        self.assertTrue(seed.SEED_RETAILER.startswith("TEST "))
         for product in seed.PRODUCTS:
             self.assertTrue(product["code"].startswith("TEST-"))
             self.assertTrue(product["name"].startswith("TEST "))
             self.assertTrue(product["brand"].startswith("TEST "))
             self.assertTrue(product["colour"])
-            self.assertTrue(all(value.startswith("TEST ") for value in product["sizes"]))
+            self.assertTrue(
+                all(value.startswith("TEST ") for value in product["sizes"])
+            )
 
     def test_seed_images_are_local_packaged_assets(self):
         public_root = Path(__file__).parents[1] / "public"
         for product in seed.PRODUCTS:
-            self.assertTrue(product["image"].startswith("/assets/clothing_erp/images/seed/"))
+            self.assertTrue(
+                product["image"].startswith("/assets/clothing_erp/images/seed/")
+            )
             relative = product["image"].removeprefix("/assets/clothing_erp/")
             image = public_root / relative
             self.assertTrue(image.is_file(), image)

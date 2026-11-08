@@ -32,11 +32,10 @@ in for them now.
 
 ## Apparel features still to build
 
-1. Persist selected catalogue quantities only as part of the authoritative Stage 5
-   Sales Order flow. Catalogue metadata, images, filters, variant matrix, generic and
-   customer-specific pricing, and stock visibility are complete.
-2. Salesperson ordering: matrix cart, authoritative pricing, discounts/credit checks,
-   stock handling, idempotency, standard Sales Orders and lifecycle status.
+1. Complete Sales Order submission: credit checks, stock/reservation policy, workflow
+   approval, cancellation and lifecycle status. The matrix-to-native-draft adapter,
+   server-authoritative pricing and duplicate-request protection are complete.
+2. Complete exact pinned-release database coverage for draft creation and submission.
 3. Warehouse operations: assigned picking, barcode verification, shortages, packing,
    dispatch and standard Delivery Notes.
 4. Retailer-direct requests: authenticated intake and approval before Sales Orders.
@@ -69,11 +68,39 @@ in for them now.
   season, with permission-aware catalogue filters, style-code search and fictional seed data.
 - [x] Add an assigned-retailer context using native ERPNext item/Sales Order pricing for
   customer Price Lists, Pricing Rules, currency and UOM conversion.
-- [ ] Persist selected quantities only as part of the separately tested Stage 5 cart/order flow.
+- [x] Persist selected quantities through the separately tested Stage 5 native draft-order flow.
 
 The displayed stock is informational on-hand quantity, not a reservation or promise.
-Stage 5 must recalculate prices, permissions and stock on the server when an order is
-submitted. The catalogue intentionally creates no Sales Order or stock transaction.
+The server never accepts catalogue rates or discounts. Draft creation rechecks the
+customer and Items, then delegates commercial defaults and calculations to the native
+Sales Order controller. Stock remains unreserved until a later native submission flow.
+
+## Stage 5 — salesperson ordering
+
+- [x] Convert catalogue matrix quantities into a standard draft Sales Order.
+- [x] Send only customer, variant Item codes, quantities, delivery date and a request token;
+  never trust browser prices, discounts, stock, commission or permission claims.
+- [x] Revalidate the assigned enabled Customer and permission-visible, enabled Size-only
+  Item variants on the server.
+- [x] Delegate customer/company defaults, Price Lists, Pricing Rules, currency, taxes,
+  maximum-discount validation and Sales Team commission calculations to ERPNext's native
+  Sales Order controller.
+- [x] Use a unique request token with ownership/customer checks so retries return the same
+  draft instead of creating duplicate orders.
+- [x] Provide a fictional retailer in the idempotent developer seed data so a manager or
+  Administrator can exercise the catalogue order controls immediately.
+- [x] Unit and static UI coverage for authorization, quantity validation, permission-aware
+  Item selection, payload construction, duplicate retry and catalogue wiring.
+- [ ] Run the native draft database integration test on the exact pinned Frappe/ERPNext pair.
+- [ ] Add native submission coverage for credit limits, stock reservation, workflow and
+  approval rules, Sales Person commission, concurrent stock changes and duplicate requests.
+- [ ] Cover delivery/cancellation lifecycle and status reconciliation before closing Stage 5.
+
+The mixed local developer bench cannot execute native Sales Order party loading because
+its ERPNext develop checkout expects a newer Contact schema than its Frappe v16 database.
+Clothing ERP detects that known incompatibility and returns a clear error; it does not add
+fake core fields or bypass ERPNext. Draft integration and submission remain open until the
+exact pinned release environment passes them.
 
 ## Stage 4 — retailer management
 
@@ -104,7 +131,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 53 app tests passed through the real site runner, 32 installer/package
+Verification: 59 app tests passed through the real site runner, 32 installer/package
 tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
 checks passed with all three icons, the Clothing ERP workspace and the directly visible
 Customer-list reassignment action. Current local testing is intentionally direct on port
@@ -126,8 +153,11 @@ Customer-list reassignment action. Current local testing is intentionally direct
 - [x] Gallery upload restrictions, privacy, storage and deletion use native File lifecycle
   checks; the app only removes confirmed unreferenced local uploads.
 - [x] Current custom APIs retain native role and User Permission enforcement.
-- [ ] Stage 5 ordering must use ERPNext's pricing-rule engine, credit-limit checks,
-  Sales Order validation, stock/reservation policy and Sales Person commission fields.
+- [x] Stage 5 draft creation uses ERPNext's Sales Order validation and pricing-rule engine;
+  native customer defaults, taxes, maximum discounts and Sales Team commission calculations
+  remain authoritative, with no client-provided commercial values accepted.
+- [ ] Stage 5 submission must validate credit limits, workflow/approval behavior,
+  stock/reservation policy and concurrent changes on the exact pinned release pair.
 - [ ] Stage 6 fulfilment must use native Pick List, Delivery Note, serial/batch and stock
   validation settings rather than changing inventory from custom status fields.
 

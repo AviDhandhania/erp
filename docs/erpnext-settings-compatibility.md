@@ -21,6 +21,7 @@ controllers that apply before implementation.
 |---|---|---|
 | Generic catalogue pricing | Selling Settings default price list; Price List enabled/selling/currency; Item Price UOM, validity and party scope | Applied server-side. Party-specific rows are excluded until a retailer is selected. |
 | Assigned-retailer catalogue pricing | Customer defaults, customer Price List, Pricing Rules, exchange-rate policy, currency and UOM conversion | Calls ERPNext's native item-pricing controller with a Sales Order context; no commercial document is written. |
+| Catalogue draft ordering | Native Sales Order party/default, item pricing, taxes, maximum-discount and Sales Team/commission controllers | The browser sends only Customer, Item codes, quantities, delivery date and an idempotency token. The server revalidates access and Size-only variants, then inserts a standard draft through the native controller. Browser rates, discounts, stock and commission are ignored. |
 | Catalogue stock display | Bin actual quantity; Warehouse User Permissions | Only aggregate quantities are returned. Configured warehouse assignments restrict the aggregation; warehouse names are not exposed. |
 | Clothing catalogue metadata | Native Item templates plus app-owned Custom Fields | Style code, collection, fabric, fit and season are descriptive/reporting metadata on each colour-specific Item template. They do not create variants or replace Item Group, Brand or Size attributes. Filter values use permission-aware Item queries. |
 | Product galleries | File upload size/type/privacy policy and site file storage | Uploads use native File records. Cleanup invokes native File deletion and protects referenced, shared, private-policy and packaged assets. |
@@ -31,10 +32,11 @@ controllers that apply before implementation.
 
 ## Required checks for upcoming stages
 
-Salesperson ordering must call the native pricing and Sales Order controllers and cover:
+Draft ordering now calls the native pricing and Sales Order controllers. Before native
+submission is enabled, pinned-release integration coverage must additionally prove:
 
-- customer/default price lists, Pricing Rules, currencies, UOMs and taxes;
-- item maximum discounts and the app's permitted operational discount policy;
+- customer/default price lists, Pricing Rules, currencies, UOMs and taxes during a real insert;
+- item maximum discounts and any future permitted operational discount policy;
 - customer credit limits and configured credit controller behavior;
 - stock availability, negative-stock and stock-reservation configuration;
 - native Sales Person/Sales Team commission rate, contribution and incentives;
@@ -49,6 +51,7 @@ This matrix is reviewed whenever a new ERPNext version is added to the release m
 
 The existing developer bench intentionally runs ERPNext `develop` with Frappe v16 and
 is not a production compatibility target. A native Sales Order party-load test exposed
-a Contact-schema mismatch in that mixed checkout. Clothing ERP does not patch around
-core schema differences: release CI must validate full order creation on the exact
-pinned Frappe/ERPNext pair before Stage 5 can be marked complete.
+a Contact-schema mismatch in that mixed checkout. The draft endpoint reports that known
+incompatibility clearly. Clothing ERP does not patch around core schema differences:
+release CI must validate full order creation and submission on the exact pinned
+Frappe/ERPNext pair before Stage 5 can be marked complete.

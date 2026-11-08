@@ -50,6 +50,11 @@ class TestSitePermissions(IntegrationTestCase):
         self.assertEqual(
             (gallery.fieldtype, gallery.options), ("Table", "Clothing Product Image")
         )
+        request_id = frappe.get_meta("Sales Order").get_field(
+            "custom_clothing_request_id"
+        )
+        self.assertTrue(request_id.unique)
+        self.assertTrue(request_id.read_only)
         self.assertEqual(frappe.get_list("Customer", pluck="name"), [])
         self.assertEqual(frappe.get_list("Sales Order", pluck="name"), [])
         self.assertEqual(

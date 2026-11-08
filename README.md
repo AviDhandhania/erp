@@ -126,8 +126,8 @@ system service. It contains the fictional **TEST Clothing ERP Demo** company. It
 pre-existing ERPNext develop checkout is not a release target and has not been
 downgraded.
 
-Populate the local catalogue with fictional ERPNext templates, variants, prices and
-submitted stock by running this idempotent development-only command:
+Populate the local catalogue with fictional ERPNext templates, variants, prices,
+submitted stock and a test retailer by running this idempotent development-only command:
 
 ```bash
 cd /home/avi/GitHub/erp/frappe-bench
@@ -149,8 +149,16 @@ demo images remain release-managed and are never removed by this cleanup.
 The catalogue's retailer selector only lists Customers permitted by native User
 Permissions. Selecting one recalculates the displayed quantity-one rates through
 ERPNext's item-pricing engine, including that Customer's Price List, Pricing Rules,
-currency exchange and UOM behavior. These are catalogue estimates; Stage 5 order
-submission will recalculate exact quantities and all commercial validations again.
+currency exchange and UOM behavior. Select quantities and use **Create draft order** to
+create a standard ERPNext draft Sales Order. The browser does not supply its displayed
+rates: the server rechecks access and Items, and ERPNext recalculates commercial values.
+Submission, credit checks, reservation, approval and cancellation remain native ERPNext
+operations and are not automated by this catalogue stage.
+
+The pre-existing local mixed-version developer bench cannot complete native Sales Order
+party loading; the endpoint reports that incompatibility instead of patching ERPNext core.
+The release compatibility job must pass the full draft/submission integration on the exact
+pinned Frappe/ERPNext pair before Stage 5 is considered complete.
 
 ### Retailer workflow
 
