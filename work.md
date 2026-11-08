@@ -15,6 +15,8 @@ This is the canonical roadmap. The workspace-level work.md points here.
 - [x] Role-scoped launcher: operational sales/warehouse roles and their managers see
   Clothing ERP but not the full ERPNext app tile; system and Clothing Business
   administrators retain it.
+- [x] Operational sales roles create drafts only through the Clothing ERP service and
+  have no native Sales Order form/API permission; administrators review native orders.
 - [x] Regression unit tests and real database permission tests.
 - [x] Desktop launcher verified in Chromium against the real local site.
 - [x] Direct local development server at `http://localhost:8000`, without nginx.
@@ -22,12 +24,15 @@ This is the canonical roadmap. The workspace-level work.md points here.
 - [x] Stable deployment release pins; native services and nginx for an IP-based LXC.
 - [x] Proxmox installer with preflight checks, new CT only, generated passwords, health check.
 - [x] Portable single-file installer and tests for packaging and host command flow.
-- [x] Frappe Insights analytics integration (v3.15.1) on local bench site, release manifest and LXC pipeline, with operational role scoping keeping Insights hidden from operational users while accessible to administrators (completed by Gemini).
+- [x] Frappe Insights analytics integration (v3.15.1) on the local site and as a
+  required, exact-version component of every new release/LXC; operational users cannot
+  see or call it, while administrators retain access.
 - [ ] Test a full installation/reboot/restore on an actual Proxmox host.
 - [ ] Revisit nginx/port 80 only when deployment testing is explicitly requested.
 
-The local pre-existing bench uses Frappe v16.55.2 and ERPNext develop 17.0.0-dev.
-It was not downgraded. New LXC deployments pin ERPNext v16.54.0 with Frappe v16.55.2.
+The local bench and new LXC deployments both use the tested pair ERPNext v16.54.0 and
+Frappe v16.55.2. The upstream repositories remain unmodified; the local ERPNext checkout
+was moved from an incompatible develop snapshot to the exact release tag.
 The local setup wizard was completed with the fictional TEST Clothing ERP Demo company.
 The production installer leaves the wizard available for the operator's real configuration.
 The previous Stage 2 checklist overstated completion: barcode scanning, follow-ups,
@@ -39,7 +44,7 @@ in for them now.
 1. Complete Sales Order submission: credit checks, stock/reservation policy, workflow
    approval, cancellation and lifecycle status. The matrix-to-native-draft adapter,
    server-authoritative pricing and duplicate-request protection are complete.
-2. Complete exact pinned-release database coverage for draft creation and submission.
+2. Complete exact pinned-release database coverage for Sales Order submission.
 3. Warehouse operations: assigned picking, barcode verification, shortages, packing,
    dispatch and standard Delivery Notes.
 4. Retailer-direct requests: authenticated intake and approval before Sales Orders.
@@ -97,7 +102,9 @@ Sales Order controller. Stock remains unreserved until a later native submission
   Item selection, payload construction, duplicate retry and catalogue wiring.
 - [x] Run local native draft creation and duplicate-request replay against the real database;
   repair a missing ERPNext-owned Contact field through ERPNext's supported installer.
-- [ ] Run the same native draft database integration test on the exact pinned release pair.
+- [x] Run native draft creation, salesperson UI routing and Administrator form loading on
+  the exact pinned release pair; `SAL-ORD-2026-00008` was created from the catalogue and
+  opened successfully in the native Administrator form without client errors.
 - [ ] Add native submission coverage for credit limits, stock reservation, workflow and
   approval rules, Sales Person commission, concurrent stock changes and duplicate requests.
 - [ ] Cover delivery/cancellation lifecycle and status reconciliation before closing Stage 5.
@@ -143,8 +150,10 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 67 app tests passed through the real site runner, 32 installer/package
-tests passed, ShellCheck and Python static checks passed. Desktop/mobile Chromium
+Verification: 83 app tests passed through the real site runner and 34 installer/package
+tests passed. Chromium checks verified that salesperson intake hides server-owned master
+fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
+resulting native Sales Order. Desktop/mobile Chromium
 checks passed with all three icons, the Clothing ERP workspace and the role-scoped
 Clothing ERP Retailer Assignments page. Current local testing is intentionally direct on port
 8000; nginx is deferred from this phase.
@@ -182,8 +191,11 @@ never be silently reimplemented with conflicting semantics.
 ## Release lifecycle pipeline
 
 - [x] Separate upstream repositories and immutable, exact-commit release manifests.
-- [x] GitHub Publish release form with optional independent Frappe/ERPNext pin updates.
+- [x] GitHub Publish release form with optional independent Frappe, ERPNext and Insights
+  pin updates.
 - [x] Compatibility gate: app/security tests plus a fresh native database-backed install/build.
+- [x] Insights is mandatory in new manifests, dependency locking, fresh-install CI,
+  installation and update health checks; a release cannot silently omit analytics.
 - [x] Publish completed draft artifacts/checksums/provenance, then expose a stable release.
 - [x] Proxmox bootstrap installs a verified stable release instead of main source snapshots.
 - [x] Dedicated per-release benches, Python/Node/Bench tools and assets; shared site data.

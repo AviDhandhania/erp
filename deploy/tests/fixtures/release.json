@@ -12,6 +12,10 @@
     "ref": "v16.54.0",
     "commit": "cccccccccccccccccccccccccccccccccccccccc"
   },
+  "insights": {
+    "ref": "v3.15.1",
+    "commit": "cccccccccccccccccccccccccccccccccccccccc"
+  },
   "runtime": {
     "python": "3.14.9",
     "node": "24.22.2",

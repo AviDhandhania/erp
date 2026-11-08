@@ -17,7 +17,7 @@ import common
 import lifecycle
 
 
-def manifest(version="v0.3.0", include_insights=False):
+def manifest(version="v0.3.0", include_insights=True):
     data = {
         "schema": 1,
         "platform": "debian13-native-v1",
@@ -50,6 +50,10 @@ class TestReleaseContract(unittest.TestCase):
         self.assertEqual(
             common.validate_manifest(with_insights)["insights"]["ref"], "v3.15.1"
         )
+
+    def test_insights_is_required(self):
+        with self.assertRaisesRegex(ValueError, "Insights release is required"):
+            common.validate_manifest(manifest(include_insights=False))
 
     def test_insights_pin_validation(self):
         bad_format = manifest(include_insights=True)
@@ -411,7 +415,7 @@ class TestReleaseBuilder(unittest.TestCase):
             (root / "deploy").mkdir()
             (root / "clothing_erp/__init__.py").write_text('__version__ = "0.3.0"\n')
             (root / "deploy/versions.env").write_text(
-                "FRAPPE_REF=v16.55.2\nERPNEXT_REF=v16.54.0\nPYTHON_VERSION=3.14.9\nNODE_VERSION=24.22.2\nBENCH_VERSION=5.31.1\nUV_VERSION=0.13.7\n"
+                "FRAPPE_REF=v16.55.2\nERPNEXT_REF=v16.54.0\nINSIGHTS_REF=v3.15.1\nPYTHON_VERSION=3.14.9\nNODE_VERSION=24.22.2\nBENCH_VERSION=5.31.1\nUV_VERSION=0.13.7\n"
             )
             subprocess.run(
                 ["git", "init", "-b", "main", str(root)],

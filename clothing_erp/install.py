@@ -45,6 +45,33 @@ def _ensure_custom_docperm(doctype, role, ptypes):
         frappe.get_doc(values).insert(ignore_permissions=True)
 
 
+def _remove_custom_docperm(doctype, role):
+    """Remove app-owned access that is no longer part of the role contract."""
+    for name in frappe.get_all(
+        "Custom DocPerm",
+        filters={"parent": doctype, "role": role, "permlevel": 0},
+        pluck="name",
+    ):
+        frappe.delete_doc("Custom DocPerm", name, ignore_permissions=True)
+
+
+def _role_doctypes(role):
+    doctypes = {"Item", "Item Group", "Brand", "UOM"}
+    if role in {ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}:
+        doctypes |= {"Company", "Customer", "Account", "Price List"}
+    if role in {ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}:
+        doctypes |= {"Territory", "Customer Group"}
+    if role == ROLE_BUSINESS_ADMIN:
+        doctypes.add("Sales Order")
+    if role in {
+        ROLE_WAREHOUSE_OPERATOR,
+        ROLE_WAREHOUSE_MANAGER,
+        ROLE_BUSINESS_ADMIN,
+    }:
+        doctypes |= {"Warehouse", "Pick List", "Delivery Note"}
+    return doctypes
+
+
 def after_install():
     ensure_erpnext_contact_fields()
     ensure_retailer_defaults()
@@ -129,40 +156,25 @@ def after_install():
                     "is_custom": 1,
                 }
             ).insert(ignore_permissions=True)
-    # Workflow writes and permissions provisioned by Gemini
     for role in ALL_ROLES:
         name = role["role_name"]
-        doctypes = {"Item", "Item Group", "Brand", "UOM"}
-        if name in {ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}:
-            doctypes |= {
-                "Company",
-                "Customer",
-                "Sales Order",
-                "Territory",
-                "Customer Group",
-                "Account",
-                "Price List",
-            }
-        if name in {
-            ROLE_WAREHOUSE_OPERATOR,
-            ROLE_WAREHOUSE_MANAGER,
-            ROLE_BUSINESS_ADMIN,
-        }:
-            doctypes |= {"Warehouse", "Pick List", "Delivery Note"}
-        for doctype in sorted(doctypes):
+        for doctype in sorted(_role_doctypes(name)):
             if doctype == "Sales Order":
-                if name == ROLE_SALESPERSON:
-                    _ensure_custom_docperm(doctype, name, ["read", "write", "create"])
-                elif name in {ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}:
-                    _ensure_custom_docperm(
-                        doctype,
-                        name,
-                        ["read", "write", "create", "submit", "cancel", "amend"],
-                    )
-                else:
-                    _ensure_custom_docperm(doctype, name, ["read"])
+                _ensure_custom_docperm(
+                    doctype,
+                    name,
+                    ["read", "write", "create", "submit", "cancel", "amend"],
+                )
             else:
                 _ensure_custom_docperm(doctype, name, ["read"])
+    # Intake defaults are resolved by trusted server code. Salespeople do not
+    # need either master exposed in Desk or through resource APIs.
+    for doctype in ("Territory", "Customer Group"):
+        _remove_custom_docperm(doctype, ROLE_SALESPERSON)
+    # Drafts are created through the validated catalogue service. Operational
+    # sales roles must not acquire a native ERPNext Sales Order form/API surface.
+    for role in (ROLE_SALESPERSON, ROLE_SALES_MANAGER):
+        _remove_custom_docperm("Sales Order", role)
     frappe.clear_cache()
 
 

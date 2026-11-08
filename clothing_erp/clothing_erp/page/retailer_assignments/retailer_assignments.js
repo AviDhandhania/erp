@@ -1,4 +1,3 @@
-// Retailer Assignments Page (Updated by Gemini)
 frappe.pages["retailer-assignments"].on_page_load = (wrapper) => {
 	const page = frappe.ui.make_app_page({
 		parent: wrapper,

@@ -214,8 +214,22 @@ class ClothingCatalogue {
 		});
 		this.selection.clear();
 		this.order_request_id = null;
+		this.$root.find(".variant-qty").val("");
+		this.render_selection();
 		frappe.show_alert({ message: __("Draft Sales Order {0} created", [message.name]), indicator: "green" });
-		frappe.set_route("Form", "Sales Order", message.name);
+		const roles = new Set(frappe.user_roles || []);
+		const can_open_erpnext = frappe.session.user === "Administrator"
+			|| roles.has("System Manager")
+			|| roles.has("Clothing Business Administrator");
+		if (can_open_erpnext) {
+			frappe.set_route("Form", "Sales Order", message.name);
+		} else {
+			frappe.msgprint({
+				title: __("Draft order created"),
+				message: __("Order {0} was sent for administrator review.", [frappe.utils.escape_html(message.name)]),
+				indicator: "green",
+			});
+		}
 	}
 
 	product_card(product) {

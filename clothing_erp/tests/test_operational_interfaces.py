@@ -15,7 +15,7 @@ class TestOperationalInterfaces(unittest.TestCase):
                     api.switch_preview_role(role)
 
     def test_sales_endpoint_rejects_unauthorized_user_before_queries(self):
-        with patch.object(api, "require_role", side_effect=frappe.PermissionError), patch.object(frappe, "get_list") as query:
+        with patch.object(api, "require_role", side_effect=frappe.PermissionError), patch.object(frappe, "get_all") as query:
             with self.assertRaises(frappe.PermissionError):
                 api.get_salesperson_dashboard()
             query.assert_not_called()
@@ -27,7 +27,10 @@ class TestOperationalInterfaces(unittest.TestCase):
             query.assert_not_called()
 
     def test_empty_site_has_zero_sales_metrics_without_fake_orders(self):
-        with patch.object(api, "require_role"), patch.object(api, "today", return_value="2026-11-07"), patch.object(frappe, "get_list", return_value=[frappe._dict(total=0)]), patch.object(api, "get_sales_orders", return_value=[]):
+        def query(doctype, **kwargs):
+            return [] if kwargs.get("order_by") else [frappe._dict(total=0)]
+
+        with patch.object(api, "require_role"), patch.object(api, "today", return_value="2026-11-07"), patch.object(api, "_sales_customer_scope", return_value=None), patch.object(frappe, "get_all", side_effect=query):
             data = api.get_salesperson_dashboard()
         self.assertEqual(data["recent_orders"], [])
         self.assertTrue(all(value == 0 for value in data["metrics"].values()))
@@ -51,8 +54,10 @@ class TestOperationalInterfaces(unittest.TestCase):
     def test_monthly_sales_are_grouped_by_currency(self):
         currencies = [frappe._dict(currency="INR", total=100), frappe._dict(currency="USD", total=20)]
         def query(doctype, **kwargs):
-            return currencies if kwargs.get("group_by") == "currency" else [frappe._dict(total=0)]
-        with patch.object(api, "require_role"), patch.object(api, "today", return_value="2026-11-07"), patch.object(frappe, "get_list", side_effect=query), patch.object(api, "get_sales_orders", return_value=[]):
+            if kwargs.get("group_by") == "currency":
+                return currencies
+            return [] if kwargs.get("order_by") else [frappe._dict(total=0)]
+        with patch.object(api, "require_role"), patch.object(api, "today", return_value="2026-11-07"), patch.object(api, "_sales_customer_scope", return_value=None), patch.object(frappe, "get_all", side_effect=query):
             result = api.get_salesperson_dashboard()
         self.assertEqual(result["monthly_sales"], currencies)
         self.assertNotIn("month_sales_value", result["metrics"])

@@ -57,7 +57,17 @@ def assigned_documents(doctype, user=None, applicable_for=None):
     return sorted({p.doc for p in permissions if not p.applicable_for or p.applicable_for == (applicable_for or doctype)})
 
 def has_retailer_access(customer_name, user=None):
-    return is_sales_manager(user) or (is_salesperson(user) and customer_name in assigned_documents("Customer", user))
+    if is_clothing_admin(user):
+        return True
+    roles = get_user_roles(user)
+    if ROLE_SALES_MANAGER in roles:
+        territories = assigned_documents("Territory", user)
+        return bool(
+            territories
+            and frappe.db.get_value("Customer", customer_name, "territory")
+            in territories
+        )
+    return is_salesperson(user) and customer_name in assigned_documents("Customer", user)
 
 def has_warehouse_access(warehouse_name, user=None):
     return is_warehouse_manager(user) or (is_warehouse_operator(user) and warehouse_name in assigned_documents("Warehouse", user))
@@ -164,7 +174,7 @@ def operational_document_has_permission(doc, user=None, ptype=None, **kwargs):
 
 
 def user_has_permission(doc, user=None, ptype=None, **kwargs):
-    """Keep operational Clothing ERP users out of framework user management. (By Gemini)"""
+    """Keep operational Clothing ERP users out of framework user management."""
     user = get_current_user(user)
     if not user or user == "Administrator":
         return True
@@ -179,7 +189,7 @@ def user_has_permission(doc, user=None, ptype=None, **kwargs):
 
 
 def user_query_conditions(user=None):
-    """Restrict operational clothing roles from listing framework user records. (By Gemini)"""
+    """Restrict operational clothing roles from listing framework user records."""
     user = get_current_user(user)
     if not user or user == "Administrator":
         return ""

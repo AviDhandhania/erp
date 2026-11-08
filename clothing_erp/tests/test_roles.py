@@ -3,11 +3,22 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 import frappe
-from clothing_erp import security
-from clothing_erp.roles import ROLE_SALESPERSON, ROLE_WAREHOUSE_OPERATOR, ROLE_SALES_MANAGER
+from clothing_erp import install, security
+from clothing_erp.roles import (
+    ROLE_BUSINESS_ADMIN,
+    ROLE_SALESPERSON,
+    ROLE_SALES_MANAGER,
+    ROLE_WAREHOUSE_OPERATOR,
+)
 
 
 class TestSecurity(unittest.TestCase):
+    def test_operational_sales_roles_do_not_receive_native_sales_order_access(self):
+        self.assertNotIn("Sales Order", install._role_doctypes(ROLE_SALESPERSON))
+        self.assertNotIn("Sales Order", install._role_doctypes(ROLE_SALES_MANAGER))
+        self.assertNotIn("Territory", install._role_doctypes(ROLE_SALESPERSON))
+        self.assertIn("Sales Order", install._role_doctypes(ROLE_BUSINESS_ADMIN))
+
     def test_guest_has_no_access(self):
         self.assertFalse(security.has_any_role(ROLE_SALESPERSON, "Guest"))
 
@@ -42,6 +53,16 @@ class TestSecurity(unittest.TestCase):
         with patch.object(security, "get_user_roles", return_value={ROLE_SALESPERSON, ROLE_SALES_MANAGER}):
             self.assertEqual(security.get_salesperson_customer_conditions("test@example.invalid"), "")
 
+    def test_sales_manager_retailer_access_is_territory_scoped(self):
+        with (
+            patch.object(security, "get_user_roles", return_value={ROLE_SALES_MANAGER}),
+            patch.object(security, "assigned_documents", return_value=["TEST North"]),
+            patch.object(frappe.db, "get_value", return_value="TEST South"),
+        ):
+            self.assertFalse(
+                security.has_retailer_access("TEST Retailer", "manager@example.invalid")
+            )
+
     def test_mixed_warehouse_document_is_denied(self):
         doc = frappe._dict(doctype="Delivery Note", items=[frappe._dict(warehouse="TEST-A"), frappe._dict(warehouse="TEST-B")])
         with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_OPERATOR}), patch.object(security, "assigned_documents", return_value=["TEST-A"]):
@@ -57,14 +78,12 @@ class TestSecurity(unittest.TestCase):
             self.assertTrue(security.operational_document_has_permission(doc, user="test@example.invalid"))
 
     def test_salesperson_cannot_access_user_management(self):
-        # Verification that operational users cannot access framework users (Added by Gemini)
         doc = frappe._dict(doctype="User", name="test@example.invalid")
         with patch.object(security, "get_user_roles", return_value={ROLE_SALESPERSON}):
             self.assertFalse(security.user_has_permission(doc, user="test@example.invalid"))
             self.assertEqual(security.user_query_conditions("test@example.invalid"), "1=0")
 
     def test_manager_and_admin_can_access_user_management(self):
-        # Verification that managers and admins retain access (Added by Gemini)
         doc = frappe._dict(doctype="User", name="test@example.invalid")
         with patch.object(security, "get_user_roles", return_value={ROLE_SALESPERSON, ROLE_SALES_MANAGER}):
             self.assertTrue(security.user_has_permission(doc, user="test@example.invalid"))

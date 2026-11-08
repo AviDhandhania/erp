@@ -57,7 +57,8 @@ class TestSitePermissions(IntegrationTestCase):
         self.assertTrue(frappe.db.has_column("Contact", "is_billing_contact"))
         self.assertTrue(request_id.read_only)
         self.assertEqual(frappe.get_list("Customer", pluck="name"), [])
-        self.assertEqual(frappe.get_list("Sales Order", pluck="name"), [])
+        with self.assertRaises(frappe.PermissionError):
+            frappe.get_list("Sales Order", pluck="name")
         self.assertEqual(
             api.get_salesperson_dashboard()["metrics"]["assigned_retailers_count"], 0
         )

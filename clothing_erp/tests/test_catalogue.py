@@ -305,3 +305,5 @@ class TestCatalogue(unittest.TestCase):
         self.assertIn(
             "clothing_erp.ordering.create_draft_sales_order", catalogue_script
         )
+        self.assertIn('roles.has("Clothing Business Administrator")', catalogue_script)
+        self.assertIn("Order {0} was sent for administrator review.", catalogue_script)

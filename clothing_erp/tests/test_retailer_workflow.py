@@ -5,19 +5,11 @@ from unittest.mock import patch
 
 import frappe
 
-from clothing_erp import hooks, retailer_assignment, retailer_defaults
+from clothing_erp import hooks, retailer_assignment
 from clothing_erp.clothing_erp.doctype.retailer_application import retailer_application
 
 
 class TestRetailerWorkflow(unittest.TestCase):
-    def test_get_retailer_defaults_is_whitelisted(self):
-        # Whitelist verification (Added by Gemini)
-        self.assertTrue(
-            getattr(retailer_defaults.get_retailer_defaults, "_whitelisted", False)
-            or "clothing_erp.retailer_defaults.get_retailer_defaults" in frappe.whitelisted
-            or hasattr(retailer_defaults.get_retailer_defaults, "__wrapped__")
-        )
-
     def test_salesperson_application_identity_and_master_defaults_are_forced(self):
         application = retailer_application.RetailerApplication(
             {
@@ -61,7 +53,7 @@ class TestRetailerWorkflow(unittest.TestCase):
         self.assertEqual(application.territory, "Default Territory")
         self.assertEqual(application.customer_group, "Default Group")
 
-    def test_salesperson_application_preserves_valid_territory_and_customer_group(self):
+    def test_salesperson_cannot_override_territory_or_customer_group(self):
         application = retailer_application.RetailerApplication(
             {
                 "doctype": "Retailer Application",
@@ -72,6 +64,9 @@ class TestRetailerWorkflow(unittest.TestCase):
                 "territory": "Valid Territory",
                 "customer_group": "Valid Customer Group",
             }
+        )
+        defaults = frappe._dict(
+            territory="Default Territory", customer_group="Default Group"
         )
         with (
             patch.object(
@@ -85,7 +80,11 @@ class TestRetailerWorkflow(unittest.TestCase):
                 "get_current_user",
                 return_value="sales@example.com",
             ),
-            patch.object(frappe.db, "exists", return_value=True),
+            patch.object(
+                retailer_application,
+                "_salesperson_application_defaults",
+                return_value=defaults,
+            ),
             patch.object(
                 retailer_application.RetailerApplication,
                 "is_new",
@@ -96,8 +95,8 @@ class TestRetailerWorkflow(unittest.TestCase):
         ):
             application.validate()
         self.assertEqual(application.salesperson, "sales@example.com")
-        self.assertEqual(application.territory, "Valid Territory")
-        self.assertEqual(application.customer_group, "Valid Customer Group")
+        self.assertEqual(application.territory, "Default Territory")
+        self.assertEqual(application.customer_group, "Default Group")
 
     def test_reassignment_controls_live_only_in_clothing_erp(self):
         app_root = Path(__file__).parents[1]

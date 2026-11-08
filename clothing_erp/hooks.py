@@ -9,7 +9,7 @@ app_license = "mit"
 app_logo_url = "/assets/clothing_erp/images/clothing_erp_logo.svg"
 app_home = "/desk/clothing-erp"
 
-required_apps = ["erpnext"]
+required_apps = ["erpnext", "insights"]
 
 doctype_js = {
 	"Retailer Application": "public/js/retailer_application.js",

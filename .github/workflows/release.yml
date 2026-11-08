@@ -14,6 +14,9 @@ on:
       erpnext:
         description: 'Optional ERPNext v16 tag; leave blank to keep current'
         type: string
+      insights:
+        description: 'Optional Frappe Insights v3 tag; leave blank to keep current'
+        type: string
 concurrency:
   group: publish-release
   cancel-in-progress: false
@@ -38,6 +41,7 @@ jobs:
           VERSION: ${{ inputs.version || github.ref_name }}
           FRAPPE: ${{ inputs.frappe }}
           ERPNEXT: ${{ inputs.erpnext }}
+          INSIGHTS: ${{ inputs.insights }}
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
@@ -46,7 +50,7 @@ jobs:
             if git rev-parse --verify "refs/tags/$VERSION" >/dev/null 2>&1; then
               git checkout "refs/tags/$VERSION"
             else
-              python3 deploy/release/prepare.py "$VERSION" --frappe "$FRAPPE" --erpnext "$ERPNEXT"
+              python3 deploy/release/prepare.py "$VERSION" --frappe "$FRAPPE" --erpnext "$ERPNEXT" --insights "$INSIGHTS"
               git add clothing_erp/__init__.py deploy/versions.env
               if ! git diff --cached --quiet; then git commit -m "chore: release $VERSION"; fi
               git tag "$VERSION"

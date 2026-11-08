@@ -28,9 +28,8 @@ def ensure_retailer_defaults():
         ).insert(ignore_permissions=True)
 
 
-@frappe.whitelist()
 def get_retailer_defaults():
-    """Prefer native selling defaults, falling back to app-owned leaf masters. (Updated by Gemini)"""
+    """Prefer native selling defaults, falling back to app-owned leaf masters."""
     return frappe._dict(
         territory=frappe.db.get_single_value("Selling Settings", "territory")
         or FALLBACK_TERRITORY,

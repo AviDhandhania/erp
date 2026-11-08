@@ -21,9 +21,8 @@ values['LOCKED']='1' if m.get('locks') else '0'
 for app in ('frappe','erpnext'):
     values[app.upper()+'_REF']=m[app]['ref']
     values[app.upper()+'_COMMIT']=m[app]['commit']
-if 'insights' in m:
-    values['INSIGHTS_REF']=m['insights']['ref']
-    values['INSIGHTS_COMMIT']=m['insights']['commit']
+values['INSIGHTS_REF']=m['insights']['ref']
+values['INSIGHTS_COMMIT']=m['insights']['commit']
 Path(sys.argv[2]).write_text(''.join(f'{k}={v}\n' for k,v in values.items()))
 PY
 # shellcheck source=/dev/null
@@ -57,10 +56,8 @@ cd "$DESTINATION/bench"
 [[ $(git -C apps/frappe rev-parse HEAD) == "$FRAPPE_COMMIT" ]] || { echo 'Frappe tag no longer matches the release manifest.' >&2; exit 1; }
 bench get-app --branch "$ERPNEXT_REF" --skip-assets https://github.com/frappe/erpnext.git
 [[ $(git -C apps/erpnext rev-parse HEAD) == "$ERPNEXT_COMMIT" ]] || { echo 'ERPNext tag no longer matches the release manifest.' >&2; exit 1; }
-if [[ -n "${INSIGHTS_REF:-}" ]]; then
-    bench get-app --branch "$INSIGHTS_REF" --skip-assets https://github.com/frappe/insights.git
-    [[ $(git -C apps/insights rev-parse HEAD) == "$INSIGHTS_COMMIT" ]] || { echo 'Insights tag no longer matches the release manifest.' >&2; exit 1; }
-fi
+bench get-app --branch "$INSIGHTS_REF" --skip-assets https://github.com/frappe/insights.git
+[[ $(git -C apps/insights rev-parse HEAD) == "$INSIGHTS_COMMIT" ]] || { echo 'Insights tag no longer matches the release manifest.' >&2; exit 1; }
 bench get-app --skip-assets "$DESTINATION/source"
 if [[ $LOCKED == 1 ]]; then
     # Reconcile any seeded installer packages, then prove the complete runtime matches CI.
@@ -74,12 +71,8 @@ ln -s "$DESTINATION/.runtime" .platform
 cp "$SOURCE/release.json" .clothing-release.json
 bench build --production
 # nginx can traverse and read public assets, never private site files.
-STAGED_APPS=(frappe erpnext clothing_erp)
-INSIGHTS_PERMS=()
-if [[ -d apps/insights ]]; then
-    STAGED_APPS+=(insights)
-    INSIGHTS_PERMS=(apps/insights apps/insights/insights)
-fi
+STAGED_APPS=(frappe erpnext insights clothing_erp)
+INSIGHTS_PERMS=(apps/insights apps/insights/insights)
 chmod o+x "$DESTINATION" "$DESTINATION/bench" sites apps apps/frappe apps/frappe/frappe apps/erpnext apps/erpnext/erpnext apps/clothing_erp apps/clothing_erp/clothing_erp "${INSIGHTS_PERMS[@]}"
 find -L sites/assets -type d -exec chmod o+rx {} +
 find -L sites/assets -type f -exec chmod o+r {} +
