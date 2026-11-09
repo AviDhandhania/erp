@@ -5,14 +5,23 @@ from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 
 import frappe
-from frappe.utils import getdate, nowdate
+from frappe.utils import cint, getdate, nowdate
 
 from clothing_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
-from clothing_erp.security import get_current_user, has_retailer_access, require_role
+from clothing_erp.security import (
+    assigned_documents,
+    get_current_user,
+    get_user_roles,
+    has_retailer_access,
+    is_clothing_admin,
+    require_role,
+)
 
 ORDER_ROLES = {ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}
 MAX_ORDER_LINES = 100
 MAX_LINE_QUANTITY = 100_000
+MAX_ORDER_PAGE_SIZE = 50
+ORDER_LIST_STATES = {"all", "draft", "submitted", "cancelled"}
 
 
 def _request_id(value):
@@ -164,6 +173,166 @@ def _result(order, replay=False):
         "grand_total": order.grand_total,
         "idempotent_replay": replay,
     }
+
+
+def _order_customer_scope():
+    """Return explicit retailer names, or None for a trusted clothing administrator."""
+    if is_clothing_admin():
+        return None
+    if ROLE_SALES_MANAGER in get_user_roles():
+        territories = assigned_documents("Territory")
+        if not territories:
+            return []
+        return frappe.get_all(
+            "Customer",
+            filters={"disabled": 0, "territory": ["in", territories]},
+            pluck="name",
+        )
+    return assigned_documents("Customer")
+
+
+def _order_scope_filters(customers):
+    filters = {"custom_clothing_request_id": ["is", "set"]}
+    if customers is not None:
+        if not customers:
+            return None
+        filters["customer"] = ["in", customers]
+    return filters
+
+
+def _validate_order_access(name):
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 140:
+        frappe.throw(frappe._("The selected order is invalid."), frappe.PermissionError)
+    name = name.strip()
+    customers = _order_customer_scope()
+    filters = {
+        "name": name,
+        "custom_clothing_request_id": ["is", "set"],
+    }
+    if customers is not None:
+        if not customers:
+            frappe.throw(
+                frappe._("You do not have access to this order."),
+                frappe.PermissionError,
+            )
+        filters["customer"] = ["in", customers]
+    order = frappe.db.get_value(
+        "Sales Order",
+        filters,
+        [
+            "name",
+            "customer",
+            "customer_name",
+            "company",
+            "owner",
+            "creation",
+            "transaction_date",
+            "delivery_date",
+            "selling_price_list",
+            "currency",
+            "net_total",
+            "total_taxes_and_charges",
+            "grand_total",
+            "rounded_total",
+            "total_qty",
+            "docstatus",
+            "status",
+            "custom_clothing_request_id",
+        ],
+        as_dict=True,
+    )
+    if not order:
+        frappe.throw(
+            frappe._("The Clothing ERP order is unavailable or unauthorized."),
+            frappe.PermissionError,
+        )
+    return order
+
+
+@frappe.whitelist()
+def get_clothing_orders(search=None, state="all", page=1, page_size=20):
+    """List catalogue-created orders with an explicit retailer scope."""
+    require_role(ORDER_ROLES)
+    search = str(search or "").strip()[:80]
+    state = str(state or "all").strip().lower()
+    if state not in ORDER_LIST_STATES:
+        frappe.throw(frappe._("The order status filter is invalid."))
+    page = max(cint(page), 1)
+    page_size = min(max(cint(page_size), 1), MAX_ORDER_PAGE_SIZE)
+    filters = _order_scope_filters(_order_customer_scope())
+    if filters is None:
+        return {
+            "orders": [],
+            "pagination": {"page": page, "page_size": page_size, "has_more": False},
+        }
+    if state == "draft":
+        filters["docstatus"] = 0
+    elif state == "submitted":
+        filters["docstatus"] = 1
+    elif state == "cancelled":
+        filters["docstatus"] = 2
+    query = {
+        "doctype": "Sales Order",
+        "filters": filters,
+        "fields": [
+            "name",
+            "customer",
+            "customer_name",
+            "transaction_date",
+            "delivery_date",
+            "total_qty",
+            "currency",
+            "grand_total",
+            "docstatus",
+            "status",
+        ],
+        "order_by": "modified desc, name desc",
+        "start": (page - 1) * page_size,
+        "limit": page_size + 1,
+    }
+    if search:
+        pattern = f"%{search}%"
+        query["or_filters"] = {
+            "name": ["like", pattern],
+            "customer": ["like", pattern],
+            "customer_name": ["like", pattern],
+        }
+    # Sales roles deliberately have no native Sales Order permission. This app-owned
+    # endpoint uses the retailer/territory scope above before performing the query.
+    rows = frappe.get_all(**query)
+    return {
+        "orders": rows[:page_size],
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "has_more": len(rows) > page_size,
+        },
+    }
+
+
+@frappe.whitelist()
+def get_clothing_order(name):
+    """Return a safe detail projection for one authorized catalogue-created order."""
+    require_role(ORDER_ROLES)
+    order = _validate_order_access(name)
+    items = frappe.get_all(
+        "Sales Order Item",
+        filters={"parent": order.name, "parenttype": "Sales Order"},
+        fields=[
+            "item_code",
+            "item_name",
+            "qty",
+            "stock_uom",
+            "rate",
+            "amount",
+            "delivery_date",
+        ],
+        order_by="idx asc",
+    )
+    result = dict(order)
+    result.pop("custom_clothing_request_id", None)
+    result["items"] = items
+    return result
 
 
 @frappe.whitelist(methods=["POST"])

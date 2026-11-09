@@ -30,9 +30,9 @@
  ],
  "shortcuts": [
   {
-   "label": "+ New Sales Order",
-   "link_to": "Sales Order",
-   "type": "DocType"
+   "label": "Clothing Orders",
+   "link_to": "clothing-orders",
+   "type": "Page"
   },
   {
    "label": "+ Register Retailer",
@@ -57,10 +57,10 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "My Sales Orders",
+   "label": "Clothing Orders",
    "link_count": 0,
-   "link_to": "Sales Order",
-   "link_type": "DocType",
+   "link_to": "clothing-orders",
+   "link_type": "Page",
    "onboard": 0,
    "type": "Link"
   },

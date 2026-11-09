@@ -1,6 +1,7 @@
 """Stage 5 draft-order boundary and authoritative input tests."""
 
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import frappe
@@ -148,3 +149,83 @@ class TestOrdering(unittest.TestCase):
         ):
             self.assertEqual(ordering._validate_company(), "TEST Company")
         self.assertNotIn("ignore_permissions", query.call_args.kwargs)
+
+    def test_order_directory_rejects_unauthorized_user_before_scope_or_query(self):
+        with (
+            patch.object(ordering, "require_role", side_effect=frappe.PermissionError),
+            patch.object(ordering, "_order_customer_scope") as scope,
+            patch.object(frappe, "get_all") as query,
+            self.assertRaises(frappe.PermissionError),
+        ):
+            ordering.get_clothing_orders()
+        scope.assert_not_called()
+        query.assert_not_called()
+
+    def test_order_directory_is_retailer_scoped_and_bounded(self):
+        rows = [
+            frappe._dict(name=f"SAL-ORD-TEST-{index:04}", customer="TEST Retailer")
+            for index in range(51)
+        ]
+        with (
+            patch.object(ordering, "require_role"),
+            patch.object(
+                ordering, "_order_customer_scope", return_value=["TEST Retailer"]
+            ),
+            patch.object(frappe, "get_all", return_value=rows) as query,
+        ):
+            result = ordering.get_clothing_orders(
+                search="  TEST  ", state="draft", page=2, page_size=500
+            )
+        self.assertEqual(len(result["orders"]), 50)
+        self.assertTrue(result["pagination"]["has_more"])
+        self.assertEqual(result["pagination"]["page_size"], 50)
+        self.assertEqual(query.call_args.kwargs["start"], 50)
+        self.assertEqual(query.call_args.kwargs["limit"], 51)
+        self.assertEqual(
+            query.call_args.kwargs["filters"]["customer"],
+            ["in", ["TEST Retailer"]],
+        )
+        self.assertEqual(query.call_args.kwargs["filters"]["docstatus"], 0)
+        self.assertEqual(
+            query.call_args.kwargs["filters"]["custom_clothing_request_id"],
+            ["is", "set"],
+        )
+
+    def test_order_directory_with_no_assignments_does_not_query_orders(self):
+        with (
+            patch.object(ordering, "require_role"),
+            patch.object(ordering, "_order_customer_scope", return_value=[]),
+            patch.object(frappe, "get_all") as query,
+        ):
+            result = ordering.get_clothing_orders()
+        query.assert_not_called()
+        self.assertEqual(result["orders"], [])
+
+    def test_order_detail_checks_scope_before_reading_items(self):
+        with (
+            patch.object(ordering, "require_role"),
+            patch.object(frappe.db, "get_value", return_value=None) as order_query,
+            patch.object(
+                ordering, "_order_customer_scope", return_value=["TEST Retailer"]
+            ),
+            patch.object(frappe, "throw", side_effect=frappe.PermissionError),
+            patch.object(frappe, "get_all") as items,
+            self.assertRaises(frappe.PermissionError),
+        ):
+            ordering.get_clothing_order("SAL-ORD-TEST-0001")
+        items.assert_not_called()
+        self.assertEqual(
+            order_query.call_args.args[1]["customer"], ["in", ["TEST Retailer"]]
+        )
+
+    def test_clothing_orders_page_replaces_native_sales_order_workspace_links(self):
+        root = Path(__file__).parents[1]
+        page = root / "clothing_erp/page/clothing_orders/clothing_orders.js"
+        self.assertTrue(page.exists())
+        self.assertIn("get_clothing_orders", page.read_text())
+        for workspace in ("salesperson_portal", "clothing_erp"):
+            content = (
+                root / f"clothing_erp/workspace/{workspace}/{workspace}.json"
+            ).read_text()
+            self.assertIn('"link_to": "clothing-orders"', content)
+            self.assertNotIn('"link_to": "Sales Order"', content)
