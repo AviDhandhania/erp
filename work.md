@@ -126,6 +126,19 @@ or patching core. A real draft for two units produced `SAL-ORD-2026-00001` at IN
 the same request token returned that order without duplication. Pinned-release submission
 coverage remains open.
 
+## Stage 6 — warehouse fulfillment
+
+- [x] Add a role-scoped Clothing ERP Fulfillment Tasks page combining native Pick Lists
+  and Delivery Notes with search, lifecycle filters, bounded pagination and responsive
+  item-level detail dialogs.
+- [x] Preserve native warehouse User Permissions, mixed-warehouse rejection and open-ToDo
+  assignment rules by using permission-aware ERPNext document queries and explicit read
+  checks rather than a parallel fulfillment model.
+- [x] Remove direct Pick List, Delivery Note and Stock Entry links from the operational
+  warehouse workspace so operators remain inside Clothing ERP.
+- [ ] Add assigned picking, barcode verification, shortage resolution, packing and native
+  Delivery Note dispatch actions after exact-release integration coverage is in place.
+
 ## Stage 4 — retailer management
 
 - [x] Permission-aware assigned-retailer directory API with search and bounded pagination.
@@ -162,7 +175,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 96 app tests passed through the real site runner and 34 installer/package
+Verification: 101 app tests passed through the real site runner and 34 installer/package
 tests passed. Chromium checks verified that salesperson intake hides server-owned master
 fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
 resulting native Sales Order. Desktop/mobile Chromium checks passed with all three icons,
