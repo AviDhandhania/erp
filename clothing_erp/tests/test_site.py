@@ -257,6 +257,24 @@ class TestSitePermissions(IntegrationTestCase):
         self.assertEqual(price_list_name, price_list)
         self.assertEqual(currency, "INR")
 
+        frappe.get_doc(
+            {
+                "doctype": "User Permission",
+                "user": self.email,
+                "allow": "Customer",
+                "for_value": customer.name,
+                "apply_to_all_doctypes": 1,
+            }
+        ).insert()
+        frappe.clear_cache(user=self.email)
+        frappe.set_user(self.email)
+        assigned_prices, assigned_price_list, assigned_currency = get_customer_prices(
+            customer.name, [variant.name]
+        )
+        self.assertEqual(assigned_prices[variant.name]["rate"], 749)
+        self.assertEqual(assigned_price_list, price_list)
+        self.assertEqual(assigned_currency, "INR")
+
     def test_retailer_application_approval_creates_native_customer_and_assignment(self):
         for doctype, field, value, parent_field, parent in (
             (

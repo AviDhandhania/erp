@@ -5,10 +5,34 @@ from unittest.mock import patch
 
 import frappe
 
-from clothing_erp import catalogue
+from clothing_erp import catalogue, pricing
 
 
 class TestCatalogue(unittest.TestCase):
+    def test_trusted_customer_pricing_keeps_native_checks_without_sales_order_ui_permission(self):
+        details = frappe._dict(
+            warehouse=None,
+            price_list_rate=499,
+            blanket_order_rate=0,
+            conversion_factor=1,
+            margin_type=None,
+            margin_rate_or_amount=0,
+            discount_amount=0,
+            discount_percentage=0,
+        )
+        context = {"doctype": "Sales Order", "customer": "TEST Retailer"}
+        with (
+            patch.object(pricing, "validate_pricing_parties") as parties,
+            patch.object(pricing, "validate_pricing_price_lists") as price_lists,
+            patch.object(pricing, "_get_item_details", return_value=details) as native,
+            patch.object(frappe, "has_permission") as sales_order_permission,
+        ):
+            result = pricing._catalogue_item_details(context, {"items": []})
+        parties.assert_called_once()
+        price_lists.assert_called_once()
+        native.assert_called_once()
+        sales_order_permission.assert_not_called()
+        self.assertEqual(result.price_list_rate, 499)
     def test_unauthorized_request_is_rejected_before_database_access(self):
         with (
             patch.object(catalogue, "require_role", side_effect=frappe.PermissionError),

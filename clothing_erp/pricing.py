@@ -1,8 +1,13 @@
 """Permission-aware catalogue pricing delegated to ERPNext's Sales Order engine."""
 
+import erpnext
 import frappe
+from erpnext.accounts.doctype.pricing_rule.pricing_rule import (
+    validate_pricing_parties,
+    validate_pricing_price_lists,
+)
 from erpnext.setup.utils import get_exchange_rate
-from erpnext.stock.get_item_details import get_item_details
+from erpnext.stock.get_item_details import _get_item_details
 from frappe.utils import flt, nowdate
 
 from clothing_erp.security import has_retailer_access
@@ -21,6 +26,24 @@ def _effective_rate(details):
     if details.discount_percentage:
         discount_amount = rate_with_margin * flt(details.discount_percentage) / 100
     return flt(rate_with_margin - discount_amount)
+
+
+def _catalogue_item_details(context, document_context):
+    """Use native pricing after this service has authorized the transaction boundary.
+
+    ERPNext's public helper requires native Sales Order permission. Operational sales
+    users intentionally do not have that permission, so this trusted adapter performs
+    the remaining native party, price-list, Item and Warehouse checks explicitly before
+    returning only the calculated catalogue rate.
+    """
+    context = frappe._dict(context)
+    validate_pricing_parties(context)
+    validate_pricing_price_lists(context, "Sales Order")
+    details = _get_item_details(context, doc=document_context)
+    for warehouse in (details.warehouse, context.warehouse, context.from_warehouse):
+        if warehouse:
+            erpnext.require_user_permission("Warehouse", warehouse)
+    return details
 
 
 def get_customer_prices(customer, item_codes):
@@ -66,7 +89,7 @@ def get_customer_prices(customer, item_codes):
     }
     prices = {}
     for item_code in item_codes:
-        details = get_item_details(
+        details = _catalogue_item_details(
             {
                 "item_code": item_code,
                 "customer": customer,
@@ -81,7 +104,7 @@ def get_customer_prices(customer, item_codes):
                 "conversion_rate": conversion_rate,
                 "plc_conversion_rate": plc_conversion_rate,
             },
-            doc=document_context,
+            document_context,
         )
         prices[item_code] = {
             "rate": _effective_rate(details),
