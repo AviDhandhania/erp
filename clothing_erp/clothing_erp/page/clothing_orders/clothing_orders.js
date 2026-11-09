@@ -163,6 +163,33 @@ class ClothingOrders {
 			<div><span>${__("Taxes and charges")}</span><strong>${format_currency(order.total_taxes_and_charges, order.currency)}</strong></div>
 			<div class="grand-total"><span>${__("Grand total")}</span><strong>${format_currency(order.rounded_total || order.grand_total, order.currency)}</strong></div>
 		</div>`);
+		if (order.review.workflow) {
+			dialog.$body.prepend(`<div class="alert alert-info">${__("This order uses ERPNext Workflow {0}. Clothing ERP will not bypass its configured approval actions.", [this.escape(order.review.workflow)])}</div>`);
+		}
+		if (order.review.can_submit) {
+			dialog.set_primary_action(__("Submit order"), () => this.submit_order(order.name, dialog));
+		}
 		dialog.show();
+	}
+
+	async submit_order(name, dialog) {
+		const confirmed = await new Promise((resolve) => {
+			frappe.confirm(
+				__("Submit order {0}? ERPNext will apply current credit, authorization, commission and stock-reservation settings.", [this.escape(name)]),
+				() => resolve(true),
+				() => resolve(false)
+			);
+		});
+		if (!confirmed) return;
+		const { message } = await frappe.call({
+			method: "clothing_erp.ordering.submit_clothing_order",
+			type: "POST",
+			args: { name },
+			freeze: true,
+			freeze_message: __("Submitting with ERPNext validations…"),
+		});
+		dialog.hide();
+		frappe.show_alert({ message: __("Order {0} submitted", [message.name]), indicator: "green" });
+		this.refresh();
 	}
 }

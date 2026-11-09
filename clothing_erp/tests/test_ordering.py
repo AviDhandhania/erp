@@ -229,3 +229,55 @@ class TestOrdering(unittest.TestCase):
             ).read_text()
             self.assertIn('"link_to": "clothing-orders"', content)
             self.assertNotIn('"link_to": "Sales Order"', content)
+
+    def test_submit_rejects_unauthorized_user_before_order_lookup(self):
+        with (
+            patch.object(ordering, "require_role", side_effect=frappe.PermissionError),
+            patch.object(ordering, "_validate_order_access") as access,
+            self.assertRaises(frappe.PermissionError),
+        ):
+            ordering.submit_clothing_order("SAL-ORD-TEST-0001")
+        access.assert_not_called()
+
+    def test_submit_does_not_bypass_active_workflow(self):
+        order = frappe._dict(name="SAL-ORD-TEST-0001", docstatus=0)
+        with (
+            patch.object(ordering, "require_role"),
+            patch.object(ordering, "_validate_order_access", return_value=order),
+            patch.object(
+                ordering,
+                "_active_sales_order_workflow",
+                return_value="TEST Sales Approval",
+            ),
+            patch.object(frappe, "throw", side_effect=frappe.ValidationError),
+            patch.object(frappe.db, "sql") as lock,
+            self.assertRaises(frappe.ValidationError),
+        ):
+            ordering.submit_clothing_order(order.name)
+        lock.assert_not_called()
+
+    def test_submit_locks_rechecks_and_uses_native_controller(self):
+        order = frappe._dict(name="SAL-ORD-TEST-0001", docstatus=0)
+        document = MagicMock(
+            name=order.name,
+            customer="TEST Retailer",
+            docstatus=1,
+            status="To Deliver and Bill",
+            currency="INR",
+            grand_total=998,
+        )
+        with (
+            patch.object(ordering, "require_role"),
+            patch.object(
+                ordering, "_validate_order_access", side_effect=[order, order]
+            ) as access,
+            patch.object(ordering, "_active_sales_order_workflow", return_value=None),
+            patch.object(frappe.db, "sql") as lock,
+            patch.object(frappe, "get_doc", return_value=document),
+        ):
+            result = ordering.submit_clothing_order(order.name)
+        self.assertEqual(access.call_count, 2)
+        self.assertIn("for update", lock.call_args.args[0].lower())
+        self.assertTrue(document.flags.ignore_permissions)
+        document.submit.assert_called_once_with()
+        self.assertEqual(result["docstatus"], 1)

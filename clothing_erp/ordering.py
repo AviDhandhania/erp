@@ -14,10 +14,12 @@ from clothing_erp.security import (
     get_user_roles,
     has_retailer_access,
     is_clothing_admin,
+    is_sales_manager,
     require_role,
 )
 
 ORDER_ROLES = {ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}
+ORDER_REVIEW_ROLES = {ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}
 MAX_ORDER_LINES = 100
 MAX_LINE_QUANTITY = 100_000
 MAX_ORDER_PAGE_SIZE = 50
@@ -332,7 +334,52 @@ def get_clothing_order(name):
     result = dict(order)
     result.pop("custom_clothing_request_id", None)
     result["items"] = items
+    workflow_name = _active_sales_order_workflow()
+    result["review"] = {
+        "can_submit": bool(
+            is_sales_manager() and order.docstatus == 0 and not workflow_name
+        ),
+        "workflow": workflow_name,
+    }
     return result
+
+
+def _active_sales_order_workflow():
+    from frappe.model.workflow import get_workflow_name
+
+    return get_workflow_name("Sales Order")
+
+
+@frappe.whitelist(methods=["POST"])
+def submit_clothing_order(name):
+    """Submit one authorized draft through ERPNext's native Sales Order controller."""
+    require_role(ORDER_REVIEW_ROLES)
+    order = _validate_order_access(name)
+    if order.docstatus != 0:
+        frappe.throw(frappe._("Only a draft Clothing ERP order can be submitted."))
+    if workflow_name := _active_sales_order_workflow():
+        frappe.throw(
+            frappe._(
+                "Sales Order Workflow {0} is active. Complete its configured approval "
+                "actions before submission; Clothing ERP will not bypass the workflow."
+            ).format(workflow_name)
+        )
+
+    # Serialize review against another submit/cancel request, then repeat every access
+    # and lifecycle check after acquiring the row lock.
+    frappe.db.sql(
+        "select name from `tabSales Order` where name = %s for update", order.name
+    )
+    order = _validate_order_access(order.name)
+    if order.docstatus != 0:
+        frappe.throw(frappe._("This order changed while it was being reviewed. Refresh."))
+
+    document = frappe.get_doc("Sales Order", order.name)
+    document.flags.ignore_permissions = True
+    # Native submit owns credit-limit, authorization, commission, stock-reservation,
+    # taxes, linked-document and status behavior on the pinned ERPNext release.
+    document.submit()
+    return _result(document)
 
 
 @frappe.whitelist(methods=["POST"])
