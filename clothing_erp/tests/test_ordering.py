@@ -254,7 +254,9 @@ class TestOrdering(unittest.TestCase):
             self.assertRaises(frappe.ValidationError),
         ):
             ordering.submit_clothing_order(order.name)
-        lock.assert_not_called()
+        self.assertFalse(
+            any("for update" in str(call.args[0]).lower() for call in lock.call_args_list)
+        )
 
     def test_submit_locks_rechecks_and_uses_native_controller(self):
         order = frappe._dict(name="SAL-ORD-TEST-0001", docstatus=0)
@@ -281,3 +283,67 @@ class TestOrdering(unittest.TestCase):
         self.assertTrue(document.flags.ignore_permissions)
         document.submit.assert_called_once_with()
         self.assertEqual(result["docstatus"], 1)
+
+    def test_cancel_rejects_unauthorized_user_before_order_lookup(self):
+        with (
+            patch.object(ordering, "require_role", side_effect=frappe.PermissionError),
+            patch.object(ordering, "_validate_order_access") as access,
+            self.assertRaises(frappe.PermissionError),
+        ):
+            ordering.cancel_clothing_order("SAL-ORD-TEST-0001")
+        access.assert_not_called()
+
+    def test_cancel_does_not_bypass_active_workflow(self):
+        order = frappe._dict(name="SAL-ORD-TEST-0001", docstatus=1)
+        with (
+            patch.object(ordering, "require_role"),
+            patch.object(ordering, "_validate_order_access", return_value=order),
+            patch.object(
+                ordering,
+                "_active_sales_order_workflow",
+                return_value="TEST Sales Approval",
+            ),
+            patch.object(frappe, "throw", side_effect=frappe.ValidationError),
+            patch.object(frappe.db, "sql") as lock,
+            self.assertRaises(frappe.ValidationError),
+        ):
+            ordering.cancel_clothing_order(order.name)
+        self.assertFalse(
+            any("for update" in str(call.args[0]).lower() for call in lock.call_args_list)
+        )
+
+    def test_cancel_locks_rechecks_and_uses_native_controller(self):
+        order = frappe._dict(name="SAL-ORD-TEST-0001", docstatus=1)
+        document = MagicMock(
+            name=order.name,
+            customer="TEST Retailer",
+            docstatus=2,
+            status="Cancelled",
+            currency="INR",
+            grand_total=998,
+        )
+        with (
+            patch.object(ordering, "require_role"),
+            patch.object(
+                ordering, "_validate_order_access", side_effect=[order, order]
+            ) as access,
+            patch.object(ordering, "_active_sales_order_workflow", return_value=None),
+            patch.object(frappe.db, "sql") as lock,
+            patch.object(frappe, "get_doc", return_value=document),
+        ):
+            result = ordering.cancel_clothing_order(order.name)
+        self.assertEqual(access.call_count, 2)
+        self.assertIn("for update", lock.call_args.args[0].lower())
+        self.assertTrue(document.flags.ignore_permissions)
+        document.cancel.assert_called_once_with()
+        self.assertEqual(result["docstatus"], 2)
+
+    def test_order_dialog_exposes_only_server_authorized_lifecycle_actions(self):
+        page = (
+            Path(__file__).parents[1]
+            / "clothing_erp/page/clothing_orders/clothing_orders.js"
+        ).read_text()
+        self.assertIn("order.review.can_edit", page)
+        self.assertIn('frappe.set_route("Form", "Sales Order", order.name)', page)
+        self.assertIn("order.review.can_cancel", page)
+        self.assertIn("cancel_clothing_order", page)

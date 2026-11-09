@@ -339,6 +339,10 @@ def get_clothing_order(name):
         "can_submit": bool(
             is_sales_manager() and order.docstatus == 0 and not workflow_name
         ),
+        "can_cancel": bool(
+            is_sales_manager() and order.docstatus == 1 and not workflow_name
+        ),
+        "can_edit": bool(is_clothing_admin() and order.docstatus == 0),
         "workflow": workflow_name,
     }
     return result
@@ -379,6 +383,36 @@ def submit_clothing_order(name):
     # Native submit owns credit-limit, authorization, commission, stock-reservation,
     # taxes, linked-document and status behavior on the pinned ERPNext release.
     document.submit()
+    return _result(document)
+
+
+@frappe.whitelist(methods=["POST"])
+def cancel_clothing_order(name):
+    """Cancel one authorized submitted order through ERPNext's native controller."""
+    require_role(ORDER_REVIEW_ROLES)
+    order = _validate_order_access(name)
+    if order.docstatus != 1:
+        frappe.throw(frappe._("Only a submitted Clothing ERP order can be cancelled."))
+    if workflow_name := _active_sales_order_workflow():
+        frappe.throw(
+            frappe._(
+                "Sales Order Workflow {0} is active. Complete its configured cancellation "
+                "actions; Clothing ERP will not bypass the workflow."
+            ).format(workflow_name)
+        )
+
+    frappe.db.sql(
+        "select name from `tabSales Order` where name = %s for update", order.name
+    )
+    order = _validate_order_access(order.name)
+    if order.docstatus != 1:
+        frappe.throw(frappe._("This order changed while it was being reviewed. Refresh."))
+
+    document = frappe.get_doc("Sales Order", order.name)
+    document.flags.ignore_permissions = True
+    # Native cancellation owns linked-document checks, reserved-quantity and stock
+    # reservation cleanup, previous-document updates and final status behavior.
+    document.cancel()
     return _result(document)
 
 

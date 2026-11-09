@@ -111,6 +111,10 @@ Sales Order controller. Stock remains unreserved until a later native submission
 - [x] Add manager-only, row-locked draft submission from Clothing Orders through the native
   Sales Order controller. Active ERPNext Workflows are detected and never bypassed; credit,
   authorization, commission, reservation and linked-document behavior remain ERPNext-owned.
+- [x] Add an administrator-only native draft editing route plus manager-authorized,
+  row-locked cancellation from Clothing Orders. ERPNext remains responsible for linked
+  delivery checks, reservation cleanup and cancellation status; active Workflows are never
+  bypassed.
 - [ ] Add native submission coverage for credit limits, stock reservation, workflow and
   approval rules, Sales Person commission, concurrent stock changes and duplicate requests.
 - [ ] Cover delivery/cancellation lifecycle and status reconciliation before closing Stage 5.
@@ -158,7 +162,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 92 app tests passed through the real site runner and 34 installer/package
+Verification: 96 app tests passed through the real site runner and 34 installer/package
 tests passed. Chromium checks verified that salesperson intake hides server-owned master
 fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
 resulting native Sales Order. Desktop/mobile Chromium checks passed with all three icons,

@@ -169,6 +169,16 @@ class ClothingOrders {
 		if (order.review.can_submit) {
 			dialog.set_primary_action(__("Submit order"), () => this.submit_order(order.name, dialog));
 		}
+		if (order.review.can_cancel) {
+			dialog.set_primary_action(__("Cancel order"), () => this.cancel_order(order.name, dialog));
+		}
+		if (order.review.can_edit) {
+			dialog.set_secondary_action(() => {
+				dialog.hide();
+				frappe.set_route("Form", "Sales Order", order.name);
+			});
+			dialog.set_secondary_action_label(__("Edit draft in ERPNext"));
+		}
 		dialog.show();
 	}
 
@@ -190,6 +200,27 @@ class ClothingOrders {
 		});
 		dialog.hide();
 		frappe.show_alert({ message: __("Order {0} submitted", [message.name]), indicator: "green" });
+		this.refresh();
+	}
+
+	async cancel_order(name, dialog) {
+		const confirmed = await new Promise((resolve) => {
+			frappe.confirm(
+				__("Cancel order {0}? ERPNext will validate linked deliveries and release reservations where allowed.", [this.escape(name)]),
+				() => resolve(true),
+				() => resolve(false)
+			);
+		});
+		if (!confirmed) return;
+		const { message } = await frappe.call({
+			method: "clothing_erp.ordering.cancel_clothing_order",
+			type: "POST",
+			args: { name },
+			freeze: true,
+			freeze_message: __("Cancelling with ERPNext validations…"),
+		});
+		dialog.hide();
+		frappe.show_alert({ message: __("Order {0} cancelled", [message.name]), indicator: "orange" });
 		this.refresh();
 	}
 }
