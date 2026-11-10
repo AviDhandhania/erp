@@ -43,6 +43,7 @@ bench set-config -g redis_cache redis://127.0.0.1:6379/0
 bench set-config -g redis_queue redis://127.0.0.1:6379/1
 bench new-site test.local --db-host 127.0.0.1 --db-port 3306 --db-root-password test-only-ephemeral-password --admin-password test-only-admin --mariadb-user-host-login-scope '%'
 bench --site test.local install-app erpnext
+bench --site test.local install-app india_compliance
 bench --site test.local install-app insights
 bench --site test.local install-app clothing_erp
 bench --site test.local set-config -p allow_tests True

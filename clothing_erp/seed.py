@@ -30,6 +30,7 @@ PRODUCTS = (
         "season": "TEST Core",
         "sizes": ("TEST S", "TEST M", "TEST L", "TEST XL"),
         "rate": 499,
+        "hsn_code": "61091000",
     },
     {
         "code": "TEST-CLASSIC-TEE-WHT",
@@ -55,6 +56,7 @@ PRODUCTS = (
         "season": "TEST Core",
         "sizes": ("TEST S", "TEST M", "TEST L", "TEST XL"),
         "rate": 499,
+        "hsn_code": "61091000",
     },
     {
         "code": "TEST-CLASSIC-TEE-NVY",
@@ -80,6 +82,7 @@ PRODUCTS = (
         "season": "TEST Core",
         "sizes": ("TEST S", "TEST M", "TEST L", "TEST XL"),
         "rate": 499,
+        "hsn_code": "61091000",
     },
     {
         "code": "TEST-DENIM-JEANS-IND",
@@ -105,6 +108,7 @@ PRODUCTS = (
         "season": "TEST Core",
         "sizes": ("TEST 28", "TEST 30", "TEST 32", "TEST 34"),
         "rate": 1299,
+        "hsn_code": "62034200",
     },
     {
         "code": "TEST-DENIM-JEANS-WBK",
@@ -130,6 +134,7 @@ PRODUCTS = (
         "season": "TEST Core",
         "sizes": ("TEST 28", "TEST 30", "TEST 32", "TEST 34"),
         "rate": 1299,
+        "hsn_code": "62034200",
     },
     {
         "code": "TEST-FLEECE-HOODIE-CHR",
@@ -155,6 +160,7 @@ PRODUCTS = (
         "season": "TEST Autumn/Winter",
         "sizes": ("TEST M", "TEST L", "TEST XL"),
         "rate": 999,
+        "hsn_code": "61102000",
     },
     {
         "code": "TEST-FLEECE-HOODIE-MRN",
@@ -180,6 +186,7 @@ PRODUCTS = (
         "season": "TEST Autumn/Winter",
         "sizes": ("TEST M", "TEST L", "TEST XL"),
         "rate": 999,
+        "hsn_code": "61102000",
     },
 )
 
@@ -311,6 +318,7 @@ def _ensure_template(product, item_group):
             ("description", product["description"]),
             ("brand", product["brand"]),
             ("image", product["image"]),
+            ("gst_hsn_code", product["hsn_code"]),
             ("custom_clothing_style_code", product["style_code"]),
             ("custom_clothing_collection", product["collection"]),
             ("custom_clothing_fabric", product["fabric"]),
@@ -346,6 +354,7 @@ def _ensure_template(product, item_group):
             "item_group": item_group,
             "brand": product["brand"],
             "stock_uom": "Nos",
+            "gst_hsn_code": product["hsn_code"],
             "image": product["image"],
             "custom_clothing_style_code": product["style_code"],
             "custom_clothing_collection": product["collection"],

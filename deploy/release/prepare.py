@@ -11,6 +11,7 @@ parser.add_argument("version")
 parser.add_argument("--frappe", default="")
 parser.add_argument("--erpnext", default="")
 parser.add_argument("--insights", default="")
+parser.add_argument("--india-compliance", default="")
 args = parser.parse_args()
 version_tuple(args.version)
 if subprocess.check_output(["git", "status", "--porcelain"], text=True).strip():
@@ -28,6 +29,7 @@ for name, value in (
     ("FRAPPE", args.frappe),
     ("ERPNEXT", args.erpnext),
     ("INSIGHTS", args.insights),
+    ("INDIA_COMPLIANCE", args.india_compliance),
 ):
     if value:
         pattern = r"v3\.[0-9]+\.[0-9]+" if name == "INSIGHTS" else r"v16\.[0-9]+\.[0-9]+"

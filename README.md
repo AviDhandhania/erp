@@ -1,6 +1,7 @@
 # Clothing ERP
 
-Clothing ERP is a separate Frappe application alongside **ERPNext** and **Framework**.
+Clothing ERP is a separate Frappe application alongside **ERPNext**, **India
+Compliance**, **Insights**, and **Framework**.
 It has its own source, version history and GitHub releases. Upstream ERPNext/Frappe
 repositories remain unchanged. Everyone uses one IP, login and native app launcher.
 
@@ -39,7 +40,8 @@ clothing-erp update
 ```
 
 That single command updates Clothing ERP **and the exact compatible ERPNext,
-Frappe, Python, Node and Bench versions declared by that release**. It builds a
+Frappe, Insights, India Compliance, Python, Node and Bench versions declared by
+that release**. It builds a
 separate bench first, takes a recovery backup, migrates, switches the active bench,
 and checks readiness before opening access again. It never pulls arbitrary core
 branches into production.
@@ -90,11 +92,16 @@ then publishes checksummed source, an exact-version manifest, tested dependency 
 and a portable Proxmox installer. If verification fails, no stable release is
 published. Retry the failed run without rewriting its tag.
 
-Leave the optional ERPNext and Frappe fields blank for a clothing-only release.
+Leave the optional upstream fields blank for a clothing-only release.
 When you want core updates, enter their stable v16 tags in that same form: the
 workflow tests the new combination before publishing. Customers still run the
 same update command. Debian/Proxmox OS administration remains separate from the
 application release lifecycle.
+
+India Compliance is mandatory in supported releases. Fresh LXCs download and
+install it automatically; managed updates install it before migration when it is
+missing. GST setup and credentials remain an Administrator task and are never
+stored in release artifacts.
 
 Use this workflow rather than publishing empty releases manually: a release is
 installable only when its verified assets exist. Details: [release guide](docs/releasing.md).
@@ -199,4 +206,5 @@ actual Proxmox host remains a required deployment trial; it has not been claimed
 as completed. Initial HTTP access is intended for a LAN; configure HTTPS for a
 public hostname.
 
-MIT license for this application. ERPNext and Frappe retain their upstream licenses.
+MIT license for this application. ERPNext, Frappe, Insights, and India Compliance
+retain their respective upstream licenses.

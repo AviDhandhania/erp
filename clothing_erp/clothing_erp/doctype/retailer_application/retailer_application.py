@@ -136,8 +136,20 @@ class RetailerApplication(Document):
         self.phone = _phone(self.phone)
         self.email = (self.email or "").strip().lower()
         self.gstin = (self.gstin or "").strip().upper()
+        self.billing_state = (self.billing_state or "").strip()
+        self.shipping_state = (self.shipping_state or "").strip()
         if len(self.phone) < 7:
             frappe.throw(frappe._("Enter a valid phone number."))
+        if self.country == "India" and not self.billing_state:
+            frappe.throw(frappe._("Billing State is required for an Indian address."))
+        if (
+            self.country == "India"
+            and self.shipping_address_line1
+            and not self.shipping_state
+        ):
+            frappe.throw(
+                frappe._("Shipping State is required for an Indian shipping address.")
+            )
         if ROLE_SALESPERSON in get_user_roles() and not is_sales_manager():
             self.salesperson = get_current_user()
             defaults = _salesperson_application_defaults()

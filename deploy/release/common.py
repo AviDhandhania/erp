@@ -11,6 +11,14 @@ REPOSITORY = "AviDhandhania/erp"
 API = f"https://api.github.com/repos/{REPOSITORY}"
 SEMVER = re.compile(r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 SHA = re.compile(r"^[a-f0-9]{40}$")
+REQUIRED_EXTENSION_PINS = {
+    "insights": (r"v3\.[0-9]+\.[0-9]+", "v3.15.1", "Insights"),
+    "india_compliance": (
+        r"v16\.[0-9]+\.[0-9]+",
+        "v16.10.0",
+        "India Compliance",
+    ),
+}
 
 
 def version_tuple(value):
@@ -45,13 +53,14 @@ def validate_manifest(data, *, allow_unlocked=False):
         minimum = "v16.55.2" if app == "frappe" else "v16.54.0"
         if version_tuple(component["ref"]) < version_tuple(minimum):
             raise ValueError(f"{app} pin is older than the supported baseline")
-    component = data.get("insights", {})
-    if not re.fullmatch(
-        r"v3\.[0-9]+\.[0-9]+", component.get("ref", "")
-    ) or not SHA.fullmatch(component.get("commit", "")):
-        raise ValueError("A pinned, supported Insights release is required")
-    if version_tuple(component["ref"]) < version_tuple("v3.15.1"):
-        raise ValueError("insights pin is older than the supported baseline")
+    for app, (pattern, minimum, label) in REQUIRED_EXTENSION_PINS.items():
+        component = data.get(app, {})
+        if not re.fullmatch(
+            pattern, component.get("ref", "")
+        ) or not SHA.fullmatch(component.get("commit", "")):
+            raise ValueError(f"A pinned, supported {label} release is required")
+        if version_tuple(component["ref"]) < version_tuple(minimum):
+            raise ValueError(f"{app} pin is older than the supported baseline")
     for key in ("python", "node", "bench", "uv"):
         if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", data["runtime"][key]):
             raise ValueError(f"Invalid {key} pin")

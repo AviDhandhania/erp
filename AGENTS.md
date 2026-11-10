@@ -51,7 +51,8 @@ This document defines the strict operating boundaries and development rules for 
 ## 3. Technology Pins
 
 Deployment pins live in `deploy/versions.env`: Frappe v16.55.2, ERPNext v16.54.0,
-Python 3.14.9, Node 24.22.2, Bench 5.31.1, Debian 13 MariaDB/Redis packages.
+India Compliance v16.10.0, Insights v3.15.1, Python 3.14.9, Node 24.22.2,
+Bench 5.31.1, Debian 13 MariaDB/Redis packages.
 Never assume the earlier Python 3.11/Node 18 requirements apply to v16.
 The existing local bench has an ERPNext develop checkout; do not downgrade a site's
 schema to match release pins. Use an isolated new site/bench for release validation.

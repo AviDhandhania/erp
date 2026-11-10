@@ -17,7 +17,9 @@ import common
 import lifecycle
 
 
-def manifest(version="v0.3.0", include_insights=True):
+def manifest(
+    version="v0.3.0", include_insights=True, include_india_compliance=True
+):
     data = {
         "schema": 1,
         "platform": "debian13-native-v1",
@@ -40,6 +42,8 @@ def manifest(version="v0.3.0", include_insights=True):
     }
     if include_insights:
         data["insights"] = {"ref": "v3.15.1", "commit": "c" * 40}
+    if include_india_compliance:
+        data["india_compliance"] = {"ref": "v16.10.0", "commit": "f" * 40}
     return data
 
 
@@ -70,6 +74,19 @@ class TestReleaseContract(unittest.TestCase):
         bad_commit["insights"]["commit"] = "invalid"
         with self.assertRaises(ValueError):
             common.validate_manifest(bad_commit)
+
+    def test_india_compliance_is_required_and_pinned(self):
+        with self.assertRaisesRegex(ValueError, "India Compliance release is required"):
+            common.validate_manifest(manifest(include_india_compliance=False))
+        for ref in ("develop", "v15.32.0", "v16.9.1"):
+            data = manifest()
+            data["india_compliance"]["ref"] = ref
+            with self.assertRaises(ValueError):
+                common.validate_manifest(data)
+        data = manifest()
+        data["india_compliance"]["commit"] = "invalid"
+        with self.assertRaises(ValueError):
+            common.validate_manifest(data)
 
     def test_rejects_unstable_tags_and_unsupported_components(self):
         for bad in ("main", "v0.3.0-rc1", "v00.3.0", "v0.3.0/../../etc"):
@@ -224,6 +241,25 @@ class FakeManager(lifecycle.Manager):
         self.events.append("services")
 
     def bench(self, bench, *args, **kwargs):
+        if args == ("list-apps", "--format", "json"):
+            self.events.append("list-apps")
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout=json.dumps(
+                    {
+                        "clothing.local": [
+                            "frappe",
+                            "erpnext",
+                            "insights",
+                            "clothing_erp",
+                        ]
+                    }
+                ),
+            )
+        if args[:1] == ("install-app",):
+            self.events.append(f"install-{args[1]}")
+            return subprocess.CompletedProcess(args, 0, stdout="")
         if args == ("migrate",):
             self.events.append("migrate")
             # Model an upgrade altering attachment data before its health result.
@@ -260,6 +296,9 @@ class TestUpdateRecovery(unittest.TestCase):
         m.update(self.next, self.source)
         self.assertLess(m.events.index("stage"), m.events.index("stop"))
         self.assertLess(m.events.index("backup"), m.events.index("migrate"))
+        self.assertLess(
+            m.events.index("install-india_compliance"), m.events.index("migrate")
+        )
         self.assertLess(m.events.index("health"), m.events.index("manager"))
         self.assertEqual(m.state["current"]["manifest"]["version"], "v0.3.1")
         self.assertTrue(Path(m.state["previous"]["backup"]).is_dir())
@@ -415,7 +454,7 @@ class TestReleaseBuilder(unittest.TestCase):
             (root / "deploy").mkdir()
             (root / "clothing_erp/__init__.py").write_text('__version__ = "0.3.0"\n')
             (root / "deploy/versions.env").write_text(
-                "FRAPPE_REF=v16.55.2\nERPNEXT_REF=v16.54.0\nINSIGHTS_REF=v3.15.1\nPYTHON_VERSION=3.14.9\nNODE_VERSION=24.22.2\nBENCH_VERSION=5.31.1\nUV_VERSION=0.13.7\n"
+                "FRAPPE_REF=v16.55.2\nERPNEXT_REF=v16.54.0\nINSIGHTS_REF=v3.15.1\nINDIA_COMPLIANCE_REF=v16.10.0\nPYTHON_VERSION=3.14.9\nNODE_VERSION=24.22.2\nBENCH_VERSION=5.31.1\nUV_VERSION=0.13.7\n"
             )
             subprocess.run(
                 ["git", "init", "-b", "main", str(root)],
@@ -472,6 +511,8 @@ class TestReleaseBuilder(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "dependency locks"):
                     module.build("v0.3.0", Path(directory) / "not-publishable")
             self.assertEqual(first, second)
+            self.assertEqual(first["india_compliance"]["ref"], "v16.10.0")
+            self.assertEqual(len(first["india_compliance"]["commit"]), 40)
             with tarfile.open(
                 Path(directory) / "first" / first["archive"]["name"]
             ) as source:

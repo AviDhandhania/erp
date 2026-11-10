@@ -14,6 +14,8 @@ Run as root **inside the production LXC**:
 | Restore previous code and data | `clothing-erp rollback --yes` |
 
 From the Proxmox host, prefix a command with `pct exec <CTID> --`.
+`status` reports ERPNext, Frappe, Insights, and India Compliance pins. An
+`--app-only` update refuses any release that adds or changes those upstream apps.
 
 ## Persistent layout
 

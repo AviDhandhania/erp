@@ -56,6 +56,11 @@ class TestLauncher(unittest.TestCase):
                             app_name="insights", on_apps_screen=True, dock=["Insights"]
                         ),
                         frappe._dict(
+                            app_name="india_compliance",
+                            on_apps_screen=True,
+                            dock=["India Compliance"],
+                        ),
+                        frappe._dict(
                             app_name="clothing_erp",
                             on_apps_screen=True,
                             dock=["Clothing ERP"],
@@ -73,13 +78,20 @@ class TestLauncher(unittest.TestCase):
                 self.assertEqual(bootinfo.app_data[0].dock, [])
                 self.assertFalse(bootinfo.app_data[1].on_apps_screen)
                 self.assertEqual(bootinfo.app_data[1].dock, [])
-                self.assertTrue(bootinfo.app_data[2].on_apps_screen)
+                self.assertFalse(bootinfo.app_data[2].on_apps_screen)
+                self.assertEqual(bootinfo.app_data[2].dock, [])
+                self.assertTrue(bootinfo.app_data[3].on_apps_screen)
 
     def test_erpnext_tile_remains_for_clothing_business_admin(self):
         bootinfo = frappe._dict(
             app_data=[
                 frappe._dict(app_name="erpnext", on_apps_screen=True, dock=["Sales"]),
                 frappe._dict(app_name="insights", on_apps_screen=True, dock=["Insights"]),
+                frappe._dict(
+                    app_name="india_compliance",
+                    on_apps_screen=True,
+                    dock=["India Compliance"],
+                ),
                 frappe._dict(
                     app_name="clothing_erp",
                     on_apps_screen=True,
@@ -99,6 +111,7 @@ class TestLauncher(unittest.TestCase):
         self.assertTrue(bootinfo.app_data[0].on_apps_screen)
         self.assertTrue(bootinfo.app_data[1].on_apps_screen)
         self.assertTrue(bootinfo.app_data[2].on_apps_screen)
+        self.assertTrue(bootinfo.app_data[3].on_apps_screen)
 
     def test_insights_tile_hidden_from_non_admin_insights_user(self):
         bootinfo = frappe._dict(

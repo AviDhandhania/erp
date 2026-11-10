@@ -3,7 +3,7 @@
 ```mermaid
 flowchart LR
   A[Clothing ERP repository] --> C[Tested GitHub release]
-  B[Unmodified ERPNext and Frappe tags] --> C
+  B[Unmodified upstream app tags] --> C
   C --> D[Manifest with exact commits and runtimes]
   D --> E[New Proxmox LXC]
   D --> F[clothing-erp update]
@@ -12,6 +12,8 @@ flowchart LR
   H --> I[ERPNext]
   H --> J[Clothing ERP]
   H --> K[Framework]
+  H --> L[India Compliance]
+  H --> M[Insights]
 ```
 
 “Separate” means separate applications/repositories and independent upstream pins.
@@ -19,14 +21,15 @@ The apps share Frappe's authentication, database and standard business documents
 A second fake ERP service or duplicated stock/accounting database is not involved.
 
 Each published release contains an app source archive and `release.json` describing
-its exact Clothing ERP source commit, ERPNext/Frappe tag commits, Python, Node,
+its exact Clothing ERP source commit, ERPNext/Frappe/Insights/India Compliance
+tag commits, Python, Node,
 Bench and uv versions, plus checksummed runtime dependency locks. A source checksum and SHA256SUMS detect artifact corruption;
 GitHub Actions also publishes provenance attestations. Normal installation uses
 GitHub's HTTPS release-asset endpoints. Local clients do not currently verify the
 Sigstore attestation; checksums alone are not an independent publisher signature.
 
 The update manager prepares a new native bench under `/home/frappe/releases/`.
-Each bench owns its three app checkouts, Python environment, Node runtime and built
+Each bench owns all five app checkouts, Python environment, Node runtime and built
 assets. The common site files are shared; a single symlink selects the active bench.
 Native systemd services and nginx use that stable symlink. Core updates therefore
 need no merges into the clothing repository and no dependency replacement inside

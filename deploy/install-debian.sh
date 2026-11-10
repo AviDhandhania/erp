@@ -67,6 +67,7 @@ runuser -u frappe -- env PATH="$PATH" FRAPPE_DB_ROOT_PASSWORD="$DB_PASSWORD" FRA
 cleanup
 trap - EXIT
 run_frappe bench --site clothing.local install-app erpnext
+run_frappe bench --site clothing.local install-app india_compliance
 run_frappe bench --site clothing.local install-app insights
 run_frappe bench --site clothing.local install-app clothing_erp
 run_frappe bench --site clothing.local set-config host_name "http://$SITE_ADDRESS"

@@ -57,6 +57,16 @@ stable **v16** tag in the release form or commit the pin change normally. The sa
 compatibility jobs gate the resulting distribution release. Runtime patch updates
 are similarly declared in `versions.env` and built into a new environment.
 
+Insights and India Compliance are mandatory manifest components with independent
+stable pins. The release form can update either pin. Verification downloads the
+exact tag, records its resolved commit, performs a fresh site install, builds the
+shared assets, and freezes the resulting Python dependency set.
+
+The pinned Frappe release uses a multiprocessing translation compiler that aborts
+during Python 3.14 finalization when an app contains PO files. The release-owned
+asset entrypoint retains Frappe's bundler and PO-to-MO compiler but invokes the
+translation tasks sequentially. No Frappe or India Compliance source is patched.
+
 The current platform supports Debian 13, Python 3.14, Node 24 LTS and core v16. A
 major framework/runtime/platform transition needs a separately tested platform
 migration and new manifest schema; never sneak it into a clothing feature release.

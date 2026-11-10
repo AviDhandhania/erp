@@ -153,6 +153,7 @@ class TestSitePermissions(IntegrationTestCase):
                 "item_group": "Products",
                 "stock_uom": "Nos",
                 "is_stock_item": 1,
+                "gst_hsn_code": "61091000",
             }
         ).insert()
         warehouse = frappe.get_doc(
@@ -178,6 +179,7 @@ class TestSitePermissions(IntegrationTestCase):
                 "item_group": "Products",
                 "stock_uom": "Nos",
                 "is_stock_item": 1,
+                "gst_hsn_code": "61091000",
                 "has_batch_no": 1,
                 "create_new_batch": 1,
             }
@@ -201,6 +203,7 @@ class TestSitePermissions(IntegrationTestCase):
                 "item_group": "Products",
                 "stock_uom": "Nos",
                 "is_stock_item": 1,
+                "gst_hsn_code": "61091000",
                 "has_serial_no": 1,
                 "serial_no_series": "TEST-PICK-SERIAL-.#####",
             }
@@ -388,6 +391,7 @@ class TestSitePermissions(IntegrationTestCase):
                 "description": "Fictional integration-test garment",
                 "item_group": "Products",
                 "stock_uom": "Nos",
+                "gst_hsn_code": "61091000",
                 "has_variants": 1,
                 "variant_based_on": "Item Attribute",
                 "attributes": [
@@ -538,9 +542,11 @@ class TestSitePermissions(IntegrationTestCase):
                 "salesperson": self.email,
                 "billing_address_line1": "TEST 10 Fictional Market Road",
                 "billing_city": "TEST City",
+                "billing_state": "Maharashtra",
                 "country": "India",
                 "shipping_address_line1": "TEST 20 Fictional Warehouse Road",
                 "shipping_city": "TEST City",
+                "shipping_state": "Maharashtra",
                 "notes": "Fictional integration test application.",
             }
         ).insert()
@@ -671,6 +677,7 @@ class TestSitePermissions(IntegrationTestCase):
                 "salesperson": self.email,
                 "billing_address_line1": "TEST 30 Fictional Market Road",
                 "billing_city": "TEST City",
+                "billing_state": "Maharashtra",
                 "country": "India",
             }
         ).insert()

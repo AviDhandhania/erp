@@ -26,6 +26,7 @@ class TestSeedSafety(unittest.TestCase):
             self.assertTrue(product["name"].startswith("TEST "))
             self.assertTrue(product["brand"].startswith("TEST "))
             self.assertTrue(product["colour"])
+            self.assertRegex(product["hsn_code"], r"^[0-9]{8}$")
             self.assertTrue(
                 all(value.startswith("TEST ") for value in product["sizes"])
             )

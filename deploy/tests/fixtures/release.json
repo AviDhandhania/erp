@@ -16,6 +16,10 @@
     "ref": "v3.15.1",
     "commit": "cccccccccccccccccccccccccccccccccccccccc"
   },
+  "india_compliance": {
+    "ref": "v16.10.0",
+    "commit": "ffffffffffffffffffffffffffffffffffffffff"
+  },
   "runtime": {
     "python": "3.14.9",
     "node": "24.22.2",

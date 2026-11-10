@@ -17,12 +17,20 @@ def git(*args):
     return subprocess.check_output(["git", "-C", str(ROOT), *args], text=True).strip()
 
 
+UPSTREAM_REPOSITORIES = {
+    "frappe": "https://github.com/frappe/frappe.git",
+    "erpnext": "https://github.com/frappe/erpnext.git",
+    "insights": "https://github.com/frappe/insights.git",
+    "india_compliance": "https://github.com/resilient-tech/india-compliance.git",
+}
+
+
 def resolve(repo, tag):
     output = subprocess.check_output(
         [
             "git",
             "ls-remote",
-            f"https://github.com/frappe/{repo}.git",
+            UPSTREAM_REPOSITORIES[repo],
             f"refs/tags/{tag}",
             f"refs/tags/{tag}^{{}}",
         ],
@@ -104,10 +112,11 @@ def build(version, output, *, locks=None, resolve_for_ci=False):
         "archive": {"name": name, "sha256": sha256(output / name)},
         "locks": lock_metadata,
     }
-    if "INSIGHTS_REF" in pins:
-        manifest["insights"] = {
-            "ref": pins["INSIGHTS_REF"],
-            "commit": resolve("insights", pins["INSIGHTS_REF"]),
+    for app in ("insights", "india_compliance"):
+        key = f"{app.upper()}_REF"
+        manifest[app] = {
+            "ref": pins[key],
+            "commit": resolve(app, pins[key]),
         }
     validate_manifest(manifest, allow_unlocked=resolve_for_ci)
     (output / "release.json").write_text(

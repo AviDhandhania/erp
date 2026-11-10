@@ -237,11 +237,18 @@ never be silently reimplemented with conflicting semantics.
 ## Release lifecycle pipeline
 
 - [x] Separate upstream repositories and immutable, exact-commit release manifests.
-- [x] GitHub Publish release form with optional independent Frappe, ERPNext and Insights
-  pin updates.
+- [x] GitHub Publish release form with optional independent Frappe, ERPNext, Insights
+  and India Compliance pin updates.
 - [x] Compatibility gate: app/security tests plus a fresh native database-backed install/build.
 - [x] Insights is mandatory in new manifests, dependency locking, fresh-install CI,
   installation and update health checks; a release cannot silently omit analytics.
+- [x] India Compliance v16 is a mandatory, independently pinned component: fresh
+  LXCs and compatibility CI download/install it, managed sites install it before
+  migration when absent, exact commits and locks are verified, updater health/status/
+  app-only rules include it, and operational users do not see its administrative tile.
+- [x] Preserve upstream source while avoiding the pinned Frappe/Python 3.14 translation
+  pool finalizer abort: the deployment builder uses Frappe's own asset and PO-to-MO
+  functions with sequential locale compilation and is exercised by the release gate.
 - [x] Publish completed draft artifacts/checksums/provenance, then expose a stable release.
 - [x] Proxmox bootstrap installs a verified stable release instead of main source snapshots.
 - [x] Dedicated per-release benches, Python/Node/Bench tools and assets; shared site data.
@@ -265,11 +272,16 @@ Recovery points include pending jobs so abandoned migration jobs cannot run agai
 a restored old schema. Code, database, attachments, config and queue are recovered together.
 
 
-Release completion evidence:
+Previously published v0.3.0 release evidence (before the India Compliance work):
 - Stable release: https://github.com/AviDhandhania/erp/releases/tag/v0.3.0
 - Full release gate and publish: https://github.com/AviDhandhania/erp/actions/runs/42385415031
-- 32 deployment/contract/recovery checks and 22 app/site checks passed.
 - CI resolves runtime dependencies, then builds and tests a second fresh environment using the frozen locks.
 - Published source checksums, dependency locks, portable payload and embedded checksum were verified through the customer download path.
 - Isolated native MariaDB schema/data/config/attachment recovery and queue RDB integrity checks passed.
+
+Current unreleased validation evidence:
+- 35 deployment/contract/recovery checks and all 126 app/site tests pass with
+  India Compliance v16.10.0 installed on the real local site.
+- The next stable release must pass the fresh two-stage native compatibility gate
+  before its installer is published; v0.3.0 does not retroactively contain this work.
 - Physical Proxmox guest creation, real systemd cutover, reboot and end-to-end guest rollback remain a deployment trial, not a completed claim.

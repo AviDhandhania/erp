@@ -32,6 +32,9 @@ SERVICES = [
     f"clothing-erp-{name}.service" for name in ("schedule", "worker", "socketio", "web")
 ]
 HERE = Path(__file__).resolve().parent
+MANAGED_APPS = ("frappe", "erpnext", "insights", "india_compliance", "clothing_erp")
+OPTIONAL_LEGACY_APPS = ("insights", "india_compliance")
+REQUIRED_SITE_EXTENSIONS = ("insights", "india_compliance", "clothing_erp")
 
 
 def atomic_json(path, value):
@@ -141,9 +144,9 @@ class Manager:
         return self.state["current"]
 
     def ensure_clean(self):
-        apps = ["frappe", "erpnext", "clothing_erp"]
-        if (self.active / "apps/insights").exists():
-            apps.append("insights")
+        apps = [
+            app for app in MANAGED_APPS if (self.active / "apps" / app).exists()
+        ]
         for name in apps:
             result = self.run(
                 ["git", "status", "--porcelain"],
@@ -479,9 +482,11 @@ class Manager:
             if marker.exists() and json.loads(
                 (destination / "bench/.clothing-release.json").read_text()
             ) == json.loads((source / "release.json").read_text()):
-                staged_apps = ["frappe", "erpnext", "clothing_erp"]
-                if (destination / "bench/apps/insights").exists():
-                    staged_apps.append("insights")
+                staged_apps = [
+                    app
+                    for app in MANAGED_APPS
+                    if (destination / "bench/apps" / app).exists()
+                ]
                 for app in staged_apps:
                     result = self.run(
                         ["git", "status", "--porcelain"],
@@ -551,9 +556,9 @@ class Manager:
         result = self.bench(
             target, "list-apps", "--format", "json", capture_output=True, text=True
         )
-        expected = {"frappe", "erpnext", "clothing_erp"}
-        if (target / "apps/insights").exists():
-            expected.add("insights")
+        expected = {
+            app for app in MANAGED_APPS if (target / "apps" / app).exists()
+        }
         if not expected.issubset(
             json.loads(result.stdout).get("clothing.local", [])
         ):
@@ -577,6 +582,17 @@ class Manager:
             except (OSError, ValueError, subprocess.CalledProcessError):
                 time.sleep(2)
         raise RuntimeError("Post-update health check failed")
+
+    def install_missing_apps(self, target):
+        result = self.bench(
+            target, "list-apps", "--format", "json", capture_output=True, text=True
+        )
+        installed = set(json.loads(result.stdout).get("clothing.local", []))
+        for app in REQUIRED_SITE_EXTENSIONS:
+            if app not in installed:
+                print(f"Installing required site app: {app}", flush=True)
+                self.bench(target, "install-app", app)
+                installed.add(app)
 
     def deploy_manager(self, source):
         destination = Path("/opt/clothing-erp/manager")
@@ -603,9 +619,11 @@ class Manager:
                 raise RuntimeError(
                     "Use rollback --yes to restore an older release with its data"
                 )
-            upstream_apps = ["frappe", "erpnext"]
-            if "insights" in manifest and "insights" in previous_manifest:
-                upstream_apps.append("insights")
+            upstream_apps = ["frappe", "erpnext"] + [
+                app
+                for app in OPTIONAL_LEGACY_APPS
+                if app in manifest and app in previous_manifest
+            ]
             for app in upstream_apps:
                 if version_tuple(manifest[app]["ref"]) < version_tuple(
                     previous_manifest[app]["ref"]
@@ -623,9 +641,11 @@ class Manager:
                     "v" + previous_manifest["runtime"][runtime]
                 ):
                     raise RuntimeError(f"Refusing runtime downgrade: {runtime}")
-            check_keys = ["frappe", "erpnext", "runtime"]
-            if "insights" in manifest or "insights" in previous_manifest:
-                check_keys.append("insights")
+            check_keys = ["frappe", "erpnext", "runtime"] + [
+                app
+                for app in OPTIONAL_LEGACY_APPS
+                if app in manifest or app in previous_manifest
+            ]
             if app_only and any(
                 manifest.get(key) != previous_manifest.get(key)
                 for key in check_keys
@@ -680,6 +700,7 @@ class Manager:
             self.state["operation"]["phase"] = "migrating"
             self.state["operation"]["migrating"] = True
             self.save()
+            self.install_missing_apps(target)
             self.bench(target, "migrate")
             self.activate(target)
             self.start_frontend()
@@ -811,6 +832,10 @@ def main():
                 ]
                 if "insights" in current:
                     details.append(f"Insights: {current['insights']['ref']}")
+                if "india_compliance" in current:
+                    details.append(
+                        f"India Compliance: {current['india_compliance']['ref']}"
+                    )
                 print(" | ".join(details))
                 print(
                     f"Python: {current['runtime']['python']} | Node: {current['runtime']['node']} | Bench: {current['runtime']['bench']}"
@@ -854,6 +879,10 @@ def main():
                     ]
                     if "insights" in manifest:
                         details.append(f"Insights {manifest['insights']['ref']}")
+                    if "india_compliance" in manifest:
+                        details.append(
+                            f"India Compliance {manifest['india_compliance']['ref']}"
+                        )
                     print(" | ".join(details))
                     print("Update with: clothing-erp update")
                 else:

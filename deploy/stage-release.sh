@@ -23,6 +23,8 @@ for app in ('frappe','erpnext'):
     values[app.upper()+'_COMMIT']=m[app]['commit']
 values['INSIGHTS_REF']=m['insights']['ref']
 values['INSIGHTS_COMMIT']=m['insights']['commit']
+values['INDIA_COMPLIANCE_REF']=m['india_compliance']['ref']
+values['INDIA_COMPLIANCE_COMMIT']=m['india_compliance']['commit']
 Path(sys.argv[2]).write_text(''.join(f'{k}={v}\n' for k,v in values.items()))
 PY
 # shellcheck source=/dev/null
@@ -53,11 +55,14 @@ git -C "$DESTINATION/source" -c user.name=Installer -c user.email=installer@exam
 bench init "$DESTINATION/bench" --python "$DESTINATION/.runtime/tools/bin/python" \
     --frappe-branch "$FRAPPE_REF" --skip-assets --skip-redis-config-generation --no-backups
 cd "$DESTINATION/bench"
+export FRAPPE_BENCH_ROOT="$DESTINATION/bench"
 [[ $(git -C apps/frappe rev-parse HEAD) == "$FRAPPE_COMMIT" ]] || { echo 'Frappe tag no longer matches the release manifest.' >&2; exit 1; }
 bench get-app --branch "$ERPNEXT_REF" --skip-assets https://github.com/frappe/erpnext.git
 [[ $(git -C apps/erpnext rev-parse HEAD) == "$ERPNEXT_COMMIT" ]] || { echo 'ERPNext tag no longer matches the release manifest.' >&2; exit 1; }
 bench get-app --branch "$INSIGHTS_REF" --skip-assets https://github.com/frappe/insights.git
 [[ $(git -C apps/insights rev-parse HEAD) == "$INSIGHTS_COMMIT" ]] || { echo 'Insights tag no longer matches the release manifest.' >&2; exit 1; }
+bench get-app --branch "$INDIA_COMPLIANCE_REF" --skip-assets https://github.com/resilient-tech/india-compliance.git
+[[ $(git -C apps/india_compliance rev-parse HEAD) == "$INDIA_COMPLIANCE_COMMIT" ]] || { echo 'India Compliance tag no longer matches the release manifest.' >&2; exit 1; }
 bench get-app --skip-assets "$DESTINATION/source"
 if [[ $LOCKED == 1 ]]; then
     # Reconcile any seeded installer packages, then prove the complete runtime matches CI.
@@ -69,11 +74,12 @@ if [[ $LOCKED == 1 ]]; then
 fi
 ln -s "$DESTINATION/.runtime" .platform
 cp "$SOURCE/release.json" .clothing-release.json
-bench build --production
+(cd sites && "$DESTINATION/bench/env/bin/python" "$SOURCE/deploy/build_assets.py")
 # nginx can traverse and read public assets, never private site files.
-STAGED_APPS=(frappe erpnext insights clothing_erp)
+STAGED_APPS=(frappe erpnext insights india_compliance clothing_erp)
 INSIGHTS_PERMS=(apps/insights apps/insights/insights)
-chmod o+x "$DESTINATION" "$DESTINATION/bench" sites apps apps/frappe apps/frappe/frappe apps/erpnext apps/erpnext/erpnext apps/clothing_erp apps/clothing_erp/clothing_erp "${INSIGHTS_PERMS[@]}"
+INDIA_COMPLIANCE_PERMS=(apps/india_compliance apps/india_compliance/india_compliance)
+chmod o+x "$DESTINATION" "$DESTINATION/bench" sites apps apps/frappe apps/frappe/frappe apps/erpnext apps/erpnext/erpnext apps/clothing_erp apps/clothing_erp/clothing_erp "${INSIGHTS_PERMS[@]}" "${INDIA_COMPLIANCE_PERMS[@]}"
 find -L sites/assets -type d -exec chmod o+rx {} +
 find -L sites/assets -type f -exec chmod o+r {} +
 for app in "${STAGED_APPS[@]}"; do

@@ -10,6 +10,28 @@ from clothing_erp.clothing_erp.doctype.retailer_application import retailer_appl
 
 
 class TestRetailerWorkflow(unittest.TestCase):
+    def test_indian_retailer_addresses_require_state_server_side(self):
+        application = retailer_application.RetailerApplication(
+            {
+                "doctype": "Retailer Application",
+                "shop_name": "TEST Stateless Boutique",
+                "contact_person": "TEST Contact",
+                "phone": "+91 90000 11111",
+                "country": "India",
+                "billing_address_line1": "TEST Fictional Road",
+                "billing_city": "TEST City",
+            }
+        )
+        with (
+            patch.object(
+                retailer_application.RetailerApplication,
+                "is_new",
+                return_value=True,
+            ),
+            self.assertRaisesRegex(frappe.ValidationError, "Billing State"),
+        ):
+            application.validate()
+
     def test_salesperson_application_identity_and_master_defaults_are_forced(self):
         application = retailer_application.RetailerApplication(
             {
