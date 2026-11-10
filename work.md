@@ -280,7 +280,7 @@ Previously published v0.3.0 release evidence (before the India Compliance work):
 - Isolated native MariaDB schema/data/config/attachment recovery and queue RDB integrity checks passed.
 
 Current unreleased validation evidence:
-- 35 deployment/contract/recovery checks and all 126 app/site tests pass with
+- 36 deployment/contract/recovery checks and all 126 app/site tests pass with
   India Compliance v16.10.0 installed on the real local site.
 - The next stable release must pass the fresh two-stage native compatibility gate
   before its installer is published; v0.3.0 does not retroactively contain this work.

@@ -2,6 +2,7 @@
 """Build immutable source archive + resolved upstream commits + checksum manifest."""
 
 import argparse
+import ast
 import gzip
 import io
 import tarfile
@@ -23,6 +24,19 @@ UPSTREAM_REPOSITORIES = {
     "insights": "https://github.com/frappe/insights.git",
     "india_compliance": "https://github.com/resilient-tech/india-compliance.git",
 }
+
+
+def app_version(path):
+    tree = ast.parse(Path(path).read_text())
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if isinstance(target, ast.Name) and target.id == "__version__":
+            value = ast.literal_eval(node.value)
+            if isinstance(value, str):
+                return value
+    raise ValueError("Clothing ERP __version__ is missing or invalid")
 
 
 def resolve(repo, tag):
@@ -51,8 +65,7 @@ def build(version, output, *, locks=None, resolve_for_ci=False):
         )
     if git("status", "--porcelain", "--untracked-files=no"):
         raise ValueError("Release build requires clean tracked source")
-    actual = (ROOT / "clothing_erp/__init__.py").read_text().strip()
-    if actual != f'__version__ = "{version[1:]}"':
+    if app_version(ROOT / "clothing_erp/__init__.py") != version[1:]:
         raise ValueError("Release version and clothing_erp/__init__.py must match")
     pins = dict(
         line.split("=", 1)

@@ -533,6 +533,20 @@ class TestReleaseBuilder(unittest.TestCase):
             self.assertEqual(module.resolve("frappe", "v16.55.2"), "b" * 40)
 
 
+class TestReleasePreparation(unittest.TestCase):
+    def test_version_bump_preserves_package_initialization(self):
+        spec = importlib.util.spec_from_file_location(
+            "release_prepare", RELEASE / "prepare.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        source = '__version__ = "0.3.0"\n\ntry:\n    import clothing_erp.compat\nexcept Exception:\n    pass\n'
+        old, updated = module.replace_version(source, "v0.3.1")
+        self.assertEqual(old, "0.3.0")
+        self.assertIn('__version__ = "0.3.1"', updated)
+        self.assertIn("import clothing_erp.compat", updated)
+
+
 class TestDependencyLocks(unittest.TestCase):
     def test_production_rejects_unlocked_ci_recipes(self):
         data = manifest()
