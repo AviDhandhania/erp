@@ -150,8 +150,11 @@ coverage remains open.
 - [x] Add row-locked Pick List completion after every row is verified; active workflows
   are never bypassed, ERPNext's native submit controller owns all stock, serial/batch,
   reservation and reference validation, and assignments close only after submission.
+- [x] Add manager-only shortage resolution for completely unpicked rows. A required
+  reason is audited on the native Pick List; the row-locked operation delegates warehouse,
+  batch and serial reallocation to ERPNext and verifies that scanned rows remain unchanged.
 - [ ] Add incremental scanning for rows already backed by a prebuilt native Serial and
-  Batch Bundle, shortage resolution, packing and native Delivery Note dispatch actions.
+  Batch Bundle, partial-row shortage splitting, packing and native Delivery Note dispatch.
 
 ## Stage 4 — retailer management
 
@@ -189,7 +192,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 122 app tests passed through the real site runner and 34 installer/package
+Verification: 125 app tests passed through the real site runner and 34 installer/package
 tests passed. Chromium checks verified that salesperson intake hides server-owned master
 fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
 resulting native Sales Order. Desktop/mobile Chromium checks passed with all three icons,

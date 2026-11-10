@@ -80,9 +80,12 @@ class FulfillmentTasks {
 			return `<tr><td><strong>${this.escape(row.item_name || row.item_code)}</strong><small>${this.escape(row.item_code)}</small></td><td>${this.escape(row.warehouse)}</td><td class="text-right">${format_number(row.stock_qty)} ${this.escape(row.stock_uom)}</td><td class="text-right">${row.picked_qty == null ? "0" : format_number(row.picked_qty)}</td><td>${this.escape(row.batch_no || row.serial_no || "—")}</td>${task.can_verify_items ? `<td class="text-right">${action}</td>` : ""}</tr>`;
 		}).join("");
 		const workflowNotice = task.workflow ? `<div class="alert alert-warning">${__("Pick List workflow {0} is active. Its configured approval actions must be completed before submission.", [this.escape(task.workflow)])}</div>` : "";
-		const completeAction = task.can_complete_pick ? `<div class="text-right"><button type="button" class="btn btn-primary complete-pick-list">${__("Complete picking")}</button></div>` : "";
-		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div></div>${task.can_verify_items ? `<div class="alert alert-info">${__("Scan the SKU/item barcode, Batch No, or Serial No required by the exact Pick List row. ERPNext validates tracked stock when each scan is saved.")}</div>` : ""}${workflowNotice}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${task.can_verify_items ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}${completeAction}`);
+		const shortageAction = task.can_resolve_shortage ? `<button type="button" class="btn btn-default resolve-pick-shortage">${__("Resolve shortage")}</button>` : "";
+		const completeAction = task.can_complete_pick ? `<button type="button" class="btn btn-primary complete-pick-list">${__("Complete picking")}</button>` : "";
+		const footerActions = shortageAction || completeAction ? `<div class="text-right">${shortageAction} ${completeAction}</div>` : "";
+		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div></div>${task.can_verify_items ? `<div class="alert alert-info">${__("Scan the SKU/item barcode, Batch No, or Serial No required by the exact Pick List row. ERPNext validates tracked stock when each scan is saved.")}</div>` : ""}${workflowNotice}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${task.can_verify_items ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}${footerActions}`);
 		dialog.$body.on("click", ".verify-pick-item", (event) => this.verify_item(task, event.currentTarget, dialog));
+		dialog.$body.on("click", ".resolve-pick-shortage", () => this.resolve_shortage(task, dialog));
 		dialog.$body.on("click", ".complete-pick-list", () => this.complete_pick(task, dialog));
 		dialog.show();
 	}
@@ -122,5 +125,25 @@ class FulfillmentTasks {
 		dialog.hide();
 		frappe.show_alert({ message: __("{0} completed: {1}", [message.pick_list, message.status]), indicator: "green" });
 		this.refresh();
+	}
+
+	async resolve_shortage(task, dialog) {
+		const values = await new Promise((resolve) => {
+			frappe.prompt([{ fieldname: "reason", fieldtype: "Small Text", label: __("Shortage reason and resolution note"), reqd: 1 }], resolve, __("Resolve shortage"), __("Reallocate unpicked rows"));
+		});
+		const { message } = await frappe.call({
+			method: "clothing_erp.fulfillment.resolve_pick_shortage",
+			type: "POST",
+			args: { pick_list: task.name, reason: values.reason },
+			freeze: true,
+			freeze_message: __("Reallocating available stock with ERPNext…"),
+		});
+		dialog.hide();
+		frappe.show_alert({
+			message: message.unallocated_qty ? __("Stock refreshed; {0} units remain unallocated.", [message.unallocated_qty]) : __("All unpicked quantities were reallocated."),
+			indicator: message.unallocated_qty ? "orange" : "green",
+		});
+		await this.refresh();
+		this.open_task(task.name);
 	}
 }

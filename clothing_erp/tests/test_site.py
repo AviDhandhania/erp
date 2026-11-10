@@ -163,15 +163,13 @@ class TestSitePermissions(IntegrationTestCase):
                 "is_group": 0,
             }
         ).insert()
-        frappe.get_doc(
-            {
-                "doctype": "Bin",
-                "item_code": item.name,
-                "warehouse": warehouse.name,
-                "stock_uom": item.stock_uom,
-                "actual_qty": 10,
-            }
-        ).db_insert()
+        make_stock_entry(
+            item_code=item.name,
+            target=warehouse.name,
+            qty=10,
+            basic_rate=100,
+            company=company,
+        )
         batch_item = frappe.get_doc(
             {
                 "doctype": "Item",
@@ -266,7 +264,25 @@ class TestSitePermissions(IntegrationTestCase):
                 ],
             }
         ).insert()
-        location, batch_location, serial_location = pick_list.locations
+        resolution = fulfillment.resolve_pick_shortage(
+            pick_list.name, "TEST refresh all unpicked stock locations"
+        )
+        self.assertEqual(resolution["unallocated_qty"], 0)
+        self.assertTrue(
+            frappe.db.exists(
+                "Comment",
+                {
+                    "reference_doctype": "Pick List",
+                    "reference_name": pick_list.name,
+                    "content": ["like", "%Clothing ERP shortage resolution%"],
+                },
+            )
+        )
+        pick_list.reload()
+        locations = {row.item_code: row for row in pick_list.locations}
+        location = locations[item.name]
+        batch_location = locations[batch_item.name]
+        serial_location = locations[serial_item.name]
         scanner = frappe.get_doc(
             {
                 "doctype": "User",
@@ -302,7 +318,14 @@ class TestSitePermissions(IntegrationTestCase):
                 pick_list.name, location.name, item.name, 2
             )
             pick_list.reload()
-            self.assertEqual(pick_list.locations[0].picked_qty, 2)
+            self.assertEqual(
+                next(
+                    row.picked_qty
+                    for row in pick_list.locations
+                    if row.item_code == item.name
+                ),
+                2,
+            )
             self.assertEqual(result["item_code"], item.name)
             self.assertFalse(result["complete"])
             with self.assertRaises(frappe.ValidationError):
@@ -328,12 +351,13 @@ class TestSitePermissions(IntegrationTestCase):
             frappe.clear_cache(user=scanner.name)
         pick_list.reload()
         assignment.reload()
+        locations = {row.item_code: row for row in pick_list.locations}
         self.assertEqual(pick_list.docstatus, 1)
-        self.assertEqual(pick_list.locations[0].picked_qty, 3)
-        self.assertEqual(pick_list.locations[1].picked_qty, 2)
-        self.assertEqual(pick_list.locations[1].batch_no, batch.name)
-        self.assertEqual(pick_list.locations[2].picked_qty, 1)
-        self.assertEqual(pick_list.locations[2].serial_no, serial_no)
+        self.assertEqual(locations[item.name].picked_qty, 3)
+        self.assertEqual(locations[batch_item.name].picked_qty, 2)
+        self.assertEqual(locations[batch_item.name].batch_no, batch.name)
+        self.assertEqual(locations[serial_item.name].picked_qty, 1)
+        self.assertEqual(locations[serial_item.name].serial_no, serial_no)
         self.assertEqual(completion["docstatus"], 1)
         self.assertEqual(assignment.status, "Closed")
 

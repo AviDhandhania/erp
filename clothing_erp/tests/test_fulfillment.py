@@ -31,6 +31,8 @@ class TestFulfillment(unittest.TestCase):
             check_permission=MagicMock(),
             save=MagicMock(),
             submit=MagicMock(),
+            set_item_locations=MagicMock(),
+            add_comment=MagicMock(),
         )
         return document, row
 
@@ -271,6 +273,72 @@ class TestFulfillment(unittest.TestCase):
         ):
             fulfillment.complete_pick_list("TEST-PICK-1")
         query.assert_not_called()
+
+    def test_shortage_resolution_rejects_unauthorized_user_before_document_read(self):
+        with (
+            patch.object(fulfillment, "require_role", side_effect=frappe.PermissionError),
+            patch.object(frappe, "get_doc") as query,
+            self.assertRaises(frappe.PermissionError),
+        ):
+            fulfillment.resolve_pick_shortage("TEST-PICK-1", "TEST no stock")
+        query.assert_not_called()
+
+    def test_shortage_resolution_requires_a_completely_unpicked_row(self):
+        document, _row = self.pick_document(picked_qty=3, stock_qty=3)
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(fulfillment, "_active_pick_list_workflow", return_value=None),
+            patch.object(fulfillment, "_lock_pick_list") as lock,
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.resolve_pick_shortage(document.name, "TEST no stock")
+        lock.assert_not_called()
+
+    def test_shortage_resolution_locks_uses_native_reallocation_and_audits(self):
+        document, picked_row = self.pick_document(picked_qty=1, stock_qty=1)
+        unpicked_row = frappe._dict(
+            name="TEST-LOCATION-2",
+            item_code="TEST-SHIRT-L",
+            warehouse="TEST Warehouse A",
+            stock_uom="Nos",
+            stock_qty=2,
+            qty=2,
+            picked_qty=0,
+        )
+        document.locations.append(unpicked_row)
+
+        def reallocate(save=False):
+            self.assertTrue(save)
+            document.locations[1] = frappe._dict(
+                name="TEST-LOCATION-3",
+                item_code=unpicked_row.item_code,
+                warehouse="TEST Warehouse B",
+                stock_uom="Nos",
+                stock_qty=2,
+                qty=2,
+                picked_qty=0,
+            )
+
+        document.set_item_locations.side_effect = reallocate
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(fulfillment, "_active_pick_list_workflow", return_value=None),
+            patch.object(fulfillment, "_require_unpicked_rows") as eligible,
+            patch.object(fulfillment, "_lock_pick_list") as lock,
+        ):
+            result = fulfillment.resolve_pick_shortage(
+                document.name, "TEST shelf empty <check>"
+            )
+        lock.assert_called_once_with(document.name)
+        self.assertEqual(eligible.call_count, 2)
+        self.assertTrue(document.flags.ignore_permissions)
+        document.set_item_locations.assert_called_once_with(save=True)
+        self.assertEqual(document.locations[0].name, picked_row.name)
+        self.assertEqual(result["unallocated_qty"], 0)
+        comment = document.add_comment.call_args.args[1]
+        self.assertIn("TEST shelf empty &lt;check&gt;", comment)
 
     def test_pick_completion_requires_every_row_before_lock(self):
         document, _row = self.pick_document(picked_qty=2, stock_qty=3)

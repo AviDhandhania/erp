@@ -3,20 +3,21 @@
 from decimal import Decimal, InvalidOperation
 
 import frappe
-from frappe.utils import cint, flt
+from frappe.utils import cint, escape_html, flt
 
 from clothing_erp.roles import (
     ROLE_BUSINESS_ADMIN,
     ROLE_WAREHOUSE_MANAGER,
     ROLE_WAREHOUSE_OPERATOR,
 )
-from clothing_erp.security import require_role
+from clothing_erp.security import is_warehouse_manager, require_role
 
 FULFILLMENT_ROLES = {
     ROLE_WAREHOUSE_OPERATOR,
     ROLE_WAREHOUSE_MANAGER,
     ROLE_BUSINESS_ADMIN,
 }
+SHORTAGE_RESOLUTION_ROLES = {ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN}
 TASK_TYPES = {"pick": "Pick List", "delivery": "Delivery Note"}
 TASK_STATES = {"all", "draft", "submitted", "cancelled"}
 MAX_TASK_PAGE_SIZE = 50
@@ -124,6 +125,11 @@ def get_fulfillment_task(task_type, name):
         flt(row.get("picked_qty"), 6) >= flt(row.get("stock_qty"), 6)
         for row in child_rows
     )
+    has_unpicked_rows = any(
+        flt(row.get("picked_qty"), 6) == 0
+        and flt(row.get("stock_qty"), 6) > 0
+        for row in child_rows
+    )
     return {
         "name": document.name,
         "task_type": task_type,
@@ -145,6 +151,13 @@ def get_fulfillment_task(task_type, name):
             and not workflow_name
         ),
         "workflow": workflow_name,
+        "can_resolve_shortage": bool(
+            task_type == "pick"
+            and document.docstatus == 0
+            and has_unpicked_rows
+            and not workflow_name
+            and is_warehouse_manager()
+        ),
     }
 
 
@@ -329,6 +342,61 @@ def _close_pick_assignments(pick_list):
     close_all_assignments("Pick List", pick_list, ignore_permissions=True)
 
 
+def _shortage_reason(value):
+    value = " ".join(str(value or "").split())
+    if len(value) < 5 or len(value) > 500:
+        frappe.throw(frappe._("Shortage reason must be between 5 and 500 characters."))
+    return value
+
+
+def _unpicked_quantity(document):
+    return sum(
+        flt(row.get("stock_qty"))
+        for row in document.locations
+        if flt(row.get("picked_qty")) == 0
+    )
+
+
+def _picked_rows(document):
+    return {
+        row.name: (
+            row.item_code,
+            row.warehouse,
+            flt(row.get("picked_qty"), 6),
+            flt(row.get("stock_qty"), 6),
+            row.get("batch_no"),
+            row.get("serial_no"),
+        )
+        for row in document.locations
+        if flt(row.get("picked_qty")) > 0
+    }
+
+
+def _require_unpicked_rows(document):
+    if not any(
+        flt(row.get("picked_qty"), 6) == 0
+        and flt(row.get("stock_qty"), 6) > 0
+        for row in document.locations
+    ):
+        frappe.throw(
+            frappe._(
+                "Only completely unpicked rows can be reallocated. "
+                "This Pick List has no eligible shortage rows."
+            )
+        )
+
+
+def _require_picked_rows_preserved(document, snapshot):
+    current = _picked_rows(document)
+    if any(current.get(name) != values for name, values in snapshot.items()):
+        frappe.throw(
+            frappe._(
+                "ERPNext changed an already-scanned row during reallocation; "
+                "the shortage update was rolled back."
+            )
+        )
+
+
 @frappe.whitelist(methods=["POST"])
 def verify_pick_item(pick_list, location, barcode, quantity=1):
     """Increment native picked quantity after exact row and barcode verification."""
@@ -371,6 +439,60 @@ def verify_pick_item(pick_list, location, barcode, quantity=1):
         "scan_type": scan.scan_type,
         "serial_no": scan.serial_no,
         "batch_no": scan.batch_no,
+    }
+
+
+@frappe.whitelist(methods=["POST"])
+def resolve_pick_shortage(pick_list, reason):
+    """Reallocate completely unpicked rows with ERPNext's native stock selection."""
+    require_role(SHORTAGE_RESOLUTION_ROLES)
+    pick_list = _task_name(pick_list)
+    reason = _shortage_reason(reason)
+    document = frappe.get_doc("Pick List", pick_list)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(frappe._("Only a draft Pick List shortage can be resolved."))
+    _require_no_pick_workflow()
+    _require_unpicked_rows(document)
+
+    _lock_pick_list(pick_list)
+    document = frappe.get_doc("Pick List", pick_list)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(
+            frappe._("This Pick List changed during shortage resolution. Refresh it.")
+        )
+    _require_no_pick_workflow()
+    _require_unpicked_rows(document)
+
+    before_unpicked = _unpicked_quantity(document)
+    picked_snapshot = _picked_rows(document)
+    document.flags.ignore_permissions = True
+    # ERPNext removes only zero-picked rows, recalculates available warehouse/batch/
+    # serial locations, retains picked rows and validates the resulting Pick List.
+    document.set_item_locations(save=True)
+    _require_picked_rows_preserved(document, picked_snapshot)
+    after_unpicked = _unpicked_quantity(document)
+    unallocated = max(before_unpicked - after_unpicked, 0)
+    document.add_comment(
+        "Comment",
+        frappe._(
+            "<strong>Clothing ERP shortage resolution</strong><br>"
+            "Reason: {0}<br>Unpicked quantity before: {1}; allocated after refresh: "
+            "{2}; still unallocated: {3}."
+        ).format(
+            escape_html(reason),
+            flt(before_unpicked),
+            flt(after_unpicked),
+            flt(unallocated),
+        ),
+    )
+    return {
+        "pick_list": document.name,
+        "unpicked_before": before_unpicked,
+        "allocated_after": after_unpicked,
+        "unallocated_qty": unallocated,
+        "row_count": len(document.locations),
     }
 
 
