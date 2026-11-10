@@ -127,7 +127,7 @@ class TestFulfillment(unittest.TestCase):
         with (
             patch.object(fulfillment, "require_role"),
             patch.object(frappe, "get_doc", return_value=document),
-            patch.object(frappe.db, "get_value", return_value=None),
+            patch.object(fulfillment, "_scan_barcode", return_value=frappe._dict()),
             patch.object(frappe, "throw", side_effect=frappe.ValidationError),
             patch.object(fulfillment, "_lock_pick_list") as lock,
             self.assertRaises(frappe.ValidationError),
@@ -143,6 +143,7 @@ class TestFulfillment(unittest.TestCase):
         with (
             patch.object(fulfillment, "require_role"),
             patch.object(frappe, "get_doc", side_effect=[before, after]),
+            patch.object(fulfillment, "_item_tracking", return_value=frappe._dict()),
             patch.object(fulfillment, "_lock_pick_list") as lock,
             patch.object(frappe, "throw", side_effect=frappe.ValidationError),
             self.assertRaises(frappe.ValidationError),
@@ -159,6 +160,7 @@ class TestFulfillment(unittest.TestCase):
         with (
             patch.object(fulfillment, "require_role"),
             patch.object(frappe, "get_doc", side_effect=[before, after]),
+            patch.object(fulfillment, "_item_tracking", return_value=frappe._dict()),
             patch.object(fulfillment, "_lock_pick_list") as lock,
         ):
             result = fulfillment.verify_pick_item(
@@ -171,6 +173,95 @@ class TestFulfillment(unittest.TestCase):
         after.save.assert_called_once_with(ignore_permissions=True)
         self.assertEqual(result["picked_qty"], 2)
         self.assertFalse(result["complete"])
+
+    def test_serialized_item_requires_a_serial_scan_before_lock(self):
+        document, _row = self.pick_document(stock_qty=1)
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(
+                fulfillment,
+                "_item_tracking",
+                return_value=frappe._dict(has_serial_no=1, has_batch_no=0),
+            ),
+            patch.object(fulfillment, "_lock_pick_list") as lock,
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.verify_pick_item(
+                document.name, "TEST-LOCATION-1", "TEST-SHIRT-M"
+            )
+        lock.assert_not_called()
+
+    def test_serial_scan_replaces_preallocation_and_updates_native_fields(self):
+        before, before_row = self.pick_document(stock_qty=1)
+        after, after_row = self.pick_document(stock_qty=1)
+        before_row.serial_no = "TEST-SERIAL-OLD"
+        after_row.serial_no = "TEST-SERIAL-OLD"
+        serial_scan = frappe._dict(
+            item_code="TEST-SHIRT-M", serial_no="TEST-SERIAL-NEW"
+        )
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", side_effect=[before, after]),
+            patch.object(fulfillment, "_scan_barcode", return_value=serial_scan),
+            patch.object(
+                fulfillment,
+                "_item_tracking",
+                return_value=frappe._dict(has_serial_no=1, has_batch_no=0),
+            ),
+            patch.object(fulfillment, "_lock_pick_list"),
+        ):
+            result = fulfillment.verify_pick_item(
+                before.name, before_row.name, serial_scan.serial_no
+            )
+        self.assertEqual(after_row.serial_no, serial_scan.serial_no)
+        self.assertEqual(after_row.use_serial_batch_fields, 1)
+        self.assertEqual(after_row.picked_qty, 1)
+        after.save.assert_called_once_with(ignore_permissions=True)
+        self.assertEqual(result["scan_type"], "serial")
+
+    def test_duplicate_serial_scan_is_rejected_before_lock(self):
+        document, row = self.pick_document(picked_qty=1, stock_qty=2)
+        row.serial_no = "TEST-SERIAL-1"
+        scan = frappe._dict(item_code=row.item_code, serial_no="TEST-SERIAL-1")
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(fulfillment, "_scan_barcode", return_value=scan),
+            patch.object(
+                fulfillment,
+                "_item_tracking",
+                return_value=frappe._dict(has_serial_no=1, has_batch_no=0),
+            ),
+            patch.object(fulfillment, "_lock_pick_list") as lock,
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.verify_pick_item(document.name, row.name, scan.serial_no)
+        lock.assert_not_called()
+
+    def test_batch_scan_sets_native_batch_fields_and_quantity(self):
+        before, before_row = self.pick_document(stock_qty=3)
+        after, after_row = self.pick_document(stock_qty=3)
+        scan = frappe._dict(item_code=before_row.item_code, batch_no="TEST-BATCH-1")
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", side_effect=[before, after]),
+            patch.object(fulfillment, "_scan_barcode", return_value=scan),
+            patch.object(
+                fulfillment,
+                "_item_tracking",
+                return_value=frappe._dict(has_serial_no=0, has_batch_no=1),
+            ),
+            patch.object(fulfillment, "_lock_pick_list"),
+        ):
+            result = fulfillment.verify_pick_item(
+                before.name, before_row.name, scan.batch_no, 2
+            )
+        self.assertEqual(after_row.batch_no, scan.batch_no)
+        self.assertEqual(after_row.use_serial_batch_fields, 1)
+        self.assertEqual(after_row.picked_qty, 2)
+        after.save.assert_called_once_with(ignore_permissions=True)
+        self.assertEqual(result["scan_type"], "batch")
 
     def test_pick_completion_rejects_unauthorized_user_before_document_read(self):
         with (
@@ -238,3 +329,18 @@ class TestFulfillment(unittest.TestCase):
         document.submit.assert_called_once_with()
         close_assignments.assert_called_once_with(document.name)
         self.assertEqual(result["docstatus"], 1)
+
+    def test_pick_completion_clears_bundle_context_when_native_submit_fails(self):
+        document, _row = self.pick_document(picked_qty=3, stock_qty=3)
+        document.submit.side_effect = frappe.ValidationError
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(fulfillment, "_active_pick_list_workflow", return_value=None),
+            patch.object(fulfillment, "_lock_pick_list"),
+            patch.object(fulfillment, "_close_pick_assignments") as close_assignments,
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.complete_pick_list(document.name)
+        self.assertIsNone(frappe.flags.get("clothing_pick_bundle"))
+        close_assignments.assert_not_called()

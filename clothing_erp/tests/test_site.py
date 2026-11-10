@@ -139,7 +139,12 @@ class TestSitePermissions(IntegrationTestCase):
         self.assertEqual(api.get_warehouse_dashboard()["pick_tasks"], [])
 
     def test_pick_verification_and_completion_use_native_pick_list(self):
+        from erpnext.stock.doctype.stock_entry.stock_entry_utils import make_stock_entry
+
         company = frappe.defaults.get_global_default("company")
+        frappe.db.set_single_value(
+            "Stock Settings", "enable_serial_and_batch_no_for_item", 1
+        )
         item = frappe.get_doc(
             {
                 "doctype": "Item",
@@ -167,6 +172,53 @@ class TestSitePermissions(IntegrationTestCase):
                 "actual_qty": 10,
             }
         ).db_insert()
+        batch_item = frappe.get_doc(
+            {
+                "doctype": "Item",
+                "item_code": "TEST-PICK-BATCH-ITEM",
+                "item_name": "TEST Pick Batch Item",
+                "item_group": "Products",
+                "stock_uom": "Nos",
+                "is_stock_item": 1,
+                "has_batch_no": 1,
+                "create_new_batch": 1,
+            }
+        ).insert()
+        batch = frappe.get_doc(
+            {"doctype": "Batch", "item": batch_item.name}
+        ).insert()
+        make_stock_entry(
+            item_code=batch_item.name,
+            target=warehouse.name,
+            qty=2,
+            batch_no=batch.name,
+            basic_rate=100,
+            company=company,
+        )
+        serial_item = frappe.get_doc(
+            {
+                "doctype": "Item",
+                "item_code": "TEST-PICK-SERIAL-ITEM",
+                "item_name": "TEST Pick Serial Item",
+                "item_group": "Products",
+                "stock_uom": "Nos",
+                "is_stock_item": 1,
+                "has_serial_no": 1,
+                "serial_no_series": "TEST-PICK-SERIAL-.#####",
+            }
+        ).insert()
+        serial_receipt = make_stock_entry(
+            item_code=serial_item.name,
+            target=warehouse.name,
+            qty=1,
+            basic_rate=100,
+            company=company,
+        )
+        serial_no = frappe.db.get_value(
+            "Serial and Batch Entry",
+            {"parent": serial_receipt.items[0].serial_and_batch_bundle},
+            "serial_no",
+        )
         pick_list = frappe.get_doc(
             {
                 "doctype": "Pick List",
@@ -184,11 +236,37 @@ class TestSitePermissions(IntegrationTestCase):
                         "stock_uom": item.stock_uom,
                         "conversion_factor": 1,
                         "picked_qty": 0,
+                    },
+                    {
+                        "item_code": batch_item.name,
+                        "item_name": batch_item.item_name,
+                        "warehouse": warehouse.name,
+                        "qty": 2,
+                        "stock_qty": 2,
+                        "uom": batch_item.stock_uom,
+                        "stock_uom": batch_item.stock_uom,
+                        "conversion_factor": 1,
+                        "picked_qty": 0,
+                        "batch_no": batch.name,
+                        "use_serial_batch_fields": 1,
+                    },
+                    {
+                        "item_code": serial_item.name,
+                        "item_name": serial_item.item_name,
+                        "warehouse": warehouse.name,
+                        "qty": 1,
+                        "stock_qty": 1,
+                        "uom": serial_item.stock_uom,
+                        "stock_uom": serial_item.stock_uom,
+                        "conversion_factor": 1,
+                        "picked_qty": 0,
+                        "serial_no": serial_no,
+                        "use_serial_batch_fields": 1,
                     }
                 ],
             }
         ).insert()
-        location = pick_list.locations[0]
+        location, batch_location, serial_location = pick_list.locations
         scanner = frappe.get_doc(
             {
                 "doctype": "User",
@@ -232,6 +310,16 @@ class TestSitePermissions(IntegrationTestCase):
             fulfillment.verify_pick_item(
                 pick_list.name, location.name, item.name, 1
             )
+            batch_result = fulfillment.verify_pick_item(
+                pick_list.name, batch_location.name, batch.name, 2
+            )
+            self.assertEqual(batch_result["scan_type"], "batch")
+            self.assertEqual(batch_result["batch_no"], batch.name)
+            serial_result = fulfillment.verify_pick_item(
+                pick_list.name, serial_location.name, serial_no
+            )
+            self.assertEqual(serial_result["scan_type"], "serial")
+            self.assertEqual(serial_result["serial_no"], serial_no)
             detail = fulfillment.get_fulfillment_task("pick", pick_list.name)
             self.assertTrue(detail["can_complete_pick"])
             completion = fulfillment.complete_pick_list(pick_list.name)
@@ -242,6 +330,10 @@ class TestSitePermissions(IntegrationTestCase):
         assignment.reload()
         self.assertEqual(pick_list.docstatus, 1)
         self.assertEqual(pick_list.locations[0].picked_qty, 3)
+        self.assertEqual(pick_list.locations[1].picked_qty, 2)
+        self.assertEqual(pick_list.locations[1].batch_no, batch.name)
+        self.assertEqual(pick_list.locations[2].picked_qty, 1)
+        self.assertEqual(pick_list.locations[2].serial_no, serial_no)
         self.assertEqual(completion["docstatus"], 1)
         self.assertEqual(assignment.status, "Closed")
 

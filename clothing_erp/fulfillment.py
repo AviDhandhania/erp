@@ -171,16 +171,122 @@ def _pick_location(document, location):
     return row
 
 
-def _verify_item_barcode(barcode, item_code):
+def _scan_barcode(barcode):
+    from erpnext.stock.utils import scan_barcode
+
+    return frappe._dict(scan_barcode(barcode) or {})
+
+
+def _resolve_pick_scan(barcode, item_code):
     barcode = str(barcode or "").strip()[:140]
     if not barcode:
-        frappe.throw(frappe._("Scan or enter an item barcode."))
-    mapped_item = item_code if barcode == item_code else frappe.db.get_value(
-        "Item Barcode", {"barcode": barcode}, "parent"
+        frappe.throw(frappe._("Scan or enter an item, batch or serial barcode."))
+    scan = (
+        frappe._dict(item_code=item_code)
+        if barcode == item_code
+        else _scan_barcode(barcode)
     )
-    if mapped_item != item_code:
-        frappe.throw(frappe._("The barcode does not match the selected Pick List item."))
-    return barcode
+    if scan.get("item_code") != item_code:
+        frappe.throw(
+            frappe._("The scan does not match the selected Pick List item.")
+        )
+    return scan
+
+
+def _item_tracking(item_code):
+    return frappe._dict(
+        frappe.get_cached_value(
+            "Item", item_code, ("has_serial_no", "has_batch_no"), as_dict=True
+        )
+        or {}
+    )
+
+
+def _serial_numbers(value):
+    from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
+
+    return get_serial_nos(value)
+
+
+def _serial_already_scanned(document, serial_no):
+    for row in document.locations:
+        if (
+            flt(row.get("picked_qty")) > 0
+            and serial_no in _serial_numbers(row.get("serial_no"))
+        ):
+            return True
+    return False
+
+
+def _bundle_contains(row, scan):
+    bundle = row.get("serial_and_batch_bundle")
+    if not bundle:
+        return False
+    filters = {"parent": bundle}
+    if scan.get("serial_no"):
+        filters["serial_no"] = scan.serial_no
+    elif scan.get("batch_no"):
+        filters["batch_no"] = scan.batch_no
+    return bool(frappe.db.exists("Serial and Batch Entry", filters))
+
+
+def _validate_pick_scan(document, row, barcode, quantity, apply=False):
+    scan = _resolve_pick_scan(barcode, row.item_code)
+    tracking = _item_tracking(row.item_code)
+    has_serial = bool(tracking.get("has_serial_no"))
+    has_batch = bool(tracking.get("has_batch_no"))
+
+    if has_serial:
+        if row.get("serial_and_batch_bundle"):
+            frappe.throw(
+                frappe._(
+                    "This serialized row already uses a native Serial and Batch Bundle; "
+                    "incremental scanning cannot safely rewrite that allocation."
+                )
+            )
+        if not scan.get("serial_no"):
+            frappe.throw(frappe._("Scan a Serial No for this serialized item."))
+        if quantity != 1:
+            frappe.throw(frappe._("Serialized items must be scanned one at a time."))
+        if _serial_already_scanned(document, scan.serial_no):
+            frappe.throw(frappe._("This Serial No has already been scanned."))
+    elif has_batch and not scan.get("batch_no"):
+        frappe.throw(frappe._("Scan a Batch No for this batched item."))
+
+    if has_batch and row.get("batch_no") and scan.get("batch_no") != row.batch_no:
+        frappe.throw(
+            frappe._("The scanned batch does not match this Pick List row.")
+        )
+    if row.get("serial_and_batch_bundle") and not _bundle_contains(row, scan):
+        frappe.throw(
+            frappe._("The scanned serial or batch is not allocated to this Pick List row.")
+        )
+
+    if apply and not row.get("serial_and_batch_bundle"):
+        if scan.get("serial_no"):
+            serials = (
+                _serial_numbers(row.get("serial_no"))
+                if flt(row.get("picked_qty")) > 0
+                else []
+            )
+            serials.append(scan.serial_no)
+            row.serial_no = "\n".join(serials)
+        if scan.get("batch_no"):
+            row.batch_no = scan.batch_no
+        if has_serial or has_batch:
+            row.use_serial_batch_fields = 1
+
+    return frappe._dict(
+        scan_type=(
+            "serial"
+            if scan.get("serial_no")
+            else "batch"
+            if scan.get("batch_no")
+            else "item"
+        ),
+        serial_no=scan.get("serial_no"),
+        batch_no=scan.get("batch_no"),
+    )
 
 
 def _active_pick_list_workflow():
@@ -234,7 +340,7 @@ def verify_pick_item(pick_list, location, barcode, quantity=1):
     if document.docstatus != 0:
         frappe.throw(frappe._("Only a draft Pick List can be verified."))
     row = _pick_location(document, location)
-    _verify_item_barcode(barcode, row.item_code)
+    _validate_pick_scan(document, row, barcode, quantity)
 
     _lock_pick_list(pick_list)
     document = frappe.get_doc("Pick List", pick_list)
@@ -242,7 +348,7 @@ def verify_pick_item(pick_list, location, barcode, quantity=1):
     if document.docstatus != 0:
         frappe.throw(frappe._("This Pick List changed while scanning. Refresh it."))
     row = _pick_location(document, location)
-    _verify_item_barcode(barcode, row.item_code)
+    scan = _validate_pick_scan(document, row, barcode, quantity, apply=True)
     required = flt(row.stock_qty)
     picked = flt(row.picked_qty)
     if picked + quantity > required:
@@ -262,6 +368,9 @@ def verify_pick_item(pick_list, location, barcode, quantity=1):
         "picked_qty": row.picked_qty,
         "required_qty": row.stock_qty,
         "complete": flt(row.picked_qty) == flt(row.stock_qty),
+        "scan_type": scan.scan_type,
+        "serial_no": scan.serial_no,
+        "batch_no": scan.batch_no,
     }
 
 
@@ -290,7 +399,15 @@ def complete_pick_list(pick_list):
     document.flags.ignore_permissions = True
     # Native submit owns stock availability, serial/batch, reservation, reference
     # quantity, previous-document and final status behavior.
-    document.submit()
+    previous_bundle_context = frappe.flags.get("clothing_pick_bundle")
+    frappe.flags.clothing_pick_bundle = document.name
+    try:
+        document.submit()
+    finally:
+        if previous_bundle_context is None:
+            frappe.flags.pop("clothing_pick_bundle", None)
+        else:
+            frappe.flags.clothing_pick_bundle = previous_bundle_context
 
     _close_pick_assignments(document.name)
     return {

@@ -81,7 +81,7 @@ class FulfillmentTasks {
 		}).join("");
 		const workflowNotice = task.workflow ? `<div class="alert alert-warning">${__("Pick List workflow {0} is active. Its configured approval actions must be completed before submission.", [this.escape(task.workflow)])}</div>` : "";
 		const completeAction = task.can_complete_pick ? `<div class="text-right"><button type="button" class="btn btn-primary complete-pick-list">${__("Complete picking")}</button></div>` : "";
-		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div></div>${task.can_verify_items ? `<div class="alert alert-info">${__("Verify the physical item barcode against its exact Pick List row. Each scan updates ERPNext picked quantity.")}</div>` : ""}${workflowNotice}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${task.can_verify_items ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}${completeAction}`);
+		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div></div>${task.can_verify_items ? `<div class="alert alert-info">${__("Scan the SKU/item barcode, Batch No, or Serial No required by the exact Pick List row. ERPNext validates tracked stock when each scan is saved.")}</div>` : ""}${workflowNotice}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${task.can_verify_items ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}${completeAction}`);
 		dialog.$body.on("click", ".verify-pick-item", (event) => this.verify_item(task, event.currentTarget, dialog));
 		dialog.$body.on("click", ".complete-pick-list", () => this.complete_pick(task, dialog));
 		dialog.show();
@@ -90,7 +90,7 @@ class FulfillmentTasks {
 	async verify_item(task, button, dialog) {
 		const values = await new Promise((resolve) => {
 			frappe.prompt([
-				{ fieldname: "barcode", fieldtype: "Data", label: __("Item barcode or SKU"), reqd: 1 },
+				{ fieldname: "barcode", fieldtype: "Data", label: __("SKU, item barcode, Batch No, or Serial No"), reqd: 1 },
 				{ fieldname: "quantity", fieldtype: "Int", label: __("Quantity"), default: 1, reqd: 1 },
 			], resolve, __("Verify {0}", [button.dataset.itemCode]), __("Verify item"));
 		});
@@ -102,7 +102,8 @@ class FulfillmentTasks {
 			freeze_message: __("Verifying item with ERPNext…"),
 		});
 		dialog.hide();
-		frappe.show_alert({ message: __("{0}: {1} of {2} picked", [message.item_code, message.picked_qty, message.required_qty]), indicator: message.complete ? "green" : "blue" });
+		const scanned = message.serial_no || message.batch_no || message.item_code;
+		frappe.show_alert({ message: __("{0} verified — {1}: {2} of {3} picked", [scanned, message.item_code, message.picked_qty, message.required_qty]), indicator: message.complete ? "green" : "blue" });
 		this.open_task(task.name);
 	}
 

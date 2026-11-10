@@ -19,6 +19,41 @@ class TestSecurity(unittest.TestCase):
         self.assertNotIn("Territory", install._role_doctypes(ROLE_SALESPERSON))
         self.assertIn("Sales Order", install._role_doctypes(ROLE_BUSINESS_ADMIN))
 
+    def test_warehouse_roles_receive_read_only_tracked_stock_dependencies(self):
+        doctypes = install._role_doctypes(ROLE_WAREHOUSE_OPERATOR)
+        self.assertIn("Batch", doctypes)
+        self.assertIn("Serial No", doctypes)
+        self.assertIn("Serial and Batch Bundle", doctypes)
+        self.assertNotIn("Stock Entry", doctypes)
+
+    def test_serial_batch_bundle_mutation_is_limited_to_pick_submit_context(self):
+        document = frappe._dict(
+            voucher_type="Pick List", voucher_no="TEST-PICK-1"
+        )
+        with patch.object(
+            security, "get_user_roles", return_value={ROLE_WAREHOUSE_OPERATOR}
+        ):
+            self.assertFalse(
+                security.serial_batch_bundle_has_permission(
+                    document, user="warehouse@example.invalid", ptype="create"
+                )
+            )
+            frappe.flags.clothing_pick_bundle = document.voucher_no
+            try:
+                self.assertTrue(
+                    security.serial_batch_bundle_has_permission(
+                        document, user="warehouse@example.invalid", ptype="submit"
+                    )
+                )
+                document.voucher_no = "OTHER-PICK"
+                self.assertFalse(
+                    security.serial_batch_bundle_has_permission(
+                        document, user="warehouse@example.invalid", ptype="write"
+                    )
+                )
+            finally:
+                frappe.flags.pop("clothing_pick_bundle", None)
+
     def test_guest_has_no_access(self):
         self.assertFalse(security.has_any_role(ROLE_SALESPERSON, "Guest"))
 

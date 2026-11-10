@@ -173,6 +173,19 @@ def operational_document_has_permission(doc, user=None, ptype=None, **kwargs):
     return True
 
 
+def serial_batch_bundle_has_permission(doc, user=None, ptype=None, **kwargs):
+    """Allow bundle mutation only inside the authorized Pick List submit service."""
+    if ptype in {"create", "write", "submit", "cancel", "delete"}:
+        pick_list = frappe.flags.get("clothing_pick_bundle")
+        return bool(
+            pick_list
+            and is_warehouse_operator(user)
+            and doc.get("voucher_type") == "Pick List"
+            and doc.get("voucher_no") == pick_list
+        )
+    return True
+
+
 def user_has_permission(doc, user=None, ptype=None, **kwargs):
     """Keep operational Clothing ERP users out of framework user management."""
     user = get_current_user(user)

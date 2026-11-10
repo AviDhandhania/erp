@@ -68,7 +68,14 @@ def _role_doctypes(role):
         ROLE_WAREHOUSE_MANAGER,
         ROLE_BUSINESS_ADMIN,
     }:
-        doctypes |= {"Warehouse", "Pick List", "Delivery Note"}
+        doctypes |= {
+            "Warehouse",
+            "Pick List",
+            "Delivery Note",
+            "Batch",
+            "Serial No",
+            "Serial and Batch Bundle",
+        }
     return doctypes
 
 
@@ -164,6 +171,16 @@ def after_install():
                     doctype,
                     name,
                     ["read", "write", "create", "submit", "cancel", "amend"],
+                )
+            elif doctype == "Serial and Batch Bundle" and name in {
+                ROLE_WAREHOUSE_OPERATOR,
+                ROLE_WAREHOUSE_MANAGER,
+                ROLE_BUSINESS_ADMIN,
+            }:
+                # A permission hook restricts mutation to the row-locked Pick List
+                # completion service; direct bundle creation remains denied.
+                _ensure_custom_docperm(
+                    doctype, name, ["read", "write", "create", "submit"]
                 )
             else:
                 _ensure_custom_docperm(doctype, name, ["read"])

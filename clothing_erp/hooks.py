@@ -67,6 +67,7 @@ has_permission = {
 	"Sales Order": "clothing_erp.security.operational_document_has_permission",
 	"Delivery Note": "clothing_erp.security.operational_document_has_permission",
 	"Pick List": "clothing_erp.security.operational_document_has_permission",
+	"Serial and Batch Bundle": "clothing_erp.security.serial_batch_bundle_has_permission",
 	"Retailer Application": "clothing_erp.security.retailer_record_has_permission",
 	"Retailer Visit": "clothing_erp.security.retailer_record_has_permission",
 	"User": "clothing_erp.security.user_has_permission",
