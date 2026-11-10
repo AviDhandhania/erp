@@ -1,0 +1,18 @@
+{
+ "content": null,
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "module": "Clothing ERP",
+ "name": "product-pricing",
+ "owner": "Administrator",
+ "page_name": "product-pricing",
+ "roles": [
+  {"role": "Clothing Business Administrator"},
+  {"role": "System Manager"}
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "title": "Product Pricing"
+}

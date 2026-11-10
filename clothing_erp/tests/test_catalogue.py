@@ -1,6 +1,8 @@
 """Catalogue security, filtering and matrix assembly tests."""
 
 import unittest
+from pathlib import Path
+from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import frappe
@@ -9,6 +11,103 @@ from clothing_erp import catalogue, pricing
 
 
 class TestCatalogue(unittest.TestCase):
+    def test_product_pricing_rejects_unauthorized_user_before_queries(self):
+        with (
+            patch.object(pricing, "require_role", side_effect=frappe.PermissionError),
+            patch.object(frappe, "get_list") as query,
+            self.assertRaises(frappe.PermissionError),
+        ):
+            pricing.get_product_pricing()
+        query.assert_not_called()
+
+    def test_product_pricing_page_is_admin_owned_and_linked(self):
+        root = Path(__file__).parents[1]
+        page = root / "clothing_erp/page/product_pricing/product_pricing.json"
+        self.assertTrue(page.exists())
+        self.assertIn('"role": "Clothing Business Administrator"', page.read_text())
+        workspace = (
+            root / "clothing_erp/workspace/clothing_erp/clothing_erp.json"
+        ).read_text()
+        self.assertIn('"link_to": "product-pricing"', workspace)
+
+    def test_template_price_refuses_overlapping_active_prices_before_mutation(self):
+        variants = [
+            frappe._dict(
+                name="TEST-MAROON-M",
+                item_name="TEST Maroon / M",
+                variant_of="TEST-MAROON",
+                stock_uom="Nos",
+                size="M",
+            )
+        ]
+        with (
+            patch.object(pricing, "require_role"),
+            patch.object(
+                pricing,
+                "_selling_price_list",
+                return_value=frappe._dict(name="Standard Selling", currency="INR"),
+            ),
+            patch.object(frappe, "get_list", return_value=["TEST-MAROON"]),
+            patch.object(pricing, "_size_only_variants", return_value=variants),
+            patch.object(frappe.db, "sql"),
+            patch.object(
+                pricing,
+                "_active_generic_prices",
+                return_value=({}, {"TEST-MAROON-M"}),
+            ),
+            patch.object(frappe, "throw", side_effect=frappe.ValidationError),
+            patch.object(frappe, "get_doc") as mutate,
+            self.assertRaises(frappe.ValidationError),
+        ):
+            pricing.set_template_price("TEST-MAROON", "Standard Selling", 999)
+        mutate.assert_not_called()
+
+    def test_template_price_creates_native_item_prices_for_every_size(self):
+        variants = [
+            frappe._dict(
+                name=f"TEST-MAROON-{size}",
+                item_name=f"TEST Maroon / {size}",
+                variant_of="TEST-MAROON",
+                stock_uom="Nos",
+                size=size,
+            )
+            for size in ("M", "L")
+        ]
+        created = []
+
+        def get_doc(payload, *args):
+            document = MagicMock()
+            document.name = f"TEST-PRICE-{len(created) + 1}"
+            created.append((payload, document))
+            return document
+
+        with (
+            patch.object(pricing, "require_role"),
+            patch.object(
+                pricing,
+                "_selling_price_list",
+                return_value=frappe._dict(name="Standard Selling", currency="INR"),
+            ),
+            patch.object(frappe, "get_list", return_value=["TEST-MAROON"]),
+            patch.object(pricing, "_size_only_variants", return_value=variants),
+            patch.object(frappe.db, "sql") as lock,
+            patch.object(pricing, "_active_generic_prices", return_value=({}, set())),
+            patch.object(frappe, "get_doc", side_effect=get_doc),
+            patch.object(pricing, "nowdate", return_value="2026-11-10"),
+        ):
+            result = pricing.set_template_price(
+                "TEST-MAROON", "Standard Selling", "999"
+            )
+        self.assertIn("for update", lock.call_args.args[0].lower())
+        self.assertEqual(len(created), 2)
+        self.assertEqual(
+            {payload["item_code"] for payload, _document in created},
+            {"TEST-MAROON-M", "TEST-MAROON-L"},
+        )
+        self.assertTrue(all(payload["doctype"] == "Item Price" for payload, _ in created))
+        self.assertTrue(all(document.insert.called for _payload, document in created))
+        self.assertEqual(len(result["changed"]), 2)
+
     def test_trusted_customer_pricing_keeps_native_checks_without_sales_order_ui_permission(self):
         details = frappe._dict(
             warehouse=None,

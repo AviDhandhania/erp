@@ -80,6 +80,10 @@ in for them now.
 - [x] Keep assigned-retailer pricing available to operational salespeople without granting
   native Sales Order access: the trusted catalogue adapter performs explicit Customer,
   Price List, Item and Warehouse checks before invoking the pinned ERPNext calculation.
+- [x] Add administrator-only Product Pricing in Clothing ERP so one rate can be previewed
+  and applied across every enabled Size variant of a colour-specific template. The service
+  creates or updates standard ERPNext Item Price records and refuses overlapping active
+  prices rather than introducing template prices or a duplicate price model.
 - [x] Persist selected quantities through the separately tested Stage 5 native draft-order flow.
 
 The displayed stock is informational on-hand quantity, not a reservation or promise.
@@ -178,7 +182,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 102 app tests passed through the real site runner and 34 installer/package
+Verification: 106 app tests passed through the real site runner and 34 installer/package
 tests passed. Chromium checks verified that salesperson intake hides server-owned master
 fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
 resulting native Sales Order. Desktop/mobile Chromium checks passed with all three icons,

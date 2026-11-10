@@ -137,7 +137,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Garment Catalog",
-   "link_count": 2,
+   "link_count": 3,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -158,6 +158,16 @@
    "link_count": 0,
    "link_to": "Price List",
    "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Product Pricing",
+   "link_count": 0,
+   "link_to": "product-pricing",
+   "link_type": "Page",
    "onboard": 0,
    "type": "Link"
   }
