@@ -75,8 +75,31 @@ class FulfillmentTasks {
 	async open_task(name) {
 		const { message: task } = await frappe.call({ method: "clothing_erp.fulfillment.get_fulfillment_task", args: { task_type: this.state.task_type, name }, freeze: true, freeze_message: __("Loading task…") });
 		const dialog = new frappe.ui.Dialog({ title: task.name, size: "extra-large" });
-		const rows = task.rows.map((row) => `<tr><td><strong>${this.escape(row.item_name || row.item_code)}</strong><small>${this.escape(row.item_code)}</small></td><td>${this.escape(row.warehouse)}</td><td class="text-right">${format_number(row.qty)} ${this.escape(row.stock_uom)}</td><td class="text-right">${row.picked_qty == null ? "—" : format_number(row.picked_qty)}</td><td>${this.escape(row.batch_no || row.serial_no || "—")}</td></tr>`).join("");
-		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div></div><div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th></tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}`);
+		const rows = task.rows.map((row) => {
+			const action = task.can_verify_items ? `<button type="button" class="btn btn-default btn-xs verify-pick-item" data-location="${this.escape(row.location)}" data-item-code="${this.escape(row.item_code)}">${__("Verify item")}</button>` : "";
+			return `<tr><td><strong>${this.escape(row.item_name || row.item_code)}</strong><small>${this.escape(row.item_code)}</small></td><td>${this.escape(row.warehouse)}</td><td class="text-right">${format_number(row.stock_qty)} ${this.escape(row.stock_uom)}</td><td class="text-right">${row.picked_qty == null ? "0" : format_number(row.picked_qty)}</td><td>${this.escape(row.batch_no || row.serial_no || "—")}</td>${task.can_verify_items ? `<td class="text-right">${action}</td>` : ""}</tr>`;
+		}).join("");
+		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div></div>${task.can_verify_items ? `<div class="alert alert-info">${__("Verify the physical item barcode against its exact Pick List row. Each scan updates ERPNext picked quantity.")}</div>` : ""}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${task.can_verify_items ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}`);
+		dialog.$body.on("click", ".verify-pick-item", (event) => this.verify_item(task, event.currentTarget, dialog));
 		dialog.show();
+	}
+
+	async verify_item(task, button, dialog) {
+		const values = await new Promise((resolve) => {
+			frappe.prompt([
+				{ fieldname: "barcode", fieldtype: "Data", label: __("Item barcode or SKU"), reqd: 1 },
+				{ fieldname: "quantity", fieldtype: "Int", label: __("Quantity"), default: 1, reqd: 1 },
+			], resolve, __("Verify {0}", [button.dataset.itemCode]), __("Verify item"));
+		});
+		const { message } = await frappe.call({
+			method: "clothing_erp.fulfillment.verify_pick_item",
+			type: "POST",
+			args: { pick_list: task.name, location: button.dataset.location, barcode: values.barcode, quantity: values.quantity },
+			freeze: true,
+			freeze_message: __("Verifying item with ERPNext…"),
+		});
+		dialog.hide();
+		frappe.show_alert({ message: __("{0}: {1} of {2} picked", [message.item_code, message.picked_qty, message.required_qty]), indicator: message.complete ? "green" : "blue" });
+		this.open_task(task.name);
 	}
 }

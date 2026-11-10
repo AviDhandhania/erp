@@ -11,6 +11,23 @@ from clothing_erp import fulfillment
 
 
 class TestFulfillment(unittest.TestCase):
+    def pick_document(self, picked_qty=0, stock_qty=3, docstatus=0):
+        row = frappe._dict(
+            name="TEST-LOCATION-1",
+            item_code="TEST-SHIRT-M",
+            item_name="TEST Shirt / M",
+            warehouse="TEST Warehouse",
+            stock_uom="Nos",
+            stock_qty=stock_qty,
+            qty=stock_qty,
+            picked_qty=picked_qty,
+        )
+        document = MagicMock()
+        document.name = "TEST-PICK-1"
+        document.docstatus = docstatus
+        document.locations = [row]
+        return document, row
+
     def test_directory_rejects_unauthorized_user_before_query(self):
         with (
             patch.object(fulfillment, "require_role", side_effect=frappe.PermissionError),
@@ -86,3 +103,68 @@ class TestFulfillment(unittest.TestCase):
                 for row in links
             )
         )
+
+    def test_pick_verification_rejects_unauthorized_user_before_document_read(self):
+        with (
+            patch.object(fulfillment, "require_role", side_effect=frappe.PermissionError),
+            patch.object(frappe, "get_doc") as query,
+            self.assertRaises(frappe.PermissionError),
+        ):
+            fulfillment.verify_pick_item(
+                "TEST-PICK-1", "TEST-LOCATION-1", "TEST-SHIRT-M"
+            )
+        query.assert_not_called()
+
+    def test_pick_verification_rejects_wrong_barcode_before_lock(self):
+        document, _row = self.pick_document()
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(frappe.db, "get_value", return_value=None),
+            patch.object(frappe, "throw", side_effect=frappe.ValidationError),
+            patch.object(frappe.db, "sql") as lock,
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.verify_pick_item(
+                document.name, "TEST-LOCATION-1", "WRONG-BARCODE"
+            )
+        self.assertFalse(
+            any("for update" in str(call.args[0]).lower() for call in lock.call_args_list)
+        )
+
+    def test_pick_verification_prevents_over_picking_after_lock(self):
+        before, _before_row = self.pick_document(picked_qty=2, stock_qty=3)
+        after, _after_row = self.pick_document(picked_qty=2, stock_qty=3)
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", side_effect=[before, after]),
+            patch.object(frappe.db, "sql") as lock,
+            patch.object(frappe, "throw", side_effect=frappe.ValidationError),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.verify_pick_item(
+                before.name, "TEST-LOCATION-1", "TEST-SHIRT-M", 2
+            )
+        self.assertTrue(
+            any("for update" in str(call.args[0]).lower() for call in lock.call_args_list)
+        )
+        after.save.assert_not_called()
+
+    def test_pick_verification_locks_rechecks_and_saves_native_pick_list(self):
+        before, _before_row = self.pick_document(picked_qty=0, stock_qty=3)
+        after, after_row = self.pick_document(picked_qty=0, stock_qty=3)
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", side_effect=[before, after]),
+            patch.object(frappe.db, "sql") as lock,
+        ):
+            result = fulfillment.verify_pick_item(
+                before.name, "TEST-LOCATION-1", "TEST-SHIRT-M", 2
+            )
+        self.assertIn("for update", lock.call_args.args[0].lower())
+        self.assertEqual(after.check_permission.call_count, 1)
+        self.assertEqual(after.scan_mode, 1)
+        self.assertEqual(after_row.picked_qty, 2)
+        after.save.assert_called_once_with(ignore_permissions=True)
+        self.assertEqual(result["picked_qty"], 2)
+        self.assertFalse(result["complete"])

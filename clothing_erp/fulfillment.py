@@ -1,7 +1,9 @@
 """Permission-aware Clothing ERP views over native fulfillment documents."""
 
+from decimal import Decimal, InvalidOperation
+
 import frappe
-from frappe.utils import cint
+from frappe.utils import cint, flt
 
 from clothing_erp.roles import (
     ROLE_BUSINESS_ADMIN,
@@ -18,6 +20,7 @@ FULFILLMENT_ROLES = {
 TASK_TYPES = {"pick": "Pick List", "delivery": "Delivery Note"}
 TASK_STATES = {"all", "draft", "submitted", "cancelled"}
 MAX_TASK_PAGE_SIZE = 50
+MAX_PICK_SCAN_QUANTITY = 100_000
 
 
 def _task_type(value):
@@ -103,11 +106,13 @@ def get_fulfillment_task(task_type, name):
                 "item_name": row.item_name,
                 "warehouse": row.warehouse,
                 "qty": row.qty,
+                "stock_qty": row.stock_qty,
                 "picked_qty": row.get("picked_qty"),
                 "stock_uom": row.stock_uom,
                 "batch_no": row.get("batch_no"),
                 "serial_no": row.get("serial_no"),
                 "sales_order": row.get("sales_order") or row.get("against_sales_order"),
+                "location": row.name,
             }
         )
     return {
@@ -123,4 +128,84 @@ def get_fulfillment_task(task_type, name):
         "parent_warehouse": document.get("parent_warehouse"),
         "rows": rows,
         "rows_truncated": len(child_rows) > len(rows),
+        "can_verify_items": task_type == "pick" and document.docstatus == 0,
+    }
+
+
+def _scan_quantity(value):
+    try:
+        quantity = Decimal(str(value))
+    except InvalidOperation, ValueError:
+        frappe.throw(frappe._("Scan quantity must be a positive whole number."))
+    if (
+        not quantity.is_finite()
+        or quantity != quantity.to_integral_value()
+        or quantity <= 0
+        or quantity > MAX_PICK_SCAN_QUANTITY
+    ):
+        frappe.throw(frappe._("Scan quantity must be a positive whole number."))
+    return int(quantity)
+
+
+def _pick_location(document, location):
+    location = str(location or "").strip()[:140]
+    row = next((row for row in document.locations if row.name == location), None)
+    if not row:
+        frappe.throw(frappe._("The selected Pick List row is unavailable."))
+    return row
+
+
+def _verify_item_barcode(barcode, item_code):
+    barcode = str(barcode or "").strip()[:140]
+    if not barcode:
+        frappe.throw(frappe._("Scan or enter an item barcode."))
+    mapped_item = item_code if barcode == item_code else frappe.db.get_value(
+        "Item Barcode", {"barcode": barcode}, "parent"
+    )
+    if mapped_item != item_code:
+        frappe.throw(frappe._("The barcode does not match the selected Pick List item."))
+    return barcode
+
+
+@frappe.whitelist(methods=["POST"])
+def verify_pick_item(pick_list, location, barcode, quantity=1):
+    """Increment native picked quantity after exact row and barcode verification."""
+    require_role(FULFILLMENT_ROLES)
+    pick_list = _task_name(pick_list)
+    quantity = _scan_quantity(quantity)
+    document = frappe.get_doc("Pick List", pick_list)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(frappe._("Only a draft Pick List can be verified."))
+    row = _pick_location(document, location)
+    _verify_item_barcode(barcode, row.item_code)
+
+    frappe.db.sql(
+        "select name from `tabPick List` where name = %s for update", pick_list
+    )
+    document = frappe.get_doc("Pick List", pick_list)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(frappe._("This Pick List changed while scanning. Refresh it."))
+    row = _pick_location(document, location)
+    _verify_item_barcode(barcode, row.item_code)
+    required = flt(row.stock_qty)
+    picked = flt(row.picked_qty)
+    if picked + quantity > required:
+        frappe.throw(
+            frappe._(
+                "This scan would exceed the required quantity of {0} {1}."
+            ).format(required, row.stock_uom)
+        )
+    document.scan_mode = 1
+    row.picked_qty = picked + quantity
+    document.save(ignore_permissions=True)
+    return {
+        "pick_list": document.name,
+        "location": row.name,
+        "item_code": row.item_code,
+        "warehouse": row.warehouse,
+        "picked_qty": row.picked_qty,
+        "required_qty": row.stock_qty,
+        "complete": flt(row.picked_qty) == flt(row.stock_qty),
     }

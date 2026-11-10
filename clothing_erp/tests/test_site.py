@@ -6,7 +6,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, now_datetime
 
-from clothing_erp import api, catalogue, security
+from clothing_erp import api, catalogue, fulfillment, security
 from clothing_erp.clothing_erp.doctype.retailer_application.retailer_application import (
     approve,
     reject,
@@ -137,6 +137,99 @@ class TestSitePermissions(IntegrationTestCase):
         self.assertEqual(frappe.get_list("Pick List", pluck="name"), [])
         self.assertEqual(frappe.get_list("Delivery Note", pluck="name"), [])
         self.assertEqual(api.get_warehouse_dashboard()["pick_tasks"], [])
+
+    def test_pick_barcode_verification_updates_native_pick_list_row(self):
+        company = frappe.defaults.get_global_default("company")
+        item = frappe.get_doc(
+            {
+                "doctype": "Item",
+                "item_code": "TEST-PICK-SCAN-ITEM",
+                "item_name": "TEST Pick Scan Item",
+                "item_group": "Products",
+                "stock_uom": "Nos",
+                "is_stock_item": 1,
+            }
+        ).insert()
+        warehouse = frappe.get_doc(
+            {
+                "doctype": "Warehouse",
+                "warehouse_name": "TEST Pick Scan Warehouse",
+                "company": company,
+                "is_group": 0,
+            }
+        ).insert()
+        frappe.get_doc(
+            {
+                "doctype": "Bin",
+                "item_code": item.name,
+                "warehouse": warehouse.name,
+                "stock_uom": item.stock_uom,
+                "actual_qty": 10,
+            }
+        ).db_insert()
+        pick_list = frappe.get_doc(
+            {
+                "doctype": "Pick List",
+                "company": company,
+                "purpose": "Material Transfer",
+                "pick_manually": 1,
+                "locations": [
+                    {
+                        "item_code": item.name,
+                        "item_name": item.item_name,
+                        "warehouse": warehouse.name,
+                        "qty": 3,
+                        "stock_qty": 3,
+                        "uom": item.stock_uom,
+                        "stock_uom": item.stock_uom,
+                        "conversion_factor": 1,
+                        "picked_qty": 0,
+                    }
+                ],
+            }
+        ).insert()
+        location = pick_list.locations[0]
+        scanner = frappe.get_doc(
+            {
+                "doctype": "User",
+                "email": "test-clothing-scanner@example.invalid",
+                "first_name": "TEST Clothing Scanner",
+                "send_welcome_email": 0,
+                "roles": [{"role": ROLE_WAREHOUSE_OPERATOR}],
+            }
+        ).insert()
+        frappe.get_doc(
+            {
+                "doctype": "User Permission",
+                "user": scanner.name,
+                "allow": "Warehouse",
+                "for_value": warehouse.name,
+                "apply_to_all_doctypes": 1,
+            }
+        ).insert()
+        frappe.get_doc(
+            {
+                "doctype": "ToDo",
+                "allocated_to": scanner.name,
+                "reference_type": "Pick List",
+                "reference_name": pick_list.name,
+                "status": "Open",
+                "description": "TEST assigned clothing pick",
+            }
+        ).insert()
+        frappe.clear_cache(user=scanner.name)
+        frappe.set_user(scanner.name)
+        try:
+            result = fulfillment.verify_pick_item(
+                pick_list.name, location.name, item.name, 2
+            )
+            pick_list.reload()
+            self.assertEqual(pick_list.locations[0].picked_qty, 2)
+            self.assertEqual(result["item_code"], item.name)
+            self.assertFalse(result["complete"])
+        finally:
+            frappe.set_user("Administrator")
+            frappe.clear_cache(user=scanner.name)
 
     def test_catalogue_reads_real_erpnext_variants_prices_and_stock(self):
         from erpnext.controllers.item_variant import create_variant
