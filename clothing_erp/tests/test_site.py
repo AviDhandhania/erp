@@ -138,7 +138,7 @@ class TestSitePermissions(IntegrationTestCase):
         self.assertEqual(frappe.get_list("Delivery Note", pluck="name"), [])
         self.assertEqual(api.get_warehouse_dashboard()["pick_tasks"], [])
 
-    def test_pick_barcode_verification_updates_native_pick_list_row(self):
+    def test_pick_verification_and_completion_use_native_pick_list(self):
         company = frappe.defaults.get_global_default("company")
         item = frappe.get_doc(
             {
@@ -207,7 +207,7 @@ class TestSitePermissions(IntegrationTestCase):
                 "apply_to_all_doctypes": 1,
             }
         ).insert()
-        frappe.get_doc(
+        assignment = frappe.get_doc(
             {
                 "doctype": "ToDo",
                 "allocated_to": scanner.name,
@@ -227,9 +227,23 @@ class TestSitePermissions(IntegrationTestCase):
             self.assertEqual(pick_list.locations[0].picked_qty, 2)
             self.assertEqual(result["item_code"], item.name)
             self.assertFalse(result["complete"])
+            with self.assertRaises(frappe.ValidationError):
+                fulfillment.complete_pick_list(pick_list.name)
+            fulfillment.verify_pick_item(
+                pick_list.name, location.name, item.name, 1
+            )
+            detail = fulfillment.get_fulfillment_task("pick", pick_list.name)
+            self.assertTrue(detail["can_complete_pick"])
+            completion = fulfillment.complete_pick_list(pick_list.name)
         finally:
             frappe.set_user("Administrator")
             frappe.clear_cache(user=scanner.name)
+        pick_list.reload()
+        assignment.reload()
+        self.assertEqual(pick_list.docstatus, 1)
+        self.assertEqual(pick_list.locations[0].picked_qty, 3)
+        self.assertEqual(completion["docstatus"], 1)
+        self.assertEqual(assignment.status, "Closed")
 
     def test_catalogue_reads_real_erpnext_variants_prices_and_stock(self):
         from erpnext.controllers.item_variant import create_variant

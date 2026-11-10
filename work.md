@@ -35,8 +35,8 @@ Frappe v16.55.2. The upstream repositories remain unmodified; the local ERPNext 
 was moved from an incompatible develop snapshot to the exact release tag.
 The local setup wizard was completed with the fictional TEST Clothing ERP Demo company.
 The production installer leaves the wizard available for the operator's real configuration.
-The previous Stage 2 checklist overstated completion: barcode scanning, follow-ups,
-packing queues and commercial workflows remain unimplemented. No mock data stands
+The previous Stage 2 checklist overstated completion: follow-ups, packing queues and
+commercial workflows remain unimplemented. No mock data stands
 in for them now.
 
 ## Apparel features still to build
@@ -45,8 +45,8 @@ in for them now.
    approval, cancellation and lifecycle status. The matrix-to-native-draft adapter,
    server-authoritative pricing and duplicate-request protection are complete.
 2. Complete exact pinned-release database coverage for Sales Order submission.
-3. Warehouse operations: assigned picking, barcode verification, shortages, packing,
-   dispatch and standard Delivery Notes.
+3. Warehouse operations: serial/batch verification, shortages, packing, dispatch and
+   standard Delivery Notes.
 4. Retailer-direct requests: authenticated intake and approval before Sales Orders.
 5. Realtime workflow notifications, reconciliation and operational reports.
 6. Full permission audit and cross-user integration/concurrency coverage.
@@ -146,6 +146,9 @@ coverage remains open.
 - [x] Add row-specific item-barcode/SKU verification for authorized draft Pick Lists;
   scans row-lock and recheck the native task, prevent over-picking and update ERPNext
   `picked_qty` through the native Pick List controller.
+- [x] Add row-locked Pick List completion after every row is verified; active workflows
+  are never bypassed, ERPNext's native submit controller owns all stock, serial/batch,
+  reservation and reference validation, and assignments close only after submission.
 - [ ] Add serial/batch barcode verification, shortage resolution, packing and native
   Delivery Note dispatch actions after exact-release integration coverage is in place.
 
@@ -185,7 +188,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 111 app tests passed through the real site runner and 34 installer/package
+Verification: 115 app tests passed through the real site runner and 34 installer/package
 tests passed. Chromium checks verified that salesperson intake hides server-owned master
 fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
 resulting native Sales Order. Desktop/mobile Chromium checks passed with all three icons,

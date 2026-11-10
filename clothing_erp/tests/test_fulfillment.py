@@ -22,10 +22,16 @@ class TestFulfillment(unittest.TestCase):
             qty=stock_qty,
             picked_qty=picked_qty,
         )
-        document = MagicMock()
-        document.name = "TEST-PICK-1"
-        document.docstatus = docstatus
-        document.locations = [row]
+        document = frappe._dict(
+            name="TEST-PICK-1",
+            docstatus=docstatus,
+            status="Draft" if docstatus == 0 else "Open",
+            locations=[row],
+            flags=frappe._dict(),
+            check_permission=MagicMock(),
+            save=MagicMock(),
+            submit=MagicMock(),
+        )
         return document, row
 
     def test_directory_rejects_unauthorized_user_before_query(self):
@@ -70,6 +76,7 @@ class TestFulfillment(unittest.TestCase):
         with (
             patch.object(fulfillment, "require_role"),
             patch.object(frappe, "get_doc", return_value=document),
+            patch.object(fulfillment, "_active_pick_list_workflow", return_value=None),
         ):
             result = fulfillment.get_fulfillment_task("pick", document.name)
         document.check_permission.assert_called_once_with("read")
@@ -122,15 +129,13 @@ class TestFulfillment(unittest.TestCase):
             patch.object(frappe, "get_doc", return_value=document),
             patch.object(frappe.db, "get_value", return_value=None),
             patch.object(frappe, "throw", side_effect=frappe.ValidationError),
-            patch.object(frappe.db, "sql") as lock,
+            patch.object(fulfillment, "_lock_pick_list") as lock,
             self.assertRaises(frappe.ValidationError),
         ):
             fulfillment.verify_pick_item(
                 document.name, "TEST-LOCATION-1", "WRONG-BARCODE"
             )
-        self.assertFalse(
-            any("for update" in str(call.args[0]).lower() for call in lock.call_args_list)
-        )
+        lock.assert_not_called()
 
     def test_pick_verification_prevents_over_picking_after_lock(self):
         before, _before_row = self.pick_document(picked_qty=2, stock_qty=3)
@@ -138,16 +143,14 @@ class TestFulfillment(unittest.TestCase):
         with (
             patch.object(fulfillment, "require_role"),
             patch.object(frappe, "get_doc", side_effect=[before, after]),
-            patch.object(frappe.db, "sql") as lock,
+            patch.object(fulfillment, "_lock_pick_list") as lock,
             patch.object(frappe, "throw", side_effect=frappe.ValidationError),
             self.assertRaises(frappe.ValidationError),
         ):
             fulfillment.verify_pick_item(
                 before.name, "TEST-LOCATION-1", "TEST-SHIRT-M", 2
             )
-        self.assertTrue(
-            any("for update" in str(call.args[0]).lower() for call in lock.call_args_list)
-        )
+        lock.assert_called_once_with(before.name)
         after.save.assert_not_called()
 
     def test_pick_verification_locks_rechecks_and_saves_native_pick_list(self):
@@ -156,15 +159,82 @@ class TestFulfillment(unittest.TestCase):
         with (
             patch.object(fulfillment, "require_role"),
             patch.object(frappe, "get_doc", side_effect=[before, after]),
-            patch.object(frappe.db, "sql") as lock,
+            patch.object(fulfillment, "_lock_pick_list") as lock,
         ):
             result = fulfillment.verify_pick_item(
                 before.name, "TEST-LOCATION-1", "TEST-SHIRT-M", 2
             )
-        self.assertIn("for update", lock.call_args.args[0].lower())
+        lock.assert_called_once_with(before.name)
         self.assertEqual(after.check_permission.call_count, 1)
         self.assertEqual(after.scan_mode, 1)
         self.assertEqual(after_row.picked_qty, 2)
         after.save.assert_called_once_with(ignore_permissions=True)
         self.assertEqual(result["picked_qty"], 2)
         self.assertFalse(result["complete"])
+
+    def test_pick_completion_rejects_unauthorized_user_before_document_read(self):
+        with (
+            patch.object(fulfillment, "require_role", side_effect=frappe.PermissionError),
+            patch.object(frappe, "get_doc") as query,
+            self.assertRaises(frappe.PermissionError),
+        ):
+            fulfillment.complete_pick_list("TEST-PICK-1")
+        query.assert_not_called()
+
+    def test_pick_completion_requires_every_row_before_lock(self):
+        document, _row = self.pick_document(picked_qty=2, stock_qty=3)
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(fulfillment, "_active_pick_list_workflow", return_value=None),
+            patch.object(
+                fulfillment,
+                "_require_complete_pick",
+                side_effect=frappe.ValidationError,
+            ) as complete_check,
+            patch.object(fulfillment, "_lock_pick_list") as lock,
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.complete_pick_list(document.name)
+        complete_check.assert_called_once_with(document)
+        lock.assert_not_called()
+
+    def test_pick_completion_does_not_bypass_active_workflow(self):
+        document, _row = self.pick_document(picked_qty=3, stock_qty=3)
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(
+                fulfillment,
+                "_active_pick_list_workflow",
+                return_value="TEST Pick Approval",
+            ),
+            patch.object(fulfillment, "_lock_pick_list") as lock,
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.complete_pick_list(document.name)
+        lock.assert_not_called()
+
+    def test_pick_completion_locks_rechecks_submits_and_closes_assignments(self):
+        document, _row = self.pick_document(picked_qty=3, stock_qty=3)
+
+        def submit():
+            document.docstatus = 1
+            document.status = "Open"
+
+        document.submit.side_effect = submit
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document) as get_doc,
+            patch.object(fulfillment, "_active_pick_list_workflow", return_value=None),
+            patch.object(fulfillment, "_lock_pick_list") as lock,
+            patch.object(fulfillment, "_close_pick_assignments") as close_assignments,
+        ):
+            result = fulfillment.complete_pick_list(document.name)
+        self.assertGreaterEqual(get_doc.call_count, 2)
+        lock.assert_called_once_with(document.name)
+        self.assertGreaterEqual(document.check_permission.call_count, 2)
+        self.assertTrue(document.flags.ignore_permissions)
+        document.submit.assert_called_once_with()
+        close_assignments.assert_called_once_with(document.name)
+        self.assertEqual(result["docstatus"], 1)

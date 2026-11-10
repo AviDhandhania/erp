@@ -79,8 +79,11 @@ class FulfillmentTasks {
 			const action = task.can_verify_items ? `<button type="button" class="btn btn-default btn-xs verify-pick-item" data-location="${this.escape(row.location)}" data-item-code="${this.escape(row.item_code)}">${__("Verify item")}</button>` : "";
 			return `<tr><td><strong>${this.escape(row.item_name || row.item_code)}</strong><small>${this.escape(row.item_code)}</small></td><td>${this.escape(row.warehouse)}</td><td class="text-right">${format_number(row.stock_qty)} ${this.escape(row.stock_uom)}</td><td class="text-right">${row.picked_qty == null ? "0" : format_number(row.picked_qty)}</td><td>${this.escape(row.batch_no || row.serial_no || "—")}</td>${task.can_verify_items ? `<td class="text-right">${action}</td>` : ""}</tr>`;
 		}).join("");
-		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div></div>${task.can_verify_items ? `<div class="alert alert-info">${__("Verify the physical item barcode against its exact Pick List row. Each scan updates ERPNext picked quantity.")}</div>` : ""}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${task.can_verify_items ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}`);
+		const workflowNotice = task.workflow ? `<div class="alert alert-warning">${__("Pick List workflow {0} is active. Its configured approval actions must be completed before submission.", [this.escape(task.workflow)])}</div>` : "";
+		const completeAction = task.can_complete_pick ? `<div class="text-right"><button type="button" class="btn btn-primary complete-pick-list">${__("Complete picking")}</button></div>` : "";
+		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div></div>${task.can_verify_items ? `<div class="alert alert-info">${__("Verify the physical item barcode against its exact Pick List row. Each scan updates ERPNext picked quantity.")}</div>` : ""}${workflowNotice}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${task.can_verify_items ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}${completeAction}`);
 		dialog.$body.on("click", ".verify-pick-item", (event) => this.verify_item(task, event.currentTarget, dialog));
+		dialog.$body.on("click", ".complete-pick-list", () => this.complete_pick(task, dialog));
 		dialog.show();
 	}
 
@@ -101,5 +104,22 @@ class FulfillmentTasks {
 		dialog.hide();
 		frappe.show_alert({ message: __("{0}: {1} of {2} picked", [message.item_code, message.picked_qty, message.required_qty]), indicator: message.complete ? "green" : "blue" });
 		this.open_task(task.name);
+	}
+
+	async complete_pick(task, dialog) {
+		const confirmed = await new Promise((resolve) => {
+			frappe.confirm(__("Submit Pick List {0}? ERPNext will run its stock and serial/batch validations.", [task.name]), () => resolve(true), () => resolve(false));
+		});
+		if (!confirmed) return;
+		const { message } = await frappe.call({
+			method: "clothing_erp.fulfillment.complete_pick_list",
+			type: "POST",
+			args: { pick_list: task.name },
+			freeze: true,
+			freeze_message: __("Completing Pick List with ERPNext…"),
+		});
+		dialog.hide();
+		frappe.show_alert({ message: __("{0} completed: {1}", [message.pick_list, message.status]), indicator: "green" });
+		this.refresh();
 	}
 }

@@ -115,6 +115,15 @@ def get_fulfillment_task(task_type, name):
                 "location": row.name,
             }
         )
+    workflow_name = (
+        _active_pick_list_workflow()
+        if task_type == "pick" and document.docstatus == 0
+        else None
+    )
+    pick_complete = bool(child_rows) and all(
+        flt(row.get("picked_qty"), 6) >= flt(row.get("stock_qty"), 6)
+        for row in child_rows
+    )
     return {
         "name": document.name,
         "task_type": task_type,
@@ -129,6 +138,13 @@ def get_fulfillment_task(task_type, name):
         "rows": rows,
         "rows_truncated": len(child_rows) > len(rows),
         "can_verify_items": task_type == "pick" and document.docstatus == 0,
+        "can_complete_pick": bool(
+            task_type == "pick"
+            and document.docstatus == 0
+            and pick_complete
+            and not workflow_name
+        ),
+        "workflow": workflow_name,
     }
 
 
@@ -167,6 +183,46 @@ def _verify_item_barcode(barcode, item_code):
     return barcode
 
 
+def _active_pick_list_workflow():
+    from frappe.model.workflow import get_workflow_name
+
+    return get_workflow_name("Pick List")
+
+
+def _require_complete_pick(document):
+    if not document.locations or any(
+        flt(row.get("picked_qty"), 6) < flt(row.get("stock_qty"), 6)
+        for row in document.locations
+    ):
+        frappe.throw(
+            frappe._(
+                "Verify every required item quantity before completing this Pick List."
+            )
+        )
+
+
+def _require_no_pick_workflow():
+    if workflow_name := _active_pick_list_workflow():
+        frappe.throw(
+            frappe._(
+                "Pick List Workflow {0} is active. Complete its configured approval "
+                "actions; Clothing ERP will not bypass the workflow."
+            ).format(workflow_name)
+        )
+
+
+def _lock_pick_list(pick_list):
+    frappe.db.sql(
+        "select name from `tabPick List` where name = %s for update", pick_list
+    )
+
+
+def _close_pick_assignments(pick_list):
+    from frappe.desk.form.assign_to import close_all_assignments
+
+    close_all_assignments("Pick List", pick_list, ignore_permissions=True)
+
+
 @frappe.whitelist(methods=["POST"])
 def verify_pick_item(pick_list, location, barcode, quantity=1):
     """Increment native picked quantity after exact row and barcode verification."""
@@ -180,9 +236,7 @@ def verify_pick_item(pick_list, location, barcode, quantity=1):
     row = _pick_location(document, location)
     _verify_item_barcode(barcode, row.item_code)
 
-    frappe.db.sql(
-        "select name from `tabPick List` where name = %s for update", pick_list
-    )
+    _lock_pick_list(pick_list)
     document = frappe.get_doc("Pick List", pick_list)
     document.check_permission("read")
     if document.docstatus != 0:
@@ -208,4 +262,39 @@ def verify_pick_item(pick_list, location, barcode, quantity=1):
         "picked_qty": row.picked_qty,
         "required_qty": row.stock_qty,
         "complete": flt(row.picked_qty) == flt(row.stock_qty),
+    }
+
+
+@frappe.whitelist(methods=["POST"])
+def complete_pick_list(pick_list):
+    """Submit a fully verified Pick List through ERPNext's native controller."""
+    require_role(FULFILLMENT_ROLES)
+    pick_list = _task_name(pick_list)
+    document = frappe.get_doc("Pick List", pick_list)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(frappe._("Only a draft Pick List can be completed."))
+    _require_no_pick_workflow()
+    _require_complete_pick(document)
+
+    _lock_pick_list(pick_list)
+    document = frappe.get_doc("Pick List", pick_list)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(
+            frappe._("This Pick List changed while being completed. Refresh it.")
+        )
+    _require_no_pick_workflow()
+    _require_complete_pick(document)
+
+    document.flags.ignore_permissions = True
+    # Native submit owns stock availability, serial/batch, reservation, reference
+    # quantity, previous-document and final status behavior.
+    document.submit()
+
+    _close_pick_assignments(document.name)
+    return {
+        "pick_list": document.name,
+        "docstatus": document.docstatus,
+        "status": document.status,
     }
