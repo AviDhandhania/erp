@@ -118,9 +118,33 @@ The five clothing roles use native User Permissions for assigned Customers and
 Warehouses; pick lists additionally require an open ToDo assignment. All access is
 subject to native ERPNext permissions. No mock sales or simulated ERP server is used.
 
+### Confirmed target sales model — implementation pending
+
+Requirements captured on **2026-11-16** replace the earlier assumption that a common
+salesperson is the primary Clothing ERP sales user. The target sales area is for **ASM
+(Area Sales Manager)**, **RSM (Regional Sales Manager)** and administrators only. An ASM
+is Territory-scoped; an RSM supervises ASMs, approves their retailer applications and
+orders, reviews their visit reports, and has a separate 80-day shop-visit obligation with
+a five-day escalation grace period.
+
+Every retailer will be classified as **Buy & Sell**, **Buy & Sell — Stock Correction**,
+**SIS (Shop-in-Shop)** or **EBOC (Exclusive Brand Outlet)**. SIS and Buy & Sell cadence,
+RSM review, credit/exposure approvals and notification requirements have been recorded,
+but are not claimed as implemented. Existing `Clothing Salesperson` and `Clothing Sales
+Manager` screens remain the current v0.3 behavior until a tested ASM/RSM role and data
+migration is built. Common salespeople must not be added to the target sales area.
+
+The complete requirement hand-off, native ERPNext mapping, unresolved business questions
+and acceptance boundaries are in the
+[Field sales operating model](docs/field-sales-operating-model.md). In particular, the
+requested ceiling on stock already held at a shop plus incoming stock is not silently
+treated as ERPNext's normal receivables credit limit; stock ownership and valuation must
+be confirmed before that control is implemented.
+
 ## Development and operations
 
 - [Architecture and separation](docs/architecture.md)
+- [Field sales operating model and pending ASM/RSM requirements](docs/field-sales-operating-model.md)
 - [ERPNext settings compatibility](docs/erpnext-settings-compatibility.md)
 - [Release workflow and upstream upgrades](docs/releasing.md)
 - [Backups, recovery, layout and service commands](docs/operations.md)
@@ -168,7 +192,11 @@ No upstream source or substitute field definition is maintained by this app. Loc
 draft creation and idempotent replay are verified; submission still requires the exact
 pinned-release compatibility gate before Stage 5 is complete.
 
-### Retailer workflow
+### Current v0.3 retailer workflow (legacy role model)
+
+This section describes what the code currently does, not the newly confirmed ASM/RSM
+target. It remains documented so migration work can preserve data and close old access
+paths deliberately.
 
 1. A salesperson opens **Salesperson Portal → Register Retailer**, completes the
    Retailer Application and saves it. The salesperson is set and locked from the logged-in

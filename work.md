@@ -2,6 +2,67 @@
 
 This is the canonical roadmap. The workspace-level work.md points here.
 
+## Requirements intake — 2026-11-16
+
+The field-sales operating model has changed materially and is documented in full at
+[`docs/field-sales-operating-model.md`](docs/field-sales-operating-model.md). No workflow
+code was changed during this intake because more requirements are expected in the next
+prompt. The old generic salesperson/manager design must not be extended as though it were
+the final model.
+
+Confirmed requirements now governing the next stages:
+
+- [ ] Classify every retailer as exactly one of: **Buy & Sell**, **Buy & Sell — Stock
+  Correction**, **SIS (Shop-in-Shop)** or **EBOC (Exclusive Brand Outlet)**.
+- [ ] Give administrators an editable global source for those classifications and their
+  behavior. Prefer native ERPNext Customer Group leaves for classification and add
+  Clothing ERP settings only for cadence/escalation behavior Customer Group cannot hold.
+- [ ] Replace/migrate the legacy Clothing Salesperson/Sales Manager access model with
+  **ASM** and **RSM**. Only ASM, RSM and authorized administrators may access the Clothing
+  ERP sales area; common salespeople must have no access.
+- [ ] Scope each ASM to allotted Territory retailers using native Territory/User
+  Permissions. Model the RSM-to-ASM supervisory relationship explicitly; an RSM normally
+  handles 3–4 ASMs and 200–250 shops.
+- [ ] For SIS, automatically assign quarterly stock-review obligations, require separate
+  monthly general visits and support seasonal order-taking.
+- [ ] For Buy & Sell, require a monthly sample/order visit and a collection workflow based
+  on ERPNext outstanding data in the stated 90–120 days from Delivery Date.
+- [ ] Route ASM-created retailer applications to that ASM's RSM. Support request-for-more-
+  information, RSM completion of further details, RSM decision and initial limit setting.
+- [ ] Require an RSM visit to every in-scope shop within 80 days, notify the RSM as the
+  deadline approaches, allow five grace days and notify administrators after day 85.
+- [ ] Capture RSM dealer review, financial situation, customer footfall and credit/exposure
+  review on every RSM visit; route the RSM report to an administrator for review.
+- [ ] Route ASM visit reports to the supervising RSM and ASM-created Sales Orders to RSM
+  approval without bypassing native ERPNext Workflow or Sales Order validation.
+- [ ] Enforce the approved shop-stock exposure rule against stock already held plus new
+  incoming stock. Keep this distinct from native receivables credit until ownership,
+  valuation and document flow are confirmed.
+- [ ] Require administrator approval before a proposed credit/exposure-limit change is
+  applied, with immutable before/after/proposer/approver/reason audit data.
+- [ ] Preserve all application, visit, order, limit and escalation state transitions with
+  server-side role/Territory checks, concurrency protection and audit history.
+
+Known information still missing and explicitly deferred: Stock Correction and EBOC
+cadences, store-stock ownership, stock valuation, calendar semantics, seasonal calendar,
+RSM advance-warning timing, visit evidence, 90/120-day escalation behavior, capacity
+hard limits, overrides, notification channels and legacy-data migration details.
+
+## Repository audit — 2026-11-16
+
+- The application-code baseline was clean at `60f9beb`. After this requirements-only
+  documentation commit, local `main` is **35 commits ahead** of `origin/main`; these
+  commits have not been pushed by this audit.
+- The ERPNext checkout is clean. The India Compliance checkout is clean at its pinned
+  release. No upstream source was changed during requirements capture.
+- The Frappe checkout still has pre-existing local changes in `package.json` and
+  `yarn.lock`; they were not created or modified by this work and must not be committed
+  into Clothing ERP.
+- The local database service was stopped during the audit, so a live `list-apps` query
+  could not be repeated. The last completed validation (2026-11-10) had Frappe, ERPNext,
+  Clothing ERP, Insights and India Compliance installed and passing the tests recorded
+  below. This audit does not turn that historical result into a new live verification.
+
 ## Current foundation
 
 - [x] Independent clothing_erp app, version 0.3.0; no upstream core source edits.
@@ -184,15 +245,18 @@ coverage remains open.
 - [x] Database integration coverage for application, approval, native records, assignment
   visibility, reassignment cache changes, immutable history and visit creation.
 
-Stage 4 is complete. Retailer applications, visits and assignment history are app-owned
-workflow/audit records; the live retailer assignment remains a native User Permission and
-approved commercial masters remain native ERPNext documents. No ERPNext source was modified.
+Stage 4 was complete against the previous generic salesperson/manager requirements.
+The new ASM/RSM hierarchy, retailer classifications, scheduled obligations, multi-level
+review and credit/exposure approval requirements reopen the field-sales workflow. Existing
+retailer applications, visits and assignment history remain migration inputs; the live
+retailer assignment remains a native User Permission and approved commercial masters
+remain native ERPNext documents. No ERPNext source was modified.
 
 All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Verification: 125 app tests passed through the real site runner and 34 installer/package
+Last full verification on 2026-11-10: 126 app tests passed through the real site runner and 36 installer/package
 tests passed. Chromium checks verified that salesperson intake hides server-owned master
 fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
 resulting native Sales Order. Desktop/mobile Chromium checks passed with all three icons,

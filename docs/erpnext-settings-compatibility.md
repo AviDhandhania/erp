@@ -30,6 +30,28 @@ controllers that apply before implementation.
 | Retailer visits and reporting | Customer User Permissions and app role scope | A salesperson can record a visit only for an assigned native Customer. The Desk report uses permission-aware `get_list` queries and the same Retailer Visit permission conditions. |
 | Dashboard and directories | Native document permissions, User Permissions, currencies and submitted document state | Queries use permission-aware lists and keep currency totals separated. |
 
+## Pending ASM/RSM compatibility decisions
+
+Requirements captured on 2026-11-16 replace the generic salesperson/manager target with
+ASM/RSM-only sales access. The detailed source is
+[`field-sales-operating-model.md`](field-sales-operating-model.md). The native-first mapping
+to validate before implementation is:
+
+| Requirement | Preferred native authority | Clothing ERP responsibility still needed |
+|---|---|---|
+| Four retailer operating types | ERPNext Customer Group leaf records | Stable semantic mapping, cadence settings, authorized/audited type changes if native labels are editable |
+| ASM retailer visibility | Territory plus User Permission | ASM role boundary and complete Territory-scoped endpoints |
+| RSM supervises ASMs | Evaluate native Sales Person hierarchy without replacing User Permission security | Explicit User relationship, capacity warnings, review and approval scope |
+| Monthly/quarterly/80-day visits | Customer, Territory and native assignment where sufficient | Idempotent obligation scheduler, completion evidence, review states and escalation |
+| ASM order and RSM approval | Standard Sales Order and ERPNext Workflow/controller | Restricted Clothing ERP submission/review UI and hierarchy checks |
+| Money collection | Sales Invoice, Payment Terms, Payment Entry and Accounts Receivable | Scoped collection worklist, visit linkage, reminders and escalation only |
+| Accounting credit limit | Customer/Customer Group Credit Limit and native Sales Order checks | RSM sets the initial limit during retailer approval; later RSM change proposals require administrator approval and audit; no direct bypass |
+| Stock held at shop plus incoming stock | Native Warehouse, stock ledger and standard stock/delivery documents once ownership is defined | Derived exposure calculation and order block; valuation and ownership are unresolved |
+
+The final row must not be implemented using receivables outstanding alone. Native Customer
+credit and physical store-stock exposure represent different facts unless the remaining
+business rules explicitly unify them.
+
 ## Required checks for upcoming stages
 
 Draft ordering now calls the native pricing and Sales Order controllers. Before native
