@@ -781,3 +781,7 @@ class TestSitePermissions(IntegrationTestCase):
         self.assertEqual(new_sup.status, "Cancelled")
         self.assertEqual(security.assigned_sales_territories(asm_email), [])
         self.assertEqual(security.assigned_sales_territories(rsm2_email), [])
+
+    def test_legacy_sales_roles_do_not_exist_in_database(self):
+        self.assertFalse(frappe.db.exists("Role", "Clothing Salesperson"))
+        self.assertFalse(frappe.db.exists("Role", "Clothing Sales Manager"))

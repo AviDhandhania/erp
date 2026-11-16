@@ -172,3 +172,18 @@ class TestSecurity(unittest.TestCase):
         ):
             self.assertFalse(security.asm_supervision_has_permission(doc, "rsm@example.invalid", "write"))
             self.assertFalse(security.asm_supervision_has_permission(doc, "rsm@example.invalid", "create"))
+
+    def test_legacy_roles_are_purged_and_not_in_active_roles(self):
+        from clothing_erp.roles import ALL_ROLES, LEGACY_ROLE_SALESPERSON, LEGACY_ROLE_SALES_MANAGER
+        active_role_names = {r["role_name"] for r in ALL_ROLES}
+        self.assertNotIn(LEGACY_ROLE_SALESPERSON, active_role_names)
+        self.assertNotIn(LEGACY_ROLE_SALES_MANAGER, active_role_names)
+        deleted_docs = []
+        with (
+            patch.object(frappe.db, "exists", return_value=True),
+            patch.object(frappe, "get_all", return_value=["HR-1"]),
+            patch.object(frappe, "delete_doc", side_effect=lambda dt, dn, **kw: deleted_docs.append((dt, dn))),
+        ):
+            install.remove_legacy_roles()
+        self.assertIn(("Role", LEGACY_ROLE_SALESPERSON), deleted_docs)
+        self.assertIn(("Role", LEGACY_ROLE_SALES_MANAGER), deleted_docs)

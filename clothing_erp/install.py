@@ -25,6 +25,23 @@ LEGACY_SALES_ROLE_MAP = {
 }
 
 
+def remove_legacy_roles():
+    """Ensure legacy Clothing Salesperson and Clothing Sales Manager roles and artifacts are completely removed."""
+    for old_role in (LEGACY_ROLE_SALESPERSON, LEGACY_ROLE_SALES_MANAGER):
+        for doctype in {
+            "Item", "Item Group", "Brand", "UOM", "Company", "Customer",
+            "Account", "Price List", "Territory", "Customer Group", "Sales Order",
+            "ASM Supervision", "Retailer Application", "Retailer Visit",
+        }:
+            _remove_custom_docperm(doctype, old_role)
+        for name in frappe.get_all("Has Role", filters={"role": old_role}, pluck="name"):
+            frappe.delete_doc("Has Role", name, ignore_permissions=True, force=True)
+        if frappe.db.exists("Role Profile", old_role):
+            frappe.delete_doc("Role Profile", old_role, ignore_permissions=True, force=True)
+        if frappe.db.exists("Role", old_role):
+            frappe.delete_doc("Role", old_role, ignore_permissions=True, force=True)
+
+
 def _ensure_user_permission(user, allow, for_value):
     if not for_value or frappe.db.exists(
         "User Permission",
@@ -113,6 +130,7 @@ def migrate_legacy_sales_roles():
                         )
             user.remove_roles(old_role)
             frappe.clear_cache(user=user_name)
+    remove_legacy_roles()
 
     # Also repairs an interrupted/older migration where the role moved before a
     # default Territory was chosen. This keeps after_migrate fully idempotent.
@@ -328,6 +346,7 @@ def after_install():
             "Account", "Price List", "Territory", "Customer Group", "Sales Order",
         }:
             _remove_custom_docperm(doctype, old_role)
+    remove_legacy_roles()
     migrate_existing_assignments()
     frappe.clear_cache()
 

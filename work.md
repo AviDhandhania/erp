@@ -107,8 +107,9 @@ legacy warehouse-operator migration.
   `yarn.lock`; they were not created or modified by this work and must not be committed
   into Clothing ERP.
 - The live local site was migrated on 2026-11-16 with Frappe, ERPNext, Clothing ERP,
-  Insights and India Compliance installed. All 151 app/site tests pass after the
-  Sales Territory Assignment (Territory -> ASM -> RSM) model and seed data implementation slice.
+  Insights and India Compliance installed. All 153 app/site tests pass after the
+  Sales Territory Assignment (Territory -> ASM -> RSM) model, custom page restoration,
+  and complete removal of legacy Clothing Salesperson and Clothing Sales Manager roles.
 
 ## RSM-to-ASM supervision model — implemented 2026-11-16
 
@@ -413,7 +414,7 @@ All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Last full app verification on 2026-11-16: 151 app tests passed through the real site runner (8 integration tests + 143 unit tests). The last deployment run had 36 installer/package
+Last full app verification on 2026-11-16: 153 app tests passed through the real site runner (9 integration tests + 144 unit tests). The last deployment run had 36 installer/package
 tests passed. Chromium checks verified that salesperson intake hides server-owned master
 fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
 resulting native Sales Order. Desktop/mobile Chromium checks passed with all three icons,
