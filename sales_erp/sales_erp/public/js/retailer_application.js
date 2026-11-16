@@ -73,8 +73,9 @@ frappe.ui.form.on("Retailer Application", {
 				"blue"
 			);
 		} else if (frm.doc.status === "Approved") {
+			const limit_info = frm.doc.initial_credit_limit ? ` (Initial Limit: ₹${frm.doc.initial_credit_limit})` : "";
 			frm.dashboard.set_headline_alert(
-				__("Application approved by {0}. Retailer account created: {1}", [frm.doc.reviewed_by, frm.doc.customer]),
+				__("Application approved by {0}. Retailer account created: {1}{2}", [frm.doc.reviewed_by, frm.doc.customer, limit_info]),
 				"green"
 			);
 		} else if (frm.doc.status === "Rejected") {
@@ -85,15 +86,33 @@ frappe.ui.form.on("Retailer Application", {
 		}
 
 		if (["Pending", "Resubmitted"].includes(frm.doc.status) && (is_rsm || is_admin)) {
-			frm.add_custom_button(__("Approve"), async () => {
-				await frappe.call({
-					method: "sales_erp.sales_erp.doctype.retailer_application.retailer_application.approve",
-					type: "POST",
-					args: { name: frm.doc.name },
-					freeze: true,
-				});
-				await frm.reload_doc();
-			}, __("Review"));
+			frm.add_custom_button(__("Approve"), () => {
+				frappe.prompt(
+					[
+						{
+							fieldname: "initial_credit_limit",
+							fieldtype: "Currency",
+							label: __("Initial Credit / Exposure Limit (₹)"),
+							default: frm.doc.initial_credit_limit || 0,
+							description: __("Set the initial approved credit limit for this retailer.")
+						}
+					],
+					async ({ initial_credit_limit }) => {
+						await frappe.call({
+							method: "sales_erp.sales_erp.doctype.retailer_application.retailer_application.approve",
+							type: "POST",
+							args: {
+								name: frm.doc.name,
+								initial_credit_limit: initial_credit_limit || 0,
+							},
+							freeze: true,
+						});
+						await frm.reload_doc();
+					},
+					__("Approve Retailer Application"),
+					__("Approve & Create Retailer")
+				);
+			}, __("Review")).addClass("btn-primary");
 
 			frm.add_custom_button(__("Request Info"), () => {
 				frappe.prompt(

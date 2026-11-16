@@ -2,6 +2,7 @@
 
 import unittest
 import frappe
+from frappe.utils import flt
 from frappe.tests.utils import FrappeTestCase
 
 from sales_erp.boot import restrict_sales_app_visibility
@@ -154,12 +155,13 @@ class TestSalesERP(FrappeTestCase):
 
     def test_retailer_application_request_info_and_resubmit_flow(self):
         """RSM requests more info -> status More Information Requested -> ASM resubmits -> RSM approves."""
+        uid = frappe.generate_hash(length=6)
         frappe.set_user(self.asm_south)
         app_doc = frappe.get_doc({
             "doctype": "Retailer Application",
-            "shop_name": "TEST Info Flow Shop",
+            "shop_name": f"TEST Info Flow Shop {uid}",
             "contact_person": "Flow Owner",
-            "phone": "9876543210",
+            "phone": f"987{uid[:6]}",
             "territory": "TEST South Sales Territory",
             "customer_group": "Buy & Sell",
             "salesperson": self.asm_south,
@@ -207,6 +209,52 @@ class TestSalesERP(FrappeTestCase):
         app_doc.reload()
         self.assertEqual(app_doc.status, "Approved")
         self.assertTrue(bool(app_doc.customer))
+
+    def test_retailer_application_approval_with_credit_limit(self):
+        """RSM can approve retailer application with initial credit limit, propagating to Customer."""
+        from sales_erp.sales_erp.doctype.retailer_application.retailer_application import approve
+
+        uid = frappe.generate_hash(length=6)
+        frappe.set_user(self.asm_south)
+        app_doc = frappe.get_doc({
+            "doctype": "Retailer Application",
+            "shop_name": f"TEST Credit Limit Boutique {uid}",
+            "contact_person": "Credit Limit Owner",
+            "phone": f"988{uid[:6]}",
+            "territory": "TEST South Sales Territory",
+            "customer_group": "Buy & Sell",
+            "salesperson": self.asm_south,
+            "billing_address_line1": "456 South Avenue",
+            "billing_city": "Bengaluru",
+            "billing_state": "Karnataka",
+            "country": "India",
+            "status": "Pending",
+        }).insert()
+
+        # 1. Negative credit limit rejected
+        frappe.set_user(self.rsm)
+        with self.assertRaises(frappe.ValidationError):
+            approve(app_doc.name, initial_credit_limit=-500)
+
+        # 2. ASM cannot approve
+        frappe.set_user(self.asm_south)
+        with self.assertRaises(frappe.PermissionError):
+            approve(app_doc.name, initial_credit_limit=50000)
+
+        # 3. Supervised RSM successfully approves with initial credit limit
+        frappe.set_user(self.rsm)
+        res = approve(app_doc.name, initial_credit_limit=50000.0)
+        self.assertEqual(res["status"], "Approved")
+        self.assertEqual(res["initial_credit_limit"], 50000.0)
+
+        app_doc.reload()
+        self.assertEqual(app_doc.status, "Approved")
+        self.assertEqual(flt(app_doc.initial_credit_limit), 50000.0)
+        self.assertTrue(bool(app_doc.customer))
+
+        cust_doc = frappe.get_doc("Customer", app_doc.customer)
+        self.assertTrue(len(cust_doc.credit_limits) > 0)
+        self.assertEqual(flt(cust_doc.credit_limits[0].credit_limit), 50000.0)
 
     def test_runtime_app_and_workspace_scoping(self):
         """Operational ASM and RSM users only receive sales_erp apps and workspaces."""

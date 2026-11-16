@@ -2,7 +2,7 @@ import re
 
 import frappe
 from frappe.model.document import Document
-from frappe.utils import now_datetime
+from frappe.utils import flt, now_datetime
 
 from sales_erp.retailer_defaults import validate_retailer_type
 from sales_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
@@ -276,7 +276,7 @@ def _lock_application(name):
 
 
 @frappe.whitelist(methods=["POST"])
-def approve(name):
+def approve(name, initial_credit_limit=None):
     require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
     application = _lock_application(name)
     application.check_permission("write")
@@ -289,6 +289,18 @@ def approve(name):
             territory=application.territory,
         )
     _validate_salesperson(application.salesperson)
+
+    parsed_limit = 0.0
+    if initial_credit_limit is not None and str(initial_credit_limit).strip() != "":
+        try:
+            parsed_limit = flt(initial_credit_limit)
+        except (ValueError, TypeError):
+            frappe.throw(frappe._("Initial credit limit must be a valid number."))
+        if parsed_limit < 0:
+            frappe.throw(frappe._("Initial credit limit cannot be negative."))
+    elif getattr(application, "initial_credit_limit", None):
+        parsed_limit = flt(application.initial_credit_limit)
+
     duplicates = find_duplicates(application, exclude=application.name)
     if duplicates:
         frappe.throw(
@@ -304,6 +316,25 @@ def approve(name):
             "tax_id": application.gstin or None,
         }
     ).insert(ignore_permissions=True)
+
+    if parsed_limit > 0:
+        company = (
+            frappe.defaults.get_user_default("Company")
+            or frappe.db.get_single_value("Global Defaults", "default_company")
+        )
+        if not company:
+            companies = frappe.get_all("Company", limit=1, pluck="name")
+            company = companies[0] if companies else None
+        if company:
+            customer.append(
+                "credit_limits",
+                {
+                    "company": company,
+                    "credit_limit": parsed_limit,
+                },
+            )
+            customer.save(ignore_permissions=True)
+
     _make_contact(application, customer)
     _make_address(application, customer)
     billing_address = (
@@ -324,6 +355,7 @@ def approve(name):
         {
             "status": "Approved",
             "customer": customer.name,
+            "initial_credit_limit": parsed_limit,
             "reviewed_by": get_current_user(),
             "reviewed_on": now_datetime(),
             "rejection_reason": None,
@@ -337,6 +369,7 @@ def approve(name):
         "application": application.name,
         "customer": customer.name,
         "status": "Approved",
+        "initial_credit_limit": parsed_limit,
     }
 
 

@@ -2,7 +2,7 @@
  "autoname": "format:RET-APP-{YYYY}-{#####}",
  "doctype": "DocType",
  "engine": "InnoDB",
- "field_order": ["shop_name", "contact_person", "phone", "email", "gstin", "territory", "customer_group", "salesperson", "rsm", "address_section", "billing_address_line1", "billing_city", "billing_state", "billing_pincode", "country", "shipping_address_line1", "shipping_city", "shipping_state", "shipping_pincode", "notes", "approval_section", "status", "customer", "requested_information", "info_requested_by", "info_requested_on", "resubmitted_on", "reviewed_by", "reviewed_on", "rejection_reason"],
+ "field_order": ["shop_name", "contact_person", "phone", "email", "gstin", "territory", "customer_group", "salesperson", "rsm", "address_section", "billing_address_line1", "billing_city", "billing_state", "billing_pincode", "country", "shipping_address_line1", "shipping_city", "shipping_state", "shipping_pincode", "notes", "approval_section", "status", "customer", "initial_credit_limit", "requested_information", "info_requested_by", "info_requested_on", "resubmitted_on", "reviewed_by", "reviewed_on", "rejection_reason"],
  "fields": [
   {"fieldname":"shop_name","fieldtype":"Data","label":"Shop Name","reqd":1,"in_list_view":1,"search_index":1},
   {"fieldname":"contact_person","fieldtype":"Data","label":"Contact Person","reqd":1},
@@ -27,6 +27,7 @@
   {"fieldname":"approval_section","fieldtype":"Section Break","label":"Approval"},
   {"fieldname":"status","fieldtype":"Select","label":"Status","options":"Pending\nMore Information Requested\nResubmitted\nApproved\nRejected","default":"Pending","read_only":1,"in_list_view":1},
   {"fieldname":"customer","fieldtype":"Link","label":"Customer","options":"Customer","read_only":1},
+  {"fieldname":"initial_credit_limit","fieldtype":"Currency","label":"Initial Credit Limit","read_only":1},
   {"fieldname":"requested_information","fieldtype":"Small Text","label":"Requested Information","read_only":1},
   {"fieldname":"info_requested_by","fieldtype":"Link","label":"Information Requested By","options":"User","read_only":1},
   {"fieldname":"info_requested_on","fieldtype":"Datetime","label":"Information Requested On","read_only":1},
