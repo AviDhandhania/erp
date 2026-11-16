@@ -13,6 +13,7 @@ from clothing_erp.security import (
     get_user_roles,
     require_role,
 )
+from clothing_erp.supervision import get_supervised_asms, is_active_supervisor
 
 MANAGER_ROLES = {ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}
 MAX_BULK_REASSIGNMENTS = 100
@@ -65,10 +66,12 @@ def _active_salespeople():
     manager_territories = _manager_territories()
     if manager_territories is None:
         return users
+    supervised = set(get_supervised_asms(get_current_user()))
     return [
         user
         for user in users
-        if set(assigned_documents("Territory", user.name)) & set(manager_territories)
+        if user.name in supervised
+        and (set(assigned_documents("Territory", user.name)) & set(manager_territories))
     ]
 
 
@@ -78,6 +81,13 @@ def _assert_salesperson_scope(user, territory):
             frappe._("The selected Area Sales Manager is not assigned to this retailer's territory."),
             frappe.PermissionError,
         )
+    if not _is_assignment_admin():
+        manager = get_current_user()
+        if not is_active_supervisor(manager, user):
+            frappe.throw(
+                frappe._("You can only assign retailers to Area Sales Managers you supervise."),
+                frappe.PermissionError,
+            )
 
 
 def _clear_assignment_caches(*users):

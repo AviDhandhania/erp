@@ -13,6 +13,7 @@ required_apps = ["erpnext", "insights", "india_compliance"]
 
 doctype_js = {
 	"Retailer Application": "public/js/retailer_application.js",
+	"ASM Supervision": "clothing_erp/doctype/asm_supervision/asm_supervision.js",
 }
 
 add_to_apps_screen = [
@@ -70,6 +71,7 @@ has_permission = {
 	"Serial and Batch Bundle": "clothing_erp.security.serial_batch_bundle_has_permission",
 	"Retailer Application": "clothing_erp.security.retailer_record_has_permission",
 	"Retailer Visit": "clothing_erp.security.retailer_record_has_permission",
+	"ASM Supervision": "clothing_erp.security.asm_supervision_has_permission",
 	"User": "clothing_erp.security.user_has_permission",
 }
 
@@ -81,5 +83,6 @@ permission_query_conditions = {
 	"Pick List": "clothing_erp.security.pick_list_conditions",
 	"Retailer Application": "clothing_erp.security.retailer_application_conditions",
 	"Retailer Visit": "clothing_erp.security.retailer_visit_conditions",
+	"ASM Supervision": "clothing_erp.security.asm_supervision_conditions",
 	"User": "clothing_erp.security.user_query_conditions",
 }

@@ -10,9 +10,11 @@ from clothing_erp.security import (
     assigned_documents,
     get_current_user,
     get_user_roles,
+    is_clothing_admin,
     is_sales_manager,
     require_role,
 )
+from clothing_erp.supervision import assert_rsm_supervises_asm
 
 
 def _phone(value):
@@ -251,6 +253,12 @@ def approve(name):
     application.check_permission("write")
     if application.status != "Pending":
         frappe.throw(frappe._("Only pending applications can be approved."))
+    if not is_clothing_admin():
+        assert_rsm_supervises_asm(
+            rsm=get_current_user(),
+            asm=application.salesperson,
+            territory=application.territory,
+        )
     _validate_salesperson(application.salesperson)
     duplicates = find_duplicates(application, exclude=application.name)
     if duplicates:
@@ -312,6 +320,12 @@ def reject(name, reason):
     application.check_permission("write")
     if application.status != "Pending":
         frappe.throw(frappe._("Only pending applications can be rejected."))
+    if not is_clothing_admin():
+        assert_rsm_supervises_asm(
+            rsm=get_current_user(),
+            asm=application.salesperson,
+            territory=application.territory,
+        )
     application.db_set(
         {
             "status": "Rejected",

@@ -177,6 +177,45 @@ def retailer_visit_conditions(user=None):
     return "1=0"
 
 
+def asm_supervision_conditions(user=None):
+    if is_clothing_admin(user):
+        return ""
+    roles = get_user_roles(user)
+    current = get_current_user(user)
+    if ROLE_SALES_MANAGER in roles:
+        territories = assigned_documents("Territory", user)
+        if not territories:
+            return "1=0"
+        allowed = ", ".join(frappe.db.escape(name) for name in territories)
+        return (
+            f"`tabASM Supervision`.`rsm` = {frappe.db.escape(current)} AND "
+            f"`tabASM Supervision`.`asm` in ("
+            f"SELECT user FROM `tabUser Permission` WHERE allow = 'Territory' AND for_value in ({allowed})"
+            f")"
+        )
+    if ROLE_SALESPERSON in roles:
+        return f"`tabASM Supervision`.`asm` = {frappe.db.escape(current)}"
+    return "1=0"
+
+
+def asm_supervision_has_permission(doc, user=None, ptype=None, **kwargs):
+    if is_clothing_admin(user):
+        return True
+    if ptype in {"create", "write", "delete", "cancel"}:
+        return False
+    roles = get_user_roles(user)
+    current = get_current_user(user)
+    if ROLE_SALES_MANAGER in roles:
+        if doc.rsm != current:
+            return False
+        rsm_territories = set(assigned_documents("Territory", user))
+        asm_territories = set(assigned_documents("Territory", doc.asm))
+        return bool(rsm_territories & asm_territories)
+    if ROLE_SALESPERSON in roles:
+        return doc.asm == current
+    return False
+
+
 def retailer_record_has_permission(doc, user=None, ptype=None, **kwargs):
     if is_clothing_admin(user):
         return True
