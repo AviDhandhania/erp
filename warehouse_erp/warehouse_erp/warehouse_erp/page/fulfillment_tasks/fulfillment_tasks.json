@@ -1,0 +1,20 @@
+{
+ "content": null,
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "module": "Warehouse ERP",
+ "name": "fulfillment-tasks",
+ "owner": "Administrator",
+ "page_name": "fulfillment-tasks",
+ "roles": [
+  {"role": "Clothing Warehouse Operator"},
+  {"role": "Clothing Warehouse Manager"},
+  {"role": "Clothing Business Administrator"},
+  {"role": "System Manager"}
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "title": "Fulfillment Tasks"
+}

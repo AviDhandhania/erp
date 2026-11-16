@@ -15,7 +15,7 @@ def restrict_erpnext_app_visibility(bootinfo):
     """
     user = get_current_user()
     roles = get_user_roles(user)
-    clothing_roles = {row["role_name"] for row in ALL_ROLES}
+    clothing_roles = {row["role_name"] for row in ALL_ROLES if row["role_name"] != ROLE_BUSINESS_ADMIN}
     is_clothing_user = bool(roles & clothing_roles)
     is_admin = user == "Administrator" or "System Manager" in roles or ROLE_BUSINESS_ADMIN in roles
 

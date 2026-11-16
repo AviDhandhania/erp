@@ -64,6 +64,9 @@ bench get-app --branch "$INSIGHTS_REF" --skip-assets https://github.com/frappe/i
 bench get-app --branch "$INDIA_COMPLIANCE_REF" --skip-assets https://github.com/resilient-tech/india-compliance.git
 [[ $(git -C apps/india_compliance rev-parse HEAD) == "$INDIA_COMPLIANCE_COMMIT" ]] || { echo 'India Compliance tag no longer matches the release manifest.' >&2; exit 1; }
 bench get-app --skip-assets "$DESTINATION/source"
+ln -s "$DESTINATION/source/sales_erp/sales_erp" apps/sales_erp
+ln -s "$DESTINATION/source/warehouse_erp/warehouse_erp" apps/warehouse_erp
+ln -s "$DESTINATION/source/quality_erp/quality_erp" apps/quality_erp
 if [[ $LOCKED == 1 ]]; then
     # Reconcile any seeded installer packages, then prove the complete runtime matches CI.
     uv pip install --python env/bin/python --requirement "$SOURCE/deploy/locks/python.txt"

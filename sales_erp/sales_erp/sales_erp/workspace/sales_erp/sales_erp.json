@@ -1,0 +1,188 @@
+{
+ "name": "Sales ERP",
+ "app": "sales_erp",
+ "charts": [],
+ "content": "[{\"id\": \"salecard001\", \"type\": \"card\", \"data\": {\"card_name\": \"Field Sales & Retailers\", \"col\": 6}}, {\"id\": \"salecard002\", \"type\": \"card\", \"data\": {\"card_name\": \"Apparel & Catalog\", \"col\": 6}}]",
+ "creation": "2026-11-07 15:45:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "shopping-cart",
+ "idx": 1,
+ "is_hidden": 0,
+ "label": "Sales ERP",
+ "public": 1,
+ "roles": [
+  {
+   "role": "Clothing Area Sales Manager"
+  },
+  {
+   "role": "Clothing Regional Sales Manager"
+  },
+  {
+   "role": "Clothing Business Administrator"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "shortcuts": [
+  {
+   "label": "Clothing Orders",
+   "link_to": "clothing-orders",
+   "type": "Page"
+  },
+  {
+   "label": "Apparel Catalog",
+   "link_to": "clothing-catalogue",
+   "type": "Page"
+  },
+  {
+   "label": "Retailers",
+   "link_to": "Customer",
+   "type": "DocType"
+  },
+  {
+   "label": "+ Register Retailer",
+   "link_to": "Retailer Application",
+   "type": "DocType"
+  },
+  {
+   "label": "Sales Territory Assignments",
+   "link_to": "retailer-assignments",
+   "type": "Page"
+  }
+ ],
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Field Sales & Retailers",
+   "link_count": 7,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Clothing Orders",
+   "link_count": 0,
+   "link_to": "clothing-orders",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Retailers",
+   "link_count": 0,
+   "link_to": "Customer",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Retailer Applications",
+   "link_count": 0,
+   "link_to": "Retailer Application",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Retailer Visits",
+   "link_count": 0,
+   "link_to": "Retailer Visit",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Sales Territory Assignments",
+   "link_count": 0,
+   "link_to": "retailer-assignments",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Retailer Assignment History",
+   "link_count": 0,
+   "link_to": "Retailer Assignment History",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Retailer Visit Report",
+   "link_count": 0,
+   "link_to": "Retailer Visit Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Apparel & Catalog",
+   "link_count": 4,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Apparel Catalog",
+   "link_count": 0,
+   "link_to": "clothing-catalogue",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Garment Styles & Items",
+   "link_count": 0,
+   "link_to": "Item",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Price Lists",
+   "link_count": 0,
+   "link_to": "Price List",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Product Pricing",
+   "link_count": 0,
+   "link_to": "product-pricing",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "module": "Sales ERP",
+ "title": "Sales ERP"
+}

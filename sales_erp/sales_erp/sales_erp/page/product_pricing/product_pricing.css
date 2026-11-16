@@ -1,0 +1,21 @@
+.product-pricing { width: 100%; box-sizing: border-box; padding: 10px 16px 24px; }
+.pricing-panel { overflow: hidden; width: 100%; background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; }
+.pricing-toolbar { display: grid; grid-template-columns: minmax(240px, 420px) minmax(180px, 240px) 1fr; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border-color, #e5e7eb); }
+.pricing-toolbar .form-control { height: 34px; }
+.pricing-currency { justify-self: end; font-weight: 600; }
+.pricing-help { padding: 10px 16px; background: var(--subtle-fg, #f7f8fa); border-bottom: 1px solid var(--border-color, #e5e7eb); font-size: 13px; }
+.pricing-products { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 16px; }
+.pricing-card { overflow: hidden; border: 1px solid var(--border-color, #e5e7eb); border-radius: 8px; }
+.pricing-card header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border-color, #edf0f2); }
+.pricing-card header img, .pricing-image-placeholder { display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; flex: 0 0 52px; border-radius: 6px; object-fit: cover; background: var(--subtle-fg, #f5f6f7); }
+.pricing-card h3 { margin: 0 0 3px; font-size: 15px; }
+.pricing-card p { margin: 0; color: var(--text-muted, #6b7280); font-size: 12px; }
+.pricing-table-wrap { overflow-x: auto; }
+.pricing-card table { margin: 0; }
+.pricing-card td:first-child small { display: block; color: var(--text-muted, #6b7280); }
+.pricing-card footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--subtle-fg, #fafafa); }
+.pricing-card footer .input-group { max-width: 230px; }
+.pricing-message { display: flex; align-items: center; justify-content: center; min-height: 180px; grid-column: 1 / -1; }
+.pricing-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border-color, #e5e7eb); }
+@media (max-width: 900px) { .pricing-products { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .pricing-toolbar { grid-template-columns: 1fr; } .pricing-currency { justify-self: start; } .pricing-card footer { align-items: stretch; flex-direction: column; } .pricing-card footer .input-group { max-width: none; } }

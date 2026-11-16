@@ -1,0 +1,123 @@
+{
+ "name": "Quality ERP",
+ "app": "quality_erp",
+ "charts": [],
+ "content": "[{\"id\": \"qualcard001\", \"type\": \"card\", \"data\": {\"card_name\": \"Supplier Quality Cycle\", \"col\": 6}}, {\"id\": \"qualcard002\", \"type\": \"card\", \"data\": {\"card_name\": \"Returns & Quarantine\", \"col\": 6}}]",
+ "creation": "2026-11-16 00:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "shield-check",
+ "idx": 1,
+ "is_hidden": 0,
+ "label": "Quality ERP",
+ "public": 1,
+ "roles": [
+  {
+   "role": "Clothing Quality Inspector"
+  },
+  {
+   "role": "Clothing Quality Manager"
+  },
+  {
+   "role": "Clothing Business Administrator"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "shortcuts": [
+  {
+   "label": "+ Quality Inspection",
+   "link_to": "Supplier Quality Inspection",
+   "type": "DocType"
+  },
+  {
+   "label": "+ Return Quarantine",
+   "link_to": "Return Quarantine",
+   "type": "DocType"
+  }
+ ],
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Supplier Quality Cycle",
+   "link_count": 3,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Supplier Quality Inspections",
+   "link_count": 0,
+   "link_to": "Supplier Quality Inspection",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Purchase Orders",
+   "link_count": 0,
+   "link_to": "Purchase Order",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Suppliers",
+   "link_count": 0,
+   "link_to": "Supplier",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Returns & Quarantine",
+   "link_count": 3,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Return Quarantine",
+   "link_count": 0,
+   "link_to": "Return Quarantine",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Quality Inspections",
+   "link_count": 0,
+   "link_to": "Quality Inspection",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Stock Movements",
+   "link_count": 0,
+   "link_to": "Stock Entry",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "module": "Quality ERP",
+ "title": "Quality ERP"
+}

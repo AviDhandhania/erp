@@ -1,0 +1,42 @@
+{
+ "autoname": "format:RET-ASG-{YYYY}-{#####}",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "territory",
+  "customer",
+  "previous_asm",
+  "new_asm",
+  "previous_rsm",
+  "new_rsm",
+  "previous_salesperson",
+  "new_salesperson",
+  "reason",
+  "changed_by",
+  "changed_on"
+ ],
+ "fields": [
+  {"fieldname":"territory","fieldtype":"Link","label":"Sales Territory","options":"Territory","read_only":1,"in_list_view":1,"search_index":1},
+  {"fieldname":"customer","fieldtype":"Link","label":"Retailer","options":"Customer","read_only":1,"in_list_view":1,"search_index":1},
+  {"fieldname":"previous_asm","fieldtype":"Link","label":"Previous ASM","options":"User","read_only":1,"in_list_view":1},
+  {"fieldname":"new_asm","fieldtype":"Link","label":"New ASM","options":"User","read_only":1,"in_list_view":1},
+  {"fieldname":"previous_rsm","fieldtype":"Link","label":"Previous Supervising RSM","options":"User","read_only":1,"in_list_view":1},
+  {"fieldname":"new_rsm","fieldtype":"Link","label":"New Supervising RSM","options":"User","read_only":1,"in_list_view":1},
+  {"fieldname":"previous_salesperson","fieldtype":"Link","label":"Previous Salesperson (Legacy)","options":"User","read_only":1,"hidden":1},
+  {"fieldname":"new_salesperson","fieldtype":"Link","label":"New Salesperson (Legacy)","options":"User","read_only":1,"hidden":1},
+  {"fieldname":"reason","fieldtype":"Small Text","label":"Reason","read_only":1},
+  {"fieldname":"changed_by","fieldtype":"Link","label":"Changed By","options":"User","read_only":1},
+  {"fieldname":"changed_on","fieldtype":"Datetime","label":"Changed On","read_only":1,"in_list_view":1}
+ ],
+ "module": "Sales ERP",
+ "name": "Retailer Assignment History",
+ "permissions": [
+  {"role":"Clothing Business Administrator","read":1,"report":1,"export":1},
+  {"role":"System Manager","read":1,"report":1,"export":1},
+  {"role":"Clothing Regional Sales Manager","read":1,"report":1,"export":1},
+  {"role":"Clothing Area Sales Manager","read":1,"report":1,"export":1}
+ ],
+ "sort_field": "changed_on",
+ "sort_order": "DESC",
+ "track_changes": 0
+}

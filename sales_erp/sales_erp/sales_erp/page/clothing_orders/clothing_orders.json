@@ -1,0 +1,20 @@
+{
+ "content": null,
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "module": "Sales ERP",
+ "name": "clothing-orders",
+ "owner": "Administrator",
+ "page_name": "clothing-orders",
+ "roles": [
+  {"role": "Clothing Area Sales Manager"},
+  {"role": "Clothing Regional Sales Manager"},
+  {"role": "Clothing Business Administrator"},
+  {"role": "System Manager"}
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "title": "Clothing Orders"
+}

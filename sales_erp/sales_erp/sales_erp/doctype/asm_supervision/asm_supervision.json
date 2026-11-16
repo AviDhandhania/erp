@@ -1,0 +1,197 @@
+{
+ "autoname": "format:ASM-SUP-{YYYY}-{#####}",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "territory",
+  "asm",
+  "asm_name",
+  "rsm",
+  "rsm_name",
+  "status",
+  "effective_section",
+  "effective_from",
+  "effective_to",
+  "details_section",
+  "reason",
+  "audit_section",
+  "assigned_by",
+  "assigned_on",
+  "asm_user_permission",
+  "asm_permission_managed",
+  "rsm_user_permission",
+  "rsm_permission_managed"
+ ],
+ "fields": [
+  {
+   "fieldname": "territory",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sales Territory",
+   "options": "Territory",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "asm",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Area Sales Manager",
+   "options": "User",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "asm.full_name",
+   "fieldname": "asm_name",
+   "fieldtype": "Data",
+   "label": "ASM Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rsm",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Regional Sales Manager",
+   "options": "User",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "rsm.full_name",
+   "fieldname": "rsm_name",
+   "fieldtype": "Data",
+   "label": "RSM Name",
+   "read_only": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Active\nSuperseded\nCancelled",
+   "reqd": 1
+  },
+  {
+   "fieldname": "effective_section",
+   "fieldtype": "Section Break",
+   "label": "Effective Dates"
+  },
+  {
+   "default": "Today",
+   "fieldname": "effective_from",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Effective From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "effective_to",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Effective To"
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Assignment Reason / Notes"
+  },
+  {
+   "fieldname": "audit_section",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "fieldname": "assigned_by",
+   "fieldtype": "Link",
+   "label": "Assigned By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "assigned_on",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Assigned On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "asm_user_permission",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "ASM Territory Permission",
+   "options": "User Permission",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "asm_permission_managed",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "ASM Permission Managed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rsm_user_permission",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "RSM Territory Permission",
+   "options": "User Permission",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "rsm_permission_managed",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "RSM Permission Managed",
+   "read_only": 1
+  }
+ ],
+ "links": [],
+ "module": "Sales ERP",
+ "name": "ASM Supervision",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Business Administrator",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Regional Sales Manager"
+  },
+  {
+   "read": 1,
+   "role": "Clothing Area Sales Manager"
+  }
+ ],
+ "sort_field": "effective_from",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

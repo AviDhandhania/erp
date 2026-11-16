@@ -70,6 +70,9 @@ run_frappe bench --site clothing.local install-app erpnext
 run_frappe bench --site clothing.local install-app india_compliance
 run_frappe bench --site clothing.local install-app insights
 run_frappe bench --site clothing.local install-app clothing_erp
+run_frappe bench --site clothing.local install-app sales_erp
+run_frappe bench --site clothing.local install-app warehouse_erp
+run_frappe bench --site clothing.local install-app quality_erp
 run_frappe bench --site clothing.local set-config host_name "http://$SITE_ADDRESS"
 run_frappe bench --site clothing.local execute clothing_erp.install.configure_launcher
 run_frappe bench --site clothing.local enable-scheduler

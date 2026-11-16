@@ -1,0 +1,20 @@
+{
+ "content": null,
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "module": "Sales ERP",
+ "name": "retailer-assignments",
+ "owner": "Administrator",
+ "page_name": "retailer-assignments",
+ "roles": [
+  {"role": "Clothing Regional Sales Manager"},
+  {"role": "Clothing Business Administrator"},
+  {"role": "Clothing Area Sales Manager"},
+  {"role": "System Manager"}
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "title": "Sales Territory Assignments"
+}

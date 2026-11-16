@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quality_erp"
+version = "1.0.0"
+description = "Quality ERP for supplier quality inspection, return quarantine, and refurbishment lifecycle"
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["quality_erp*"]

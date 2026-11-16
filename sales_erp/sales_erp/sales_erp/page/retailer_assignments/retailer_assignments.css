@@ -1,0 +1,274 @@
+.retailer-assignments {
+	width: 100%;
+	box-sizing: border-box;
+	padding: var(--padding-sm, 10px) var(--padding-md, 16px) var(--padding-xl, 24px);
+}
+
+.retailer-assignments .assignment-panel {
+	width: 100%;
+	background: var(--card-bg, #fff);
+	border: 1px solid var(--border-color, #e5e7eb);
+	border-radius: var(--border-radius-lg, 8px);
+	overflow: hidden;
+}
+
+.retailer-assignments .assignment-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--margin-md, 16px);
+	min-height: 56px;
+	padding: var(--padding-sm, 10px) var(--padding-md, 16px);
+	border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+
+.retailer-assignments .assignment-search-box {
+	width: min(360px, 100%);
+}
+
+.retailer-assignments .assignment-search-box .input-group {
+	display: flex;
+	align-items: stretch;
+	width: 100%;
+	height: 34px;
+	background: var(--control-bg, #f3f4f6);
+	border: 1px solid var(--border-color, #dfe2e5);
+	border-radius: var(--border-radius, 6px);
+	overflow: visible;
+}
+
+.retailer-assignments .assignment-search {
+	min-width: 0;
+	height: 32px !important;
+	padding: 0 12px !important;
+	background: transparent !important;
+	border: 0 !important;
+	box-shadow: none !important;
+	font-size: var(--text-sm, 13px) !important;
+}
+
+.retailer-assignments .assignment-search-box .input-group-btn {
+	position: relative;
+	display: flex;
+	border-left: 1px solid var(--border-color, #dfe2e5);
+}
+
+.retailer-assignments .match-type-dropdown-btn {
+	width: 36px;
+	height: 32px !important;
+	padding: 0 !important;
+	background: transparent !important;
+	border: 0 !important;
+	box-shadow: none !important;
+	color: var(--text-muted, #6b7280);
+}
+
+.retailer-assignments .match-type-dropdown-menu {
+	min-width: 140px;
+}
+
+.retailer-assignments .match-type-dropdown-menu .dropdown-item {
+	cursor: pointer;
+}
+
+.retailer-assignments .assignment-toolbar-meta {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--margin-sm, 12px);
+	min-width: 0;
+	font-size: var(--text-sm, 13px);
+}
+
+.retailer-assignments .assignment-scope-info {
+	max-width: 520px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.retailer-assignments .assignment-item-count {
+	padding-left: var(--padding-sm, 10px);
+	border-left: 1px solid var(--border-color, #e5e7eb);
+	white-space: nowrap;
+}
+
+.retailer-assignments .assignment-table {
+	width: 100%;
+}
+
+.retailer-assignments .assignment-grid {
+	display: grid;
+	grid-template-columns: minmax(160px, 1.2fr) minmax(180px, 1.3fr) minmax(180px, 1.3fr) minmax(160px, 1.1fr) 140px;
+	align-items: center;
+	column-gap: var(--margin-md, 16px);
+	padding: 0 var(--padding-md, 16px);
+}
+
+.retailer-assignments .assignment-table-head {
+	min-height: 38px;
+	background: var(--subtle-fg, #f5f6f7);
+	border-bottom: 1px solid var(--border-color, #e5e7eb);
+	color: var(--text-muted, #6b7280);
+	font-size: var(--text-sm, 13px);
+	font-weight: var(--font-weight-medium, 500);
+}
+
+.retailer-assignments .assignment-action-heading,
+.retailer-assignments .assignment-action {
+	text-align: right;
+}
+
+.retailer-assignments .assignment-row {
+	min-height: 44px;
+	border-bottom: 1px solid var(--border-color, #edf0f2);
+	font-size: var(--text-sm, 13px);
+	cursor: pointer;
+	transition: background-color 120ms ease;
+}
+
+.retailer-assignments .assignment-row:last-child {
+	border-bottom: 0;
+}
+
+.retailer-assignments .assignment-row:hover,
+.retailer-assignments .assignment-row:focus-visible {
+	background: var(--highlight-color, #f8f9fa);
+	outline: none;
+}
+
+.retailer-assignments .assignment-id-button {
+	display: block;
+	max-width: 100%;
+	padding: 0;
+	background: transparent;
+	border: 0;
+	color: var(--text-color, #1f2937);
+	font: inherit;
+	font-weight: 600;
+	text-align: left;
+}
+
+.retailer-assignments .assignment-id-button:hover,
+.retailer-assignments .assignment-id-button:focus-visible {
+	color: var(--primary, #2490ef);
+	text-decoration: underline;
+	outline: none;
+}
+
+.retailer-assignments .assignment-action .btn {
+	min-width: 60px;
+}
+
+.retailer-assignments .status-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 12px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.retailer-assignments .badge-active {
+	background: #def7ec;
+	color: #03543f;
+}
+
+.retailer-assignments .badge-superseded {
+	background: #f3f4f6;
+	color: #4b5563;
+}
+
+.retailer-assignments .badge-cancelled {
+	background: #fde8e8;
+	color: #9b1c1c;
+}
+
+.retailer-assignments .assignment-empty,
+.retailer-assignments .assignment-loading {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 160px;
+	padding: var(--padding-xl, 24px);
+	text-align: center;
+	font-size: var(--text-sm, 13px);
+}
+
+.retailer-assignments .assignment-pagination-wrap {
+	border-top: 1px solid var(--border-color, #e5e7eb);
+	background: var(--card-bg, #fff);
+}
+
+.retailer-assignments .assignment-pagination {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--margin-md, 16px);
+	min-height: 52px;
+	padding: var(--padding-sm, 10px) var(--padding-md, 16px);
+}
+
+.retailer-assignments .assignment-page-size-control,
+.retailer-assignments .assignment-page-nav {
+	display: flex;
+	align-items: center;
+	gap: var(--margin-sm, 10px);
+	font-size: var(--text-sm, 13px);
+}
+
+.retailer-assignments .assignment-page-size.active {
+	background: var(--fg-color, #fff);
+	border-color: var(--gray-500, #687178);
+	color: var(--text-color, #1f2937);
+	box-shadow: inset 0 0 0 1px var(--gray-500, #687178);
+}
+
+.retailer-assignments .assignment-page-label {
+	min-width: 52px;
+	text-align: right;
+	white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+	.retailer-assignments .assignment-grid {
+		grid-template-columns: minmax(140px, 1.2fr) minmax(150px, 1.2fr) minmax(150px, 1.2fr) 110px;
+	}
+
+	.retailer-assignments .assignment-grid > :nth-child(4) {
+		display: none;
+	}
+}
+
+@media (max-width: 767px) {
+	.retailer-assignments .assignment-toolbar,
+	.retailer-assignments .assignment-pagination {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.retailer-assignments .assignment-search-box {
+		width: 100%;
+	}
+
+	.retailer-assignments .assignment-toolbar-meta,
+	.retailer-assignments .assignment-pagination {
+		justify-content: space-between;
+	}
+
+	.retailer-assignments .assignment-grid {
+		grid-template-columns: minmax(120px, 1fr) minmax(130px, 1.1fr) 90px;
+		column-gap: var(--margin-sm, 10px);
+	}
+
+	.retailer-assignments .assignment-grid > :nth-child(3),
+	.retailer-assignments .assignment-grid > :nth-child(4) {
+		display: none;
+	}
+
+	.retailer-assignments .assignment-page-size-control,
+	.retailer-assignments .assignment-page-nav {
+		justify-content: space-between;
+	}
+}

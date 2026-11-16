@@ -1,22 +1,22 @@
 [build-system]
-requires = ["flit_core >=3.4,<4"]
-build-backend = "flit_core.buildapi"
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "clothing_erp"
+version = "1.0.0"
 authors = [
     { name = "Clothing ERP Contributors", email = "team@clothing-erp.invalid" }
 ]
-description = "Open-source clothing distribution ERP extension for ERPNext"
+description = "Distribution ERP suite for Frappe and ERPNext: Sales ERP, Warehouse ERP, and Quality ERP"
 requires-python = ">=3.14,<3.15"
 readme = "README.md"
-dynamic = ["version"]
 dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/AviDhandhania/erp"
 Repository = "https://github.com/AviDhandhania/erp"
 
-[tool.bench.frappe-dependencies]
-frappe = ">=16.55.2,<17.0.0"
-erpnext = ">=16.54.0,<17.0.0"
+[tool.setuptools]
+package-dir = { "sales_erp" = "sales_erp/sales_erp", "warehouse_erp" = "warehouse_erp/warehouse_erp", "quality_erp" = "quality_erp/quality_erp", "clothing_erp" = "clothing_erp" }
+packages = ["sales_erp", "warehouse_erp", "quality_erp", "clothing_erp"]

@@ -1,0 +1,41 @@
+.clothing-catalogue { max-width: 1180px; margin: 0 auto; padding: 1rem 0 3rem; }
+.catalogue-toolbar { display: grid; grid-template-columns: minmax(220px, 1.5fr) minmax(220px, 1.5fr) 1fr 1fr; gap: .75rem; margin-bottom: .75rem; }
+.catalogue-more-filters { margin-bottom: .75rem; }
+.catalogue-more-filters summary { cursor: pointer; width: fit-content; color: var(--text-muted); }
+.catalogue-metadata-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; padding-top: .65rem; }
+.catalogue-status { min-height: 2rem; padding: .25rem 0; }
+.catalogue-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.catalogue-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-sm); }
+.catalogue-product-head { display: flex; gap: 1rem; padding: 1rem; align-items: center; }
+.catalogue-product-head img, .catalogue-image-placeholder { width: 76px; height: 76px; border-radius: 12px; object-fit: cover; background: var(--subtle-fg); display: grid; place-items: center; flex: none; }
+.catalogue-image-trigger { border: 0; background: none; padding: 0; cursor: pointer; }
+.catalogue-gallery-action { display: inline-flex; align-items: center; gap: .4rem; width: fit-content; margin-top: .65rem; }
+.catalogue-gallery-action svg { width: 14px; height: 14px; }
+.catalogue-product-head h3 { font-size: 1.05rem; margin: 0 0 .2rem; }
+.catalogue-product-head p { color: var(--text-muted); margin: 0; }
+.catalogue-product-meta { display: block; font-size: .75rem; color: var(--text-muted); }
+.catalogue-metadata { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .45rem; }
+.catalogue-metadata span { padding: .15rem .45rem; border-radius: 99px; background: var(--subtle-fg); color: var(--text-muted); font-size: .7rem; }
+.catalogue-table-wrap { overflow-x: auto; }
+.catalogue-card .table { margin: 0; min-width: 480px; }
+.catalogue-card td small { display: block; color: var(--text-muted); }
+.variant-qty { width: 76px; min-width: 76px; }
+.stock-pill { white-space: nowrap; border-radius: 99px; padding: .2rem .55rem; font-size: .75rem; }
+.stock-pill.in-stock { color: var(--green-700); background: var(--green-100); }
+.stock-pill.out-of-stock { color: var(--gray-700); background: var(--gray-100); }
+.catalogue-pagination { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem; }
+.catalogue-selection { position: sticky; bottom: 1rem; margin: 1rem auto 0; max-width: 720px; min-height: 0; }
+.catalogue-selection:not(:empty) { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .8rem 1rem; border: 1px solid var(--border-color); border-radius: 12px; background: var(--fg-color); box-shadow: var(--shadow-lg); }
+.catalogue-selection span { display: block; color: var(--text-muted); font-size: .8rem; }
+.catalogue-selection-actions { display: flex; align-items: center; gap: .5rem; }
+.catalogue-gallery { min-height: min(65vh, 680px); display: grid; place-items: center; }
+.catalogue-gallery-slide { margin: 0; text-align: center; }
+.catalogue-gallery-slide img { max-width: 100%; max-height: 60vh; object-fit: contain; border-radius: 12px; }
+.catalogue-gallery-slide figcaption { margin-top: .6rem; color: var(--text-muted); }
+.catalogue-gallery-controls { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1rem; }
+@media (max-width: 767px) {
+	.clothing-catalogue { padding-top: .25rem; }
+	.catalogue-toolbar, .catalogue-grid, .catalogue-metadata-filters { grid-template-columns: 1fr; }
+	.catalogue-toolbar { position: sticky; top: 0; z-index: 2; background: var(--fg-color); padding: .5rem 0; }
+	.catalogue-product-head img, .catalogue-image-placeholder { width: 64px; height: 64px; }
+}

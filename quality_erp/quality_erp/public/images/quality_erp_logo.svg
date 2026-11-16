@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="qualGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <filter id="qualShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#2563eb" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect width="200" height="200" rx="40" fill="#eff6ff"/>
+  <rect x="20" y="20" width="160" height="160" rx="32" fill="url(#qualGrad)" filter="url(#qualShadow)"/>
+  <!-- Quality Shield with Checkmark -->
+  <path d="M100 52l38 14v38c0 30-22 46-38 52-16-6-38-22-38-52V66z" fill="#ffffff" fill-opacity="0.95"/>
+  <path d="M84 104l12 12 24-24" fill="none" stroke="#2563eb" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

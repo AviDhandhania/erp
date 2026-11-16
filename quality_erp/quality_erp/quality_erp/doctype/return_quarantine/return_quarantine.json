@@ -1,0 +1,180 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-11-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "retailer",
+  "delivery_note",
+  "item_code",
+  "quantity",
+  "column_break_1",
+  "quarantine_warehouse",
+  "return_reason",
+  "inspection_status",
+  "section_break_inspection",
+  "inspected_by",
+  "inspected_on",
+  "photo_evidence",
+  "inspection_notes"
+ ],
+ "fields": [
+  {
+   "default": "RET-Q-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "no_copy": 1,
+   "options": "RET-Q-.YYYY.-.#####",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "retailer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Retailer",
+   "options": "Customer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "delivery_note",
+   "fieldtype": "Link",
+   "label": "Original Delivery Note",
+   "options": "Delivery Note"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "quantity",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Quantity",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "quarantine_warehouse",
+   "fieldtype": "Link",
+   "label": "Quarantine Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "return_reason",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Return Reason",
+   "options": "Defective Stitching\nFabric Fault\nSize Mismatch\nCustomer Return\nOther Quality Issue",
+   "reqd": 1
+  },
+  {
+   "default": "Quarantined",
+   "fieldname": "inspection_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Inspection Status",
+   "options": "Quarantined\nInspected - Passed Refurbishment\nInspected - Scrapped\nRestocked"
+  },
+  {
+   "fieldname": "section_break_inspection",
+   "fieldtype": "Section Break",
+   "label": "Inspection & Findings"
+  },
+  {
+   "fieldname": "inspected_by",
+   "fieldtype": "Link",
+   "label": "Inspected By",
+   "options": "User"
+  },
+  {
+   "fieldname": "inspected_on",
+   "fieldtype": "Datetime",
+   "label": "Inspected On"
+  },
+  {
+   "fieldname": "photo_evidence",
+   "fieldtype": "Attach Image",
+   "label": "Defect Photo Evidence"
+  },
+  {
+   "fieldname": "inspection_notes",
+   "fieldtype": "Text",
+   "label": "Inspection Notes & Refurbishment Action"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Quality ERP",
+ "name": "Return Quarantine",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Quality Inspector",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Quality Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Business Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -22,7 +22,6 @@ add_to_apps_screen = [
 		"title": "Clothing ERP",
 		"route": "/desk/clothing-erp",
 		"has_permission": "clothing_erp.security.has_app_access",
-		"setup_wizard_text": "Configure wholesale clothing distribution.",
 	}
 ]
 
