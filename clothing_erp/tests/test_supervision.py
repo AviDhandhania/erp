@@ -399,3 +399,22 @@ class TestSupervision(unittest.TestCase):
             # Different ASM cannot read doc
             other_doc = frappe._dict(doctype="ASM Supervision", asm="other_asm@example.invalid", rsm="rsm@example.invalid")
             self.assertFalse(security.asm_supervision_has_permission(other_doc, "asm@example.invalid", "read"))
+
+    def test_sales_role_user_query_filters_by_specific_role(self):
+        with (
+            patch.object(security, "has_any_role", return_value=True),
+            patch.object(frappe.db, "sql", return_value=[["test-asm@example.invalid", "Test ASM"]]) as mock_sql,
+        ):
+            res = supervision.sales_role_user_query(
+                "User", "test", "name", 0, 20, {"role": ROLE_ASM}
+            )
+            self.assertEqual(len(res), 1)
+            query_calls = [c for c in mock_sql.call_args_list if len(c[0]) > 0 and "tabHas Role" in str(c[0][0])]
+            self.assertEqual(len(query_calls), 1)
+            args = query_calls[0][0][1]
+            self.assertEqual(args["role"], ROLE_ASM)
+            self.assertEqual(args["txt"], "%test%")
+
+        with patch.object(security, "has_any_role", return_value=True):
+            empty_res = supervision.sales_role_user_query("User", "test", "name", 0, 20, {})
+            self.assertEqual(empty_res, [])

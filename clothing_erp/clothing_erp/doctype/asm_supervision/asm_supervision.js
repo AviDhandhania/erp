@@ -5,20 +5,18 @@ frappe.ui.form.on("ASM Supervision", {
 		});
 		frm.set_query("asm", function() {
 			return {
-				query: "frappe.core.doctype.user.user.user_query",
+				query: "clothing_erp.supervision.sales_role_user_query",
 				filters: {
-					enabled: 1,
-					user_type: "System User"
+					role: "Clothing Area Sales Manager"
 				}
 			};
 		});
 
 		frm.set_query("rsm", function() {
 			return {
-				query: "frappe.core.doctype.user.user.user_query",
+				query: "clothing_erp.supervision.sales_role_user_query",
 				filters: {
-					enabled: 1,
-					user_type: "System User"
+					role: "Clothing Regional Sales Manager"
 				}
 			};
 		});
@@ -57,9 +55,9 @@ frappe.ui.form.on("ASM Supervision", {
 							reqd: 1,
 							get_query: function() {
 								return {
+									query: "clothing_erp.supervision.sales_role_user_query",
 									filters: {
-										enabled: 1,
-										user_type: "System User"
+										role: "Clothing Regional Sales Manager"
 									}
 								};
 							}

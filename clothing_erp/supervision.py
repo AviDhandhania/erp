@@ -518,3 +518,35 @@ def get_asm_supervision_directory(search=None, status=None, page=1, page_size=20
         "is_admin": admin_access,
         "scope_info": scope_info,
     }
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def sales_role_user_query(doctype, txt, searchfield, start, page_len, filters):
+    """Filter enabled System Users possessing the required Clothing ERP sales role."""
+    require_role(ADMIN_ROLES | {ROLE_RSM, ROLE_ASM})
+    from frappe.utils import cint
+    role = (filters or {}).get("role")
+    if not role:
+        return []
+
+    return frappe.db.sql(
+        """
+        SELECT DISTINCT `tabUser`.name, `tabUser`.full_name
+        FROM `tabUser`
+        INNER JOIN `tabHas Role` ON `tabHas Role`.parent = `tabUser`.name
+        WHERE `tabHas Role`.role = %(role)s
+          AND `tabUser`.enabled = 1
+          AND `tabUser`.user_type = 'System User'
+          AND (`tabUser`.name LIKE %(txt)s OR `tabUser`.full_name LIKE %(txt)s)
+        ORDER BY `tabUser`.name ASC
+        LIMIT %(start)s, %(page_len)s
+        """,
+        {
+            "role": role,
+            "txt": f"%{txt}%",
+            "start": cint(start),
+            "page_len": cint(page_len),
+        },
+        as_list=True,
+    )

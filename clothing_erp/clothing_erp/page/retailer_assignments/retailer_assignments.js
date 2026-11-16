@@ -117,9 +117,8 @@ class SalesTerritoryAssignments {
 		this.$root.on("click", ".view-assignment-btn, .assignment-id-button", (event) => {
 			event.stopPropagation();
 			const name = $(event.currentTarget).data("name");
-			if (name) {
-				frappe.set_route("Form", "ASM Supervision", name);
-			}
+			const record = this.records.find((r) => r.name === name);
+			if (record) this.open_view_dialog(record);
 		});
 
 		this.$root.on("click", ".assignment-row", (event) => {
@@ -127,9 +126,8 @@ class SalesTerritoryAssignments {
 				return;
 			}
 			const name = $(event.currentTarget).data("name");
-			if (name) {
-				frappe.set_route("Form", "ASM Supervision", name);
-			}
+			const record = this.records.find((r) => r.name === name);
+			if (record) this.open_view_dialog(record);
 		});
 	}
 
@@ -265,8 +263,8 @@ class SalesTerritoryAssignments {
 					options: "User",
 					get_query() {
 						return {
-							query: "frappe.core.doctype.user.user.user_query",
-							filters: { user_type: "System User" },
+							query: "clothing_erp.supervision.sales_role_user_query",
+							filters: { role: "Clothing Area Sales Manager" },
 						};
 					},
 					reqd: 1,
@@ -278,8 +276,8 @@ class SalesTerritoryAssignments {
 					options: "User",
 					get_query() {
 						return {
-							query: "frappe.core.doctype.user.user.user_query",
-							filters: { user_type: "System User" },
+							query: "clothing_erp.supervision.sales_role_user_query",
+							filters: { role: "Clothing Regional Sales Manager" },
 						};
 					},
 					reqd: 1,
@@ -354,8 +352,8 @@ class SalesTerritoryAssignments {
 					options: "User",
 					get_query() {
 						return {
-							query: "frappe.core.doctype.user.user.user_query",
-							filters: { user_type: "System User" },
+							query: "clothing_erp.supervision.sales_role_user_query",
+							filters: { role: "Clothing Regional Sales Manager" },
 						};
 					},
 					reqd: 1,
@@ -449,6 +447,67 @@ class SalesTerritoryAssignments {
 				this.refresh();
 			},
 		});
+		dialog.show();
+	}
+
+	open_view_dialog(record) {
+		const status = record.status || "Active";
+		const statusClass = status === "Active" ? "badge-active" : (status === "Cancelled" ? "badge-cancelled" : "badge-superseded");
+		const dateInfo = record.effective_from ? (record.effective_to ? `${record.effective_from} → ${record.effective_to}` : `From ${record.effective_from}`) : "";
+
+		const dialog = new frappe.ui.Dialog({
+			title: __("Territory Assignment: {0}", [record.territory || record.name]),
+			fields: [
+				{
+					fieldname: "details_html",
+					fieldtype: "HTML",
+					options: `
+						<div class="assignment-details p-3">
+							<div class="row mb-3">
+								<div class="col-sm-4 text-muted">${__("Territory")}:</div>
+								<div class="col-sm-8 font-weight-bold">${this.escape(record.territory)}</div>
+							</div>
+							<div class="row mb-3">
+								<div class="col-sm-4 text-muted">${__("Area Sales Manager")}:</div>
+								<div class="col-sm-8">${this.escape(record.asm)}</div>
+							</div>
+							<div class="row mb-3">
+								<div class="col-sm-4 text-muted">${__("Supervising RSM")}:</div>
+								<div class="col-sm-8">${this.escape(record.rsm)}</div>
+							</div>
+							<div class="row mb-3">
+								<div class="col-sm-4 text-muted">${__("Status")}:</div>
+								<div class="col-sm-8">
+									<span class="status-badge ${statusClass}">${this.escape(status)}</span>
+									<span class="text-muted ml-2">${this.escape(dateInfo)}</span>
+								</div>
+							</div>
+							${record.reason ? `
+							<div class="row mb-3">
+								<div class="col-sm-4 text-muted">${__("Notes / Reason")}:</div>
+								<div class="col-sm-8">${this.escape(record.reason)}</div>
+							</div>` : ""}
+							<div class="row mb-2">
+								<div class="col-sm-4 text-muted">${__("Assigned By")}:</div>
+								<div class="col-sm-8 text-muted">${this.escape(record.assigned_by || "")} ${record.assigned_on ? `(${record.assigned_on})` : ""}</div>
+							</div>
+						</div>
+					`,
+				},
+			],
+		});
+
+		if (this.is_admin && status === "Active") {
+			dialog.set_secondary_action(__("Reassign RSM"), () => {
+				dialog.hide();
+				this.open_reassign_dialog(record);
+			});
+			dialog.add_custom_action(__("End Assignment"), () => {
+				dialog.hide();
+				this.open_end_dialog(record);
+			});
+		}
+
 		dialog.show();
 	}
 }

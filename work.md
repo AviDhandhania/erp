@@ -107,9 +107,10 @@ legacy warehouse-operator migration.
   `yarn.lock`; they were not created or modified by this work and must not be committed
   into Clothing ERP.
 - The live local site was migrated on 2026-11-16 with Frappe, ERPNext, Clothing ERP,
-  Insights and India Compliance installed. All 153 app/site tests pass after the
+  Insights and India Compliance installed. All 154 app/site tests pass after the
   Sales Territory Assignment (Territory -> ASM -> RSM) model, custom page restoration,
-  and complete removal of legacy Clothing Salesperson and Clothing Sales Manager roles.
+  complete removal of legacy Clothing Salesperson and Clothing Sales Manager roles,
+  role-scoped link queries for ASM/RSM, and in-page modal assignment inspection.
 
 ## RSM-to-ASM supervision model — implemented 2026-11-16
 
@@ -148,19 +149,21 @@ legacy warehouse-operator migration.
 - [x] Retired per-retailer salesperson reassignment. The old route redirects to Sales Territory
   Assignments and every old mutation endpoint rejects calls server-side; historical records are
   retained as an archive.
-- [x] Provided a clean native DocType UI in Clothing ERP as **Sales Territory Assignments**
-  under **Sales Operations**
-  with client-side User link filtering to enabled ASMs/RSMs, read-only mode for non-admins,
-  and administrator actions for reassigning and ending supervision.
+- [x] Provided a clean native DocType UI and custom Desk page in Clothing ERP as
+  **Sales Territory Assignments** under **Sales Operations** with server-side Link query filtering
+  (`sales_role_user_query`) scoping ASM selections to `Clothing Area Sales Manager` and RSM
+  selections to `Clothing Regional Sales Manager` across all dialogs and DocType forms.
+- [x] Streamlined the Sales Territory Assignments page with in-page modal assignment inspection
+  and actions, eliminating duplicate Desk tabs between the custom Page and native Form view.
 - [x] Migration backfills a legacy record only when ASM/RSM permissions identify exactly one
   unambiguous leaf Territory; ambiguous legacy records are cancelled with an administrative
   migration note rather than guessing. Double migration is idempotent.
 - [x] Development seed now creates two Territories, two ASMs, one RSM, business-admin and
   warehouse-manager test accounts, authoritative assignments and eight retailers spanning all
   four retailer types. Every run rotates and prints random test passwords.
-- [x] Unit and database integration tests: 15 unit tests in `test_supervision.py`, expanded
+- [x] Unit and database integration tests: 16 unit tests in `test_supervision.py`, expanded
   workflow tests in `test_retailer_workflow.py` and `test_roles.py`, plus real-database
-  integration tests in `test_site.py`.
+  integration tests in `test_site.py` (total 154 passing tests).
 
 ### Status of supervision and field sales stages
 
