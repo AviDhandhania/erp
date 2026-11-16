@@ -1,7 +1,7 @@
 import json
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import frappe
 
@@ -338,3 +338,66 @@ class TestRetailerWorkflow(unittest.TestCase):
             self.assertRaises(frappe.ValidationError),
         ):
             retailer_application._validate_salesperson("disabled@example.invalid")
+
+    def test_rsm_approval_requires_supervision_of_asm(self):
+        fake_app = frappe._dict(
+            name="RET-APP-TEST-001",
+            status="Pending",
+            salesperson="asm@example.invalid",
+            territory="TEST North",
+            check_permission=MagicMock(),
+        )
+        with (
+            patch.object(retailer_application, "require_role"),
+            patch.object(retailer_application, "_lock_application", return_value=fake_app),
+            patch.object(retailer_application, "is_clothing_admin", return_value=False),
+            patch.object(retailer_application, "get_current_user", return_value="rsm@example.invalid"),
+            patch.object(
+                retailer_application,
+                "assert_rsm_supervises_asm",
+                side_effect=frappe.PermissionError("You do not supervise Area Sales Manager asm@example.invalid."),
+            ),
+        ):
+            with self.assertRaisesRegex(frappe.PermissionError, "do not supervise"):
+                retailer_application.approve("RET-APP-TEST-001")
+
+    def test_rsm_rejection_requires_supervision_of_asm(self):
+        fake_app = frappe._dict(
+            name="RET-APP-TEST-002",
+            status="Pending",
+            salesperson="asm@example.invalid",
+            territory="TEST North",
+            check_permission=MagicMock(),
+        )
+        with (
+            patch.object(retailer_application, "require_role"),
+            patch.object(retailer_application, "_lock_application", return_value=fake_app),
+            patch.object(retailer_application, "is_clothing_admin", return_value=False),
+            patch.object(retailer_application, "get_current_user", return_value="rsm@example.invalid"),
+            patch.object(
+                retailer_application,
+                "assert_rsm_supervises_asm",
+                side_effect=frappe.PermissionError("You do not supervise Area Sales Manager asm@example.invalid."),
+            ),
+        ):
+            with self.assertRaisesRegex(frappe.PermissionError, "do not supervise"):
+                retailer_application.reject("RET-APP-TEST-002", "TEST Reason")
+
+    def test_rsm_retailer_reassignment_restricted_to_supervised_asms(self):
+        with (
+            patch.object(retailer_assignment, "assigned_documents", return_value=["TEST North"]),
+            patch.object(retailer_assignment, "_is_assignment_admin", return_value=False),
+            patch.object(retailer_assignment, "get_current_user", return_value="rsm@example.invalid"),
+            patch.object(retailer_assignment, "is_active_supervisor", return_value=False),
+        ):
+            with self.assertRaisesRegex(frappe.PermissionError, "only assign retailers to Area Sales Managers you supervise"):
+                retailer_assignment._assert_salesperson_scope("unsupervised_asm@example.invalid", "TEST North")
+
+        with (
+            patch.object(retailer_assignment, "assigned_documents", return_value=["TEST North"]),
+            patch.object(retailer_assignment, "_is_assignment_admin", return_value=False),
+            patch.object(retailer_assignment, "get_current_user", return_value="rsm@example.invalid"),
+            patch.object(retailer_assignment, "is_active_supervisor", return_value=True),
+        ):
+            # Supervising RSM can assign
+            retailer_assignment._assert_salesperson_scope("supervised_asm@example.invalid", "TEST North")

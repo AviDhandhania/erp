@@ -153,3 +153,24 @@ class TestSecurity(unittest.TestCase):
             self.assertFalse(security.user_has_permission(doc, user="test@example.invalid"))
             self.assertEqual(security.user_query_conditions("test@example.invalid"), "1=0")
         self.assertTrue(security.user_has_permission(doc, user="Administrator"))
+
+    def test_rsm_supervision_query_conditions_are_scoped_to_supervised_asms_in_territory(self):
+        with (
+            patch.object(security, "is_clothing_admin", return_value=False),
+            patch.object(security, "get_user_roles", return_value={ROLE_SALES_MANAGER}),
+            patch.object(security, "assigned_documents", return_value=["TEST North"]),
+            patch.object(security, "get_current_user", return_value="rsm@example.invalid"),
+        ):
+            condition = security.asm_supervision_conditions("rsm@example.invalid")
+            self.assertIn("`tabASM Supervision`.`rsm` = 'rsm@example.invalid'", condition)
+            self.assertIn("TEST North", condition)
+
+    def test_asm_supervision_document_permissions_restrict_non_admin_edits(self):
+        doc = frappe._dict(doctype="ASM Supervision", asm="asm@example.invalid", rsm="rsm@example.invalid")
+        with (
+            patch.object(security, "is_clothing_admin", return_value=False),
+            patch.object(security, "get_user_roles", return_value={ROLE_SALES_MANAGER}),
+            patch.object(security, "get_current_user", return_value="rsm@example.invalid"),
+        ):
+            self.assertFalse(security.asm_supervision_has_permission(doc, "rsm@example.invalid", "write"))
+            self.assertFalse(security.asm_supervision_has_permission(doc, "rsm@example.invalid", "create"))

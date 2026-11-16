@@ -6,13 +6,13 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_days, now_datetime
 
-from clothing_erp import api, catalogue, fulfillment, security
+from clothing_erp import api, catalogue, fulfillment, security, supervision
 from clothing_erp.clothing_erp.doctype.retailer_application.retailer_application import (
     approve,
     reject,
 )
 from clothing_erp.pricing import get_customer_prices
-from clothing_erp.roles import ROLE_SALESPERSON, ROLE_WAREHOUSE_OPERATOR
+from clothing_erp.roles import ROLE_ASM, ROLE_RSM, ROLE_SALESPERSON, ROLE_WAREHOUSE_OPERATOR
 
 
 @unittest.skipUnless(
@@ -624,3 +624,134 @@ class TestSitePermissions(IntegrationTestCase):
         application.notes = "Attempted edit after review"
         with self.assertRaises(frappe.ValidationError):
             application.save()
+
+    def test_rsm_supervision_model_and_approval_workflow(self):
+        territory_name = "TEST Supervision Territory"
+        if not frappe.db.exists("Territory", territory_name):
+            frappe.get_doc(
+                {
+                    "doctype": "Territory",
+                    "territory_name": territory_name,
+                    "parent_territory": "All Territories",
+                    "is_group": 0,
+                }
+            ).insert()
+
+        asm_email = "test-super-asm@example.invalid"
+        rsm1_email = "test-super-rsm1@example.invalid"
+        rsm2_email = "test-super-rsm2@example.invalid"
+
+        for email, role, first_name in (
+            (asm_email, ROLE_ASM, "Test Super ASM"),
+            (rsm1_email, ROLE_RSM, "Test Super RSM 1"),
+            (rsm2_email, ROLE_RSM, "Test Super RSM 2"),
+        ):
+            if not frappe.db.exists("User", email):
+                frappe.get_doc(
+                    {
+                        "doctype": "User",
+                        "email": email,
+                        "first_name": first_name,
+                        "send_welcome_email": 0,
+                        "roles": [{"role": role}],
+                    }
+                ).insert()
+            self._assign_sales_territory(territory_name, user=email)
+
+        # 1. ASM creates an application
+        frappe.set_user(asm_email)
+        app1 = frappe.get_doc(
+            {
+                "doctype": "Retailer Application",
+                "shop_name": "TEST Supervised Boutique 1",
+                "contact_person": "TEST Contact 1",
+                "phone": "+91 90000 66661",
+                "email": "test-super-app1@example.invalid",
+                "territory": territory_name,
+                "customer_group": "Buy & Sell",
+                "salesperson": asm_email,
+                "billing_address_line1": "TEST 1 Market Road",
+                "billing_city": "TEST City",
+                "billing_state": "Maharashtra",
+                "country": "India",
+            }
+        ).insert()
+
+        # 2. RSM 1 attempts approval before supervision exists -> rejected
+        frappe.set_user(rsm1_email)
+        with self.assertRaises(frappe.PermissionError):
+            approve(app1.name)
+
+        # 3. Administrator assigns supervision: RSM 1 supervises ASM
+        frappe.set_user("Administrator")
+        assign_res = supervision.assign_asm_supervision(
+            asm=asm_email,
+            rsm=rsm1_email,
+            effective_from=frappe.utils.nowdate(),
+            reason="Initial supervision assignment",
+        )
+        self.assertFalse(assign_res["unchanged"])
+        sup1_name = assign_res["name"]
+
+        # 4. RSM 2 attempts approval -> rejected because RSM 2 does not supervise ASM
+        frappe.set_user(rsm2_email)
+        with self.assertRaises(frappe.PermissionError):
+            approve(app1.name)
+
+        # 5. RSM 1 approves -> succeeds
+        frappe.set_user(rsm1_email)
+        res1 = approve(app1.name)
+        self.assertEqual(res1["status"], "Approved")
+
+        # 6. Administrator reassigns ASM to RSM 2
+        frappe.set_user("Administrator")
+        reassign_res = supervision.assign_asm_supervision(
+            asm=asm_email,
+            rsm=rsm2_email,
+            effective_from=frappe.utils.nowdate(),
+            reason="Reassigned to RSM 2",
+        )
+        self.assertEqual(len(reassign_res["superseded"]), 1)
+        self.assertEqual(reassign_res["superseded"][0], sup1_name)
+
+        old_sup = frappe.get_doc("ASM Supervision", sup1_name)
+        self.assertEqual(old_sup.status, "Superseded")
+
+        new_sup = frappe.get_doc("ASM Supervision", reassign_res["name"])
+        self.assertEqual(new_sup.status, "Active")
+        self.assertEqual(new_sup.rsm, rsm2_email)
+
+        # 7. ASM creates a second application
+        frappe.set_user(asm_email)
+        app2 = frappe.get_doc(
+            {
+                "doctype": "Retailer Application",
+                "shop_name": "TEST Supervised Boutique 2",
+                "contact_person": "TEST Contact 2",
+                "phone": "+91 90000 66662",
+                "email": "test-super-app2@example.invalid",
+                "territory": territory_name,
+                "customer_group": "SIS (Shop-in-Shop)",
+                "salesperson": asm_email,
+                "billing_address_line1": "TEST 2 Market Road",
+                "billing_city": "TEST City",
+                "billing_state": "Maharashtra",
+                "country": "India",
+            }
+        ).insert()
+
+        # 8. RSM 1 attempts approval on second application -> rejected (no longer supervisor)
+        frappe.set_user(rsm1_email)
+        with self.assertRaises(frappe.PermissionError):
+            approve(app2.name)
+
+        # 9. RSM 2 approves second application -> succeeds
+        frappe.set_user(rsm2_email)
+        res2 = approve(app2.name)
+        self.assertEqual(res2["status"], "Approved")
+
+        # 10. Administrator ends supervision
+        frappe.set_user("Administrator")
+        supervision.end_asm_supervision(new_sup.name, reason="Testing end supervision")
+        new_sup.reload()
+        self.assertEqual(new_sup.status, "Cancelled")
