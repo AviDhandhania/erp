@@ -21,7 +21,7 @@ Confirmed requirements now governing the next stages:
   ERP sales area; common salespeople must have no access.
 - [x] Scope ASM and RSM retailer/application/order visibility to allotted native Territory
   User Permissions, including permitted descendant Territories.
-- [ ] Model the RSM-to-ASM supervisory relationship explicitly; an RSM normally handles
+- [x] Model the RSM-to-ASM supervisory relationship explicitly; an RSM normally handles
   3–4 ASMs and 200–250 shops.
 - [ ] For SIS, automatically assign quarterly stock-review obligations, require separate
   monthly general visits and support seasonal order-taking.
@@ -108,8 +108,82 @@ legacy warehouse-operator migration.
   `yarn.lock`; they were not created or modified by this work and must not be committed
   into Clothing ERP.
 - The live local site was migrated on 2026-11-16 with Frappe, ERPNext, Clothing ERP,
-  Insights and India Compliance installed. All 129 app/site tests pass after the first
-  ASM/RSM implementation slice.
+  Insights and India Compliance installed. All 150 app/site tests pass after the
+  explicit RSM-to-ASM supervision model implementation slice.
+
+## RSM-to-ASM supervision model — implemented 2026-11-16
+
+- [x] Added app-owned `ASM Supervision` DocType with effective dates (`effective_from`,
+  `effective_to`), status (`Active`, `Superseded`, `Cancelled`), notes, and immutable audit
+  tracking (`assigned_by`, `assigned_on`).
+- [x] Supported multiple ASMs per supervising RSM; strictly enforced that an ASM has at most
+  one active supervising RSM across overlapping effective date ranges.
+- [x] Enforced enabled System User status and canonical Clothing ERP roles: ASM must have
+  `Clothing Area Sales Manager` and RSM must have `Clothing Regional Sales Manager`.
+  Directly rejected self-supervision.
+- [x] Validated territory overlap between RSM and ASM upon assignment: RSM and ASM must share
+  at least one assigned native Territory User Permission.
+- [x] Restricted creation, update, and cancellation of supervision to authorized administrators
+  (`System Manager`, `Administrator`, `Clothing Business Administrator`). Ordinary ASM and
+  RSM users are denied modification server-side and kept out of framework user management.
+- [x] Built atomic administrative reassignment service `assign_asm_supervision` with database
+  row-locking (`FOR UPDATE`) on active supervision rows to eliminate race conditions.
+  Existing active assignments are superseded with date cutoffs, fully preserving history.
+- [x] Added `end_asm_supervision` service to safely cancel/end active supervision with recorded
+  reasons without deleting audit records.
+- [x] Implemented document permission hook (`asm_supervision_has_permission`) and list query
+  conditions (`asm_supervision_conditions`):
+  - RSM users can only view supervision records where they are the supervisor and share
+    territory with the ASM.
+  - ASM users can only view their own supervision record.
+  - System/business administrators retain global visibility.
+- [x] Enforced supervision checks in Retailer Application review endpoints:
+  - `approve` and `reject` verify that an RSM reviewer actually supervises the ASM who
+    submitted the application and has access to the application Territory.
+  - Applications from unassigned ASMs are visibly blocked from RSM review with clear guidance
+    that an administrator must assign supervision.
+  - Administrators retain global oversight and can approve/reject directly.
+- [x] Scoped Retailer Assignments: RSMs can only reassign retailers to ASMs they actively
+  supervise within their territory scope.
+- [x] Provided a clean native DocType UI in Clothing ERP linked under **Sales Operations**
+  with client-side User link filtering to enabled ASMs/RSMs, read-only mode for non-admins,
+  and administrator actions for reassigning and ending supervision.
+- [x] Migrations safely preserve existing records without guessing relationships; unassigned
+  ASMs remain unassigned until administrator action. Double migration verified for idempotency.
+- [x] Unit and database integration tests: 15 unit tests in `test_supervision.py`, expanded
+  workflow tests in `test_retailer_workflow.py` and `test_roles.py`, plus real-database
+  integration tests in `test_site.py`.
+
+### Status of supervision and field sales stages
+
+- **Implemented and tested behavior:**
+  - Classify retailers into four canonical native Customer Groups.
+  - Role migration to ASM/RSM with Territory User Permissions.
+  - Retailer visibility and draft Sales Orders scoped to Territory.
+  - Responsible-ASM reassignment within Territory.
+  - App-owned, audited RSM-to-ASM supervision model with effective dates, row-locking concurrency,
+    uniqueness of active supervisor per ASM, multi-ASM supervision per RSM, territory overlap
+    validation, administrator-only mutations, query/document permission scoping, and Retailer
+    Application review gating.
+- **Partially implemented behavior:**
+  - Retailer intake: ASM draft application and RSM/admin approval/rejection are implemented;
+    routing to a dedicated RSM inbox queue and request-for-more-information/resubmission states
+    remain to be built in subsequent stages.
+- **Unimplemented requirements:**
+  - Stage 2: Route ASM retailer applications to their supervising RSM.
+  - Stage 3: Request-for-more-information and resubmission states.
+  - Stage 4: RSM completion of retailer commercial details and proposed credit limit.
+  - Stage 5: Admin approval before credit-limit changes are applied.
+  - Stage 6: ASM/RSM visit types, review chains and audit history.
+  - Stage 7: SIS quarterly stock-review scheduling.
+  - Stage 8: Monthly visit obligations.
+  - Stage 9: RSM 80-day visit deadline, warnings and day-85 admin escalation.
+  - Stage 10: Order approval through native ERPNext Workflow.
+- **Unresolved business questions:**
+  - Planning capacity guidance: 3–4 ASMs and 200–250 shops per RSM are currently unconstrained;
+    whether hard limits or soft warnings are desired remains an open business decision.
+  - Shop-stock exposure vs. accounting credit limit valuation and reconciliation.
+  - Advance warning lead time before the 80-day RSM shop visit deadline.
 
 ## Field-sales access foundation — implemented 2026-11-16
 
@@ -327,18 +401,18 @@ complete implementation of the target warehouse workflow.
 - [x] Database integration coverage for application, approval, native records, assignment
   visibility, reassignment cache changes, immutable history and visit creation.
 
-The ASM/RSM access and retailer-classification foundation is now migrated. Explicit RSM
-supervision, scheduled obligations, multi-level review and credit/exposure approval remain
-open. Existing retailer applications, visits and assignment history remain migration
-inputs; responsible-ASM assignment remains a native User Permission while visibility is
-Territory-based. Approved commercial masters remain native ERPNext documents. No ERPNext
-source was modified.
+The ASM/RSM access foundation, retailer classification, and explicit RSM-to-ASM supervision
+model are now implemented and tested. Routing applications to dedicated supervisor queues,
+scheduled obligations, multi-level review and credit/exposure approval remain open. Existing
+retailer applications, visits and assignment history remain migration inputs; responsible-ASM
+assignment remains a native User Permission while visibility is Territory-based. Approved commercial
+masters remain native ERPNext documents. No ERPNext source was modified.
 
 All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Last full app verification on 2026-11-16: 129 app tests passed through the real site runner. The last deployment run had 36 installer/package
+Last full app verification on 2026-11-16: 150 app tests passed through the real site runner (8 integration tests + 142 unit tests). The last deployment run had 36 installer/package
 tests passed. Chromium checks verified that salesperson intake hides server-owned master
 fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
 resulting native Sales Order. Desktop/mobile Chromium checks passed with all three icons,

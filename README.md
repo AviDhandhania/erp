@@ -118,7 +118,7 @@ ASM/RSM users use native Territory User Permissions; warehouse roles use native 
 User Permissions, and pick lists additionally require an open ToDo assignment. All access is
 subject to native ERPNext permissions. No mock sales or simulated ERP server is used.
 
-### ASM/RSM sales model — foundation implemented
+### ASM/RSM sales model — foundation & supervision implemented
 
 Requirements captured on **2026-11-16** replace the earlier assumption that a common
 salesperson is the primary Clothing ERP sales user. The sales area is for **ASM
@@ -129,10 +129,12 @@ a five-day escalation grace period.
 
 Every new retailer is classified as **Buy & Sell**, **Buy & Sell — Stock Correction**,
 **SIS (Shop-in-Shop)** or **EBOC (Exclusive Brand Outlet)** using native Customer Group
-leaves. The app now has tested ASM/RSM roles, Territory-scoped server permissions and an
-idempotent migration for legacy User roles and Role Profiles. Common ERPNext salespeople
-have no Clothing ERP access. SIS/Buy & Sell cadence, explicit RSM-to-ASM supervision,
-credit/exposure approvals and notifications remain planned, not claimed as implemented.
+leaves. The app now includes tested ASM/RSM roles, Territory-scoped server permissions,
+an idempotent migration for legacy User roles, and an explicit, audited RSM-to-ASM supervision
+model (`ASM Supervision`) with effective dates, row-locking concurrency, safe reassignment
+history, and server-side supervisor verification on retailer application approval endpoints.
+Common ERPNext salespeople have no Clothing ERP access. SIS/Buy & Sell cadence, credit/exposure
+approvals and notifications remain planned, not claimed as implemented.
 
 The complete requirement hand-off, native ERPNext mapping, unresolved business questions
 and acceptance boundaries are in the
@@ -219,8 +221,10 @@ pinned-release compatibility gate before Stage 5 is complete.
    filled and enforced by the server; the ASM cannot substitute either value.
 2. Duplicate shop names, phone numbers, email addresses and GSTINs are rejected before
    submission, including common phone-prefix and letter-case differences.
-3. An in-scope RSM, Clothing Business Administrator or System Manager opens
-   **Retailer Applications**, then uses **Review → Approve** or **Review → Reject**.
+3. An in-scope RSM (who actively supervises the applicant ASM and has Territory access),
+   Clothing Business Administrator or System Manager opens **Retailer Applications**,
+   then uses **Review → Approve** or **Review → Reject**. Applications from unassigned ASMs
+   require administrator action to assign supervision before an RSM can review.
 4. Approval creates standard ERPNext Customer, Contact and Address records. The Customer's
    native Customer Group is the selected Retailer Type; access follows Territory User
    Permission rather than a redundant per-Customer grant. Rejection requires a reason.
@@ -236,8 +240,9 @@ Retailer reassignment lives only at **Clothing ERP → Retailer Assignments**. A
 System Manager and Clothing Business Administrator users can manage all territories. A
 Regional Sales Manager must have a native Territory User Permission and can see or change
 only Customers in that territory. Reassignment records the responsible ASM; the selected
-ASM must also be assigned to the Customer's Territory. It does not grant visibility outside
-the ASM's Territory. The native ERPNext Customer form and list contain no Clothing ERP
+ASM must be actively supervised by the RSM and assigned to the Customer's Territory. It
+does not grant visibility outside the ASM's Territory. System and business administrators
+retain global oversight. The native ERPNext Customer form and list contain no Clothing ERP
 reassignment controls.
 5. The ASM records meetings from **Retailer Visits**. Choosing
    **Follow-up Required** requires a non-past follow-up date.
