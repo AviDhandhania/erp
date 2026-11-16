@@ -198,7 +198,14 @@ def _remove_custom_docperm(doctype, role):
 def _role_doctypes(role):
     doctypes = {"Item", "Item Group", "Brand", "UOM"}
     if role in {ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}:
-        doctypes |= {"Company", "Customer", "Account", "Price List", "ASM Supervision"}
+        doctypes |= {
+            "Company",
+            "Customer",
+            "Account",
+            "Price List",
+            "ASM Supervision",
+            "Retailer Assignment History",
+        }
     if role == ROLE_SALESPERSON:
         doctypes.add("Customer Group")
     if role in {ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}:

@@ -216,21 +216,25 @@ def get_reassignment_directory(search=None, page=1, page_size=20, match_type="li
 @frappe.whitelist()
 def get_retailer_assignment(customer):
     require_role(MANAGER_ROLES)
-    _retailer_assignment_retired()
     customer = (customer or "").strip()[:140]
     if not customer:
         frappe.throw(frappe._("Select a retailer."))
     if not frappe.db.exists("Customer", customer):
         frappe.throw(frappe._("Retailer {0} does not exist.").format(customer))
     _assert_customer_scope(customer)
-    assignment = _single_assignment(customer)
+    territory = frappe.db.get_value("Customer", customer, "territory")
+    from clothing_erp.supervision import get_territory_supervision
+    active_supervision = get_territory_supervision(territory) if territory else None
     history = frappe.get_list(
         "Retailer Assignment History",
-        filters={"customer": customer},
+        filters={"territory": territory} if territory else {"customer": customer},
         fields=[
             "name",
-            "previous_salesperson",
-            "new_salesperson",
+            "territory",
+            "previous_asm",
+            "new_asm",
+            "previous_rsm",
+            "new_rsm",
             "reason",
             "changed_by",
             "changed_on",
@@ -240,8 +244,9 @@ def get_retailer_assignment(customer):
     )
     return {
         "customer": customer,
-        "current_salesperson": assignment.user if assignment else None,
-        "salespeople": _active_salespeople(),
+        "territory": territory,
+        "current_salesperson": active_supervision.asm if active_supervision else None,
+        "current_rsm": active_supervision.rsm if active_supervision else None,
         "history": history,
     }
 

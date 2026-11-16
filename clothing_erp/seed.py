@@ -12,7 +12,7 @@ from clothing_erp.roles import (
     ROLE_RSM,
     ROLE_WAREHOUSE_MANAGER,
 )
-from clothing_erp.supervision import assign_asm_supervision
+from clothing_erp.supervision import assign_asm_supervision, record_assignment_history
 
 SEED_REFERENCE = "Clothing ERP fictional catalogue seed"
 SEED_RETAILER = "TEST Catalogue Boutique"
@@ -391,6 +391,13 @@ def _seed_test_accounts_and_assignments(company):
             reason=SEED_REFERENCE,
         )
         assignments.append(assignment["name"])
+        if not frappe.db.exists("Retailer Assignment History", {"territory": territory}):
+            record_assignment_history(
+                territory=territory,
+                new_asm=asm,
+                new_rsm=SEED_RSM,
+                reason=SEED_REFERENCE,
+            )
     return {
         "credentials": credentials,
         "assignments": assignments,

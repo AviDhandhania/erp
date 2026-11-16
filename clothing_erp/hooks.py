@@ -71,6 +71,7 @@ has_permission = {
 	"Retailer Application": "clothing_erp.security.retailer_record_has_permission",
 	"Retailer Visit": "clothing_erp.security.retailer_record_has_permission",
 	"ASM Supervision": "clothing_erp.security.asm_supervision_has_permission",
+	"Retailer Assignment History": "clothing_erp.security.retailer_assignment_history_has_permission",
 	"User": "clothing_erp.security.user_has_permission",
 }
 
@@ -83,5 +84,6 @@ permission_query_conditions = {
 	"Retailer Application": "clothing_erp.security.retailer_application_conditions",
 	"Retailer Visit": "clothing_erp.security.retailer_visit_conditions",
 	"ASM Supervision": "clothing_erp.security.asm_supervision_conditions",
+	"Retailer Assignment History": "clothing_erp.security.retailer_assignment_history_conditions",
 	"User": "clothing_erp.security.user_query_conditions",
 }

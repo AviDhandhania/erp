@@ -491,10 +491,41 @@ class SalesTerritoryAssignments {
 								<div class="col-sm-4 text-muted">${__("Assigned By")}:</div>
 								<div class="col-sm-8 text-muted">${this.escape(record.assigned_by || "")} ${record.assigned_on ? `(${record.assigned_on})` : ""}</div>
 							</div>
+							<div class="assignment-history-section mt-4 pt-3 border-top">
+								<div class="d-flex justify-content-between align-items-center mb-2">
+									<div class="font-weight-bold">${__("Assignment History")}</div>
+									<a href="/desk#List/Retailer%20Assignment%20History?territory=${encodeURIComponent(record.territory)}" class="small text-muted">${__("Full History →")}</a>
+								</div>
+								<div class="assignment-history-content text-muted small">${__("Loading territory assignment history…")}</div>
+							</div>
 						</div>
 					`,
 				},
 			],
+		});
+
+		frappe.call({
+			method: "clothing_erp.supervision.get_territory_assignment_history",
+			args: { territory: record.territory },
+			callback: (r) => {
+				const history = r.message || [];
+				const $hist = dialog.$wrapper.find(".assignment-history-content");
+				if (!history.length) {
+					$hist.text(__("No previous assignment changes recorded for this territory."));
+					return;
+				}
+				const rows = history.map((h) => `
+					<div class="history-item mb-2 pb-2 border-bottom">
+						<div class="d-flex justify-content-between">
+							<span class="font-weight-bold">${this.escape(h.new_asm || __("Ended"))} ${h.new_rsm ? `(${__("RSM")}: ${this.escape(h.new_rsm)})` : ""}</span>
+							<span class="text-muted">${this.escape(h.changed_on ? h.changed_on.split(" ")[0] : "")}</span>
+						</div>
+						${h.previous_asm || h.previous_rsm ? `<div class="text-muted">${__("Replaced")}: ${this.escape(h.previous_asm || __("None"))} (${__("RSM")}: ${this.escape(h.previous_rsm || __("None"))})</div>` : ""}
+						${h.reason ? `<div class="text-muted">${__("Reason")}: ${this.escape(h.reason)}</div>` : ""}
+					</div>
+				`).join("");
+				$hist.html(rows);
+			},
 		});
 
 		if (this.is_admin && status === "Active") {

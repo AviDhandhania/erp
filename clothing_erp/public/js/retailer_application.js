@@ -25,6 +25,7 @@ function clothing_erp_disable_link_navigation(frm, fieldname) {
 function clothing_erp_inject_security_styles() {
 	frappe.dom.set_style(`
 		[data-fieldname="salesperson"] a,
+		[data-fieldname="rsm"] a,
 		[data-fieldname="reviewed_by"] a {
 			pointer-events: none !important;
 			cursor: default !important;
@@ -34,6 +35,9 @@ function clothing_erp_inject_security_styles() {
 		[data-fieldname="salesperson"] .btn-open,
 		[data-fieldname="salesperson"] .link-btn,
 		[data-fieldname="salesperson"] .octicon-link-external,
+		[data-fieldname="rsm"] .btn-open,
+		[data-fieldname="rsm"] .link-btn,
+		[data-fieldname="rsm"] .octicon-link-external,
 		[data-fieldname="reviewed_by"] .btn-open,
 		[data-fieldname="reviewed_by"] .link-btn,
 		[data-fieldname="reviewed_by"] .octicon-link-external {
@@ -51,32 +55,56 @@ frappe.ui.form.on("Retailer Application", {
 		clothing_erp_inject_security_styles();
 		clothing_erp_scope_retailer_application(frm);
 	},
+	territory(frm) {
+		if (!frm.doc.territory) {
+			frm.set_value("salesperson", "");
+			frm.set_value("rsm", "");
+			return;
+		}
+		frappe.call({
+			method: "clothing_erp.clothing_erp.doctype.retailer_application.retailer_application.get_territory_assignment",
+			args: { territory: frm.doc.territory },
+			callback(r) {
+				if (r && r.message) {
+					if (r.message.asm) {
+						frm.set_value("salesperson", r.message.asm);
+					}
+					if (r.message.rsm) {
+						frm.set_value("rsm", r.message.rsm);
+					}
+				}
+			}
+		});
+	}
 });
 
 function clothing_erp_scope_retailer_application(frm) {
 	frm.set_query("customer_group", () => ({
 		filters: { parent_customer_group: "Clothing ERP Retailer Types", is_group: 0 },
 	}));
-	if (!clothing_erp_is_asm_only()) return;
 
 	frm.set_df_property("salesperson", "read_only", 1);
-	frm.toggle_display("territory", false);
-	frm.set_df_property("territory", "reqd", 0);
+	frm.set_df_property("rsm", "read_only", 1);
 	clothing_erp_disable_link_navigation(frm, "salesperson");
+	clothing_erp_disable_link_navigation(frm, "rsm");
 	clothing_erp_disable_link_navigation(frm, "reviewed_by");
 
 	setTimeout(() => {
 		clothing_erp_disable_link_navigation(frm, "salesperson");
+		clothing_erp_disable_link_navigation(frm, "rsm");
 		clothing_erp_disable_link_navigation(frm, "reviewed_by");
 	}, 100);
 
-	if (!frm.is_new()) return;
-
-	// On new intake, hide the ASM field and auto-assign the current ASM.
-	frm.toggle_display("salesperson", false);
-	frm.set_df_property("salesperson", "hidden", 1);
-
-	if (!frm.doc.salesperson) {
-		frm.set_value("salesperson", frappe.session.user);
+	if (clothing_erp_is_asm_only()) {
+		if (frm.is_new() && !frm.doc.territory) {
+			frappe.db.get_value("User Permission", {
+				user: frappe.session.user,
+				allow: "Territory",
+			}, "for_value").then((r) => {
+				if (r && r.message && r.message.for_value) {
+					frm.set_value("territory", r.message.for_value);
+				}
+			});
+		}
 	}
 }

@@ -217,6 +217,10 @@ class TestSupervision(unittest.TestCase):
                     if isinstance(first, str) and len(args) > 1 and args[1] == "ASM-SUP-2026-00001":
                         return old_doc
                     return created_doc
+                if first == "Retailer Assignment History" or (isinstance(first, dict) and first.get("doctype") == "Retailer Assignment History"):
+                    mock_hist = MagicMock()
+                    mock_hist.name = "RET-ASG-001"
+                    return mock_hist
             return real_get_doc(*args, **kwargs)
 
         def mock_sql(query, *args, **kwargs):
@@ -418,3 +422,65 @@ class TestSupervision(unittest.TestCase):
         with patch.object(security, "has_any_role", return_value=True):
             empty_res = supervision.sales_role_user_query("User", "test", "name", 0, 20, {})
             self.assertEqual(empty_res, [])
+
+    def test_record_assignment_history_creates_immutable_log(self):
+        with (
+            patch.object(frappe.db, "exists", return_value=True),
+            patch.object(supervision, "get_current_user", return_value="admin@example.invalid"),
+            patch.object(frappe, "get_doc") as mock_get_doc,
+        ):
+            mock_doc = MagicMock()
+            mock_doc.name = "RET-ASG-001"
+            mock_get_doc.return_value = mock_doc
+
+            res = supervision.record_assignment_history(
+                territory="TEST Territory",
+                new_asm="new_asm@example.invalid",
+                previous_asm="prev_asm@example.invalid",
+                new_rsm="new_rsm@example.invalid",
+                previous_rsm="prev_rsm@example.invalid",
+                reason="Reassigned territory",
+            )
+            self.assertEqual(res, "RET-ASG-001")
+            mock_get_doc.assert_called_once()
+            doc_data = mock_get_doc.call_args[0][0]
+            self.assertEqual(doc_data["territory"], "TEST Territory")
+            self.assertEqual(doc_data["new_asm"], "new_asm@example.invalid")
+            self.assertEqual(doc_data["previous_asm"], "prev_asm@example.invalid")
+            self.assertEqual(doc_data["new_rsm"], "new_rsm@example.invalid")
+            self.assertEqual(doc_data["previous_rsm"], "prev_rsm@example.invalid")
+            self.assertEqual(doc_data["reason"], "Reassigned territory")
+            self.assertTrue(mock_doc.flags.clothing_assignment_event)
+            mock_doc.insert.assert_called_once_with(ignore_permissions=True)
+
+    def test_retailer_assignment_history_permissions_and_conditions(self):
+        doc = frappe._dict(
+            doctype="Retailer Assignment History",
+            territory="TEST Territory",
+            new_asm="asm@example.invalid",
+            new_rsm="rsm@example.invalid",
+        )
+
+        with patch.object(security, "is_clothing_admin", return_value=True):
+            self.assertTrue(security.retailer_assignment_history_has_permission(doc, "admin@example.invalid", "read"))
+            self.assertEqual(security.retailer_assignment_history_conditions("admin@example.invalid"), "")
+
+        with (
+            patch.object(security, "is_clothing_admin", return_value=False),
+            patch.object(security, "get_user_roles", return_value={ROLE_RSM}),
+            patch.object(security, "get_current_user", return_value="rsm@example.invalid"),
+            patch.object(security, "assigned_sales_territories", return_value=["TEST Territory"]),
+        ):
+            self.assertTrue(security.retailer_assignment_history_has_permission(doc, "rsm@example.invalid", "read"))
+            cond = security.retailer_assignment_history_conditions("rsm@example.invalid")
+            self.assertIn("new_rsm", cond)
+
+        with (
+            patch.object(security, "is_clothing_admin", return_value=False),
+            patch.object(security, "get_user_roles", return_value={ROLE_ASM}),
+            patch.object(security, "get_current_user", return_value="asm@example.invalid"),
+            patch.object(security, "assigned_sales_territories", return_value=["TEST Territory"]),
+        ):
+            self.assertTrue(security.retailer_assignment_history_has_permission(doc, "asm@example.invalid", "read"))
+            cond = security.retailer_assignment_history_conditions("asm@example.invalid")
+            self.assertIn("new_asm", cond)

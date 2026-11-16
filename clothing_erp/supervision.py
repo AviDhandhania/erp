@@ -313,6 +313,63 @@ def assert_rsm_supervises_asm(rsm, asm, territory=None, on_date=None):
         )
 
 
+def get_territory_supervision(territory, on_date=None):
+    """Return active Area Sales Manager and supervising RSM for a sales territory."""
+    if not territory:
+        return None
+    target_date = getdate(on_date or nowdate())
+    records = frappe.db.sql(
+        """
+        SELECT asm, rsm, territory, effective_from, effective_to
+        FROM `tabASM Supervision`
+        WHERE territory = %s
+          AND status = 'Active'
+          AND effective_from <= %s
+          AND (effective_to IS NULL OR effective_to >= %s)
+        ORDER BY effective_from DESC, creation DESC
+        LIMIT 1
+        """,
+        (territory, target_date, target_date),
+        as_dict=True,
+    )
+    return records[0] if records else None
+
+
+def record_assignment_history(
+    territory,
+    new_asm=None,
+    previous_asm=None,
+    new_rsm=None,
+    previous_rsm=None,
+    reason=None,
+    customer=None,
+):
+    """Log an immutable territory assignment history event."""
+    if not frappe.db.exists("DocType", "Retailer Assignment History"):
+        return None
+    history = frappe.get_doc(
+        {
+            "doctype": "Retailer Assignment History",
+            "territory": territory,
+            "customer": customer,
+            "previous_asm": previous_asm,
+            "new_asm": new_asm,
+            "previous_rsm": previous_rsm,
+            "new_rsm": new_rsm,
+            "previous_salesperson": previous_asm,
+            "new_salesperson": new_asm,
+            "reason": (reason or "").strip()
+            or ("Territory assignment update" if new_asm else "Assignment ended"),
+            "changed_by": get_current_user(),
+            "changed_on": now_datetime(),
+        }
+    )
+    history.flags.clothing_assignment_event = True
+    history.flags.ignore_permissions = True
+    history.insert(ignore_permissions=True)
+    return history.name
+
+
 @frappe.whitelist(methods=["POST"])
 def assign_asm_supervision(asm, rsm, territory, effective_from=None, reason=None):
     """Administrator-controlled service to atomically assign or reassign supervision."""
@@ -367,6 +424,21 @@ def assign_asm_supervision(asm, rsm, territory, effective_from=None, reason=None
 
     # Supersede existing active records whose effective date ranges would overlap
     superseded = []
+    prev_asm = None
+    prev_rsm = None
+    existing_territory_active = frappe.get_all(
+        "ASM Supervision",
+        filters={"territory": territory, "status": "Active"},
+        fields=["asm", "rsm"],
+        limit=1,
+    )
+    if existing_territory_active:
+        prev_asm = existing_territory_active[0].asm
+        prev_rsm = existing_territory_active[0].rsm
+    elif current_records:
+        prev_asm = current_records[0].get("asm")
+        prev_rsm = current_records[0].get("rsm")
+
     for cur in current_records:
         cur_from = getdate(cur.effective_from)
         doc = frappe.get_doc("ASM Supervision", cur.name)
@@ -396,6 +468,15 @@ def assign_asm_supervision(asm, rsm, territory, effective_from=None, reason=None
     )
     new_doc.flags.ignore_permissions = True
     new_doc.insert()
+
+    record_assignment_history(
+        territory=territory,
+        new_asm=asm,
+        previous_asm=prev_asm,
+        new_rsm=rsm,
+        previous_rsm=prev_rsm,
+        reason=reason,
+    )
 
     frappe.clear_cache(user=asm)
     frappe.clear_cache(user=rsm)
@@ -444,6 +525,15 @@ def end_asm_supervision(name, reason=None, end_date=None):
     doc.flags.ignore_permissions = True
     doc.save()
 
+    record_assignment_history(
+        territory=doc.territory,
+        new_asm=None,
+        previous_asm=doc.asm,
+        new_rsm=None,
+        previous_rsm=doc.rsm,
+        reason=f"Ended: {reason}" if reason else "Assignment ended",
+    )
+
     frappe.clear_cache(user=doc.asm)
     frappe.clear_cache(user=doc.rsm)
 
@@ -452,6 +542,35 @@ def end_asm_supervision(name, reason=None, end_date=None):
         "status": doc.status,
         "effective_to": str(doc.effective_to),
     }
+
+
+@frappe.whitelist()
+def get_territory_assignment_history(territory, limit=10):
+    """Return recent assignment history for a territory."""
+    require_role(ADMIN_ROLES | {ROLE_RSM, ROLE_ASM})
+    from frappe.utils import cint
+
+    territory = (territory or "").strip()
+    if not territory:
+        return []
+    limit = max(1, min(cint(limit), 50))
+    return frappe.get_list(
+        "Retailer Assignment History",
+        filters={"territory": territory},
+        fields=[
+            "name",
+            "territory",
+            "previous_asm",
+            "new_asm",
+            "previous_rsm",
+            "new_rsm",
+            "reason",
+            "changed_by",
+            "changed_on",
+        ],
+        order_by="changed_on desc, creation desc",
+        limit=limit,
+    )
 
 
 @frappe.whitelist()

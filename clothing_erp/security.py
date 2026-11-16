@@ -231,6 +231,59 @@ def asm_supervision_has_permission(doc, user=None, ptype=None, **kwargs):
     return False
 
 
+def retailer_assignment_history_conditions(user=None):
+    if is_clothing_admin(user):
+        return ""
+    roles = get_user_roles(user)
+    current = get_current_user(user)
+    escaped_user = frappe.db.escape(current)
+    if ROLE_SALES_MANAGER in roles:
+        territories = assigned_sales_territories(user)
+        conds = [
+            f"`tabRetailer Assignment History`.`new_rsm` = {escaped_user}",
+            f"`tabRetailer Assignment History`.`previous_rsm` = {escaped_user}",
+        ]
+        if territories:
+            allowed = ", ".join(frappe.db.escape(t) for t in territories)
+            conds.append(f"`tabRetailer Assignment History`.`territory` in ({allowed})")
+        return f"({' OR '.join(conds)})"
+    if ROLE_SALESPERSON in roles:
+        conds = [
+            f"`tabRetailer Assignment History`.`new_asm` = {escaped_user}",
+            f"`tabRetailer Assignment History`.`previous_asm` = {escaped_user}",
+            f"`tabRetailer Assignment History`.`new_salesperson` = {escaped_user}",
+            f"`tabRetailer Assignment History`.`previous_salesperson` = {escaped_user}",
+        ]
+        territories = assigned_sales_territories(user)
+        if territories:
+            allowed = ", ".join(frappe.db.escape(t) for t in territories)
+            conds.append(f"`tabRetailer Assignment History`.`territory` in ({allowed})")
+        return f"({' OR '.join(conds)})"
+    return "1=0"
+
+
+def retailer_assignment_history_has_permission(doc, user=None, ptype=None, **kwargs):
+    if is_clothing_admin(user):
+        return True
+    if ptype in {"create", "write", "delete", "cancel"}:
+        return False
+    roles = get_user_roles(user)
+    current = get_current_user(user)
+    if ROLE_SALES_MANAGER in roles:
+        if doc.get("new_rsm") == current or doc.get("previous_rsm") == current:
+            return True
+        if doc.get("territory") and doc.get("territory") in assigned_sales_territories(user):
+            return True
+    if ROLE_SALESPERSON in roles:
+        if doc.get("new_asm") == current or doc.get("previous_asm") == current:
+            return True
+        if doc.get("new_salesperson") == current or doc.get("previous_salesperson") == current:
+            return True
+        if doc.get("territory") and doc.get("territory") in assigned_sales_territories(user):
+            return True
+    return False
+
+
 def retailer_record_has_permission(doc, user=None, ptype=None, **kwargs):
     if is_clothing_admin(user):
         return True

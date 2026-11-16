@@ -107,10 +107,12 @@ legacy warehouse-operator migration.
   `yarn.lock`; they were not created or modified by this work and must not be committed
   into Clothing ERP.
 - The live local site was migrated on 2026-11-16 with Frappe, ERPNext, Clothing ERP,
-  Insights and India Compliance installed. All 154 app/site tests pass after the
+  Insights and India Compliance installed. All 157 app/site tests pass after the
   Sales Territory Assignment (Territory -> ASM -> RSM) model, custom page restoration,
   complete removal of legacy Clothing Salesperson and Clothing Sales Manager roles,
-  role-scoped link queries for ASM/RSM, and in-page modal assignment inspection.
+  role-scoped link queries for ASM/RSM, in-page modal assignment inspection,
+  Retailer Assignment History update with territory and ASM/RSM tracking, and
+  Retailer Application automatic ASM and RSM population on territory selection.
 
 ## RSM-to-ASM supervision model — implemented 2026-11-16
 
@@ -161,9 +163,18 @@ legacy warehouse-operator migration.
 - [x] Development seed now creates two Territories, two ASMs, one RSM, business-admin and
   warehouse-manager test accounts, authoritative assignments and eight retailers spanning all
   four retailer types. Every run rotates and prints random test passwords.
-- [x] Unit and database integration tests: 16 unit tests in `test_supervision.py`, expanded
+- [x] Unit and database integration tests: 18 unit tests in `test_supervision.py`, 19
   workflow tests in `test_retailer_workflow.py` and `test_roles.py`, plus real-database
-  integration tests in `test_site.py` (total 154 passing tests).
+  integration tests in `test_site.py` (total 157 passing tests).
+- [x] Updated **Retailer Assignment History** to reflect the new territory model:
+  added `territory`, `previous_asm`, `new_asm`, `previous_rsm`, `new_rsm`, `reason`, `changed_by`,
+  and `changed_on`. Automatically records immutable history events on `assign_asm_supervision` and
+  `end_asm_supervision`. Added document permission hooks and query conditions for ASM and RSM scoping,
+  and re-added the DocType link under Sales Operations workspace.
+- [x] Added automatic ASM and RSM population in **Retailer Application**:
+  selecting or inputting a `territory` immediately auto-fills the active `salesperson` (ASM) and `rsm`
+  both client-side via `get_territory_assignment` and server-side in `validate()`. Made `territory`
+  visible and required for all sales roles, and set `salesperson` and `rsm` as auto-populated read-only fields.
 
 ### Status of supervision and field sales stages
 

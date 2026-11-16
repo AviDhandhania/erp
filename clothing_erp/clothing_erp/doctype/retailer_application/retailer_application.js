@@ -13,5 +13,27 @@ frappe.ui.form.on("Retailer Application", {
 				await frm.reload_doc();
 			}, __("Reject Retailer Application"), __("Reject"));
 		}, __("Review"));
+	},
+
+	territory(frm) {
+		if (!frm.doc.territory) {
+			frm.set_value("salesperson", "");
+			frm.set_value("rsm", "");
+			return;
+		}
+		frappe.call({
+			method: "clothing_erp.clothing_erp.doctype.retailer_application.retailer_application.get_territory_assignment",
+			args: { territory: frm.doc.territory },
+			callback(r) {
+				if (r && r.message) {
+					if (r.message.asm) {
+						frm.set_value("salesperson", r.message.asm);
+					}
+					if (r.message.rsm) {
+						frm.set_value("rsm", r.message.rsm);
+					}
+				}
+			}
+		});
 	}
 });

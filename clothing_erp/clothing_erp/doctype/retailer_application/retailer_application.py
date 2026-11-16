@@ -14,7 +14,7 @@ from clothing_erp.security import (
     is_sales_manager,
     require_role,
 )
-from clothing_erp.supervision import assert_rsm_supervises_asm
+from clothing_erp.supervision import assert_rsm_supervises_asm, get_active_supervising_rsm
 
 
 def _phone(value):
@@ -127,6 +127,33 @@ def _validate_salesperson_territory(user, territory):
         )
 
 
+@frappe.whitelist()
+def get_territory_assignment(territory):
+    """Return active Area Sales Manager and supervising RSM for a sales territory."""
+    require_role({ROLE_SALES_MANAGER, ROLE_SALESPERSON, ROLE_BUSINESS_ADMIN, "System Manager", "Administrator"})
+    territory = (territory or "").strip()
+    if not territory:
+        return {}
+    from frappe.utils import nowdate
+    records = frappe.db.sql(
+        """
+        SELECT asm, rsm
+        FROM `tabASM Supervision`
+        WHERE territory = %s
+          AND status = 'Active'
+          AND effective_from <= %s
+          AND (effective_to IS NULL OR effective_to >= %s)
+        ORDER BY effective_from DESC, creation DESC
+        LIMIT 1
+        """,
+        (territory, nowdate(), nowdate()),
+        as_dict=True,
+    )
+    if records:
+        return {"asm": records[0].asm, "rsm": records[0].rsm}
+    return {}
+
+
 class RetailerApplication(Document):
     def validate(self):
         if not self.is_new():
@@ -165,9 +192,16 @@ class RetailerApplication(Document):
             )
         if ROLE_SALESPERSON in get_user_roles() and not is_sales_manager():
             self.salesperson = get_current_user()
-            # These are server-owned master-data choices. An ASM neither
-            # needs read access to the masters nor may override submitted values.
             self.territory = _salesperson_application_territory(self.salesperson)
+        if self.territory:
+            assignment = get_territory_assignment(self.territory)
+            if assignment:
+                if not self.salesperson:
+                    self.salesperson = assignment.get("asm")
+                if not self.rsm:
+                    self.rsm = assignment.get("rsm")
+        if self.salesperson and not self.rsm:
+            self.rsm = get_active_supervising_rsm(self.salesperson)
         validate_retailer_type(self.customer_group)
         _validate_salesperson(self.salesperson)
         _validate_salesperson_territory(self.salesperson, self.territory)
