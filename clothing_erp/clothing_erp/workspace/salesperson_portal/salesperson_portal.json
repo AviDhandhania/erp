@@ -2,7 +2,7 @@
  "name": "Salesperson Portal",
  "app": "clothing_erp",
  "charts": [],
- "content": "[{\"id\": \"spcard001\", \"type\": \"card\", \"data\": {\"card_name\": \"My Operations\", \"col\": 6}}, {\"id\": \"spcard002\", \"type\": \"card\", \"data\": {\"card_name\": \"Catalog & Retailers\", \"col\": 6}}]",
+ "content": "[{\"id\": \"spcard001\", \"type\": \"card\", \"data\": {\"card_name\": \"Field Operations\", \"col\": 6}}, {\"id\": \"spcard002\", \"type\": \"card\", \"data\": {\"card_name\": \"Retailers & Catalog\", \"col\": 6}}]",
  "creation": "2026-11-07 15:45:00.000000",
  "custom_blocks": [],
  "docstatus": 0,
@@ -43,14 +43,19 @@
    "label": "Apparel Catalog",
    "link_to": "clothing-catalogue",
    "type": "Page"
+  },
+  {
+   "label": "Sales Territory Assignments",
+   "link_to": "retailer-assignments",
+   "type": "Page"
   }
  ],
  "links": [
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "My Operations",
-   "link_count": 2,
+   "label": "Field Operations",
+   "link_count": 3,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -67,17 +72,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Catalog & Retailers",
-   "link_count": 2,
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Assigned Retailers",
+   "label": "Retailer Visits",
    "link_count": 0,
-   "link_to": "Customer",
+   "link_to": "Retailer Visit",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -85,10 +82,28 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Clothing Catalogue",
+   "label": "Retailer Visit Report",
    "link_count": 0,
-   "link_to": "clothing-catalogue",
-   "link_type": "Page",
+   "link_to": "Retailer Visit Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Retailers & Catalog",
+   "link_count": 5,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Retailers",
+   "link_count": 0,
+   "link_to": "Customer",
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   },
@@ -105,9 +120,29 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Retailer Visits",
+   "label": "Apparel Catalog",
    "link_count": 0,
-   "link_to": "Retailer Visit",
+   "link_to": "clothing-catalogue",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Sales Territory Assignments",
+   "link_count": 0,
+   "link_to": "retailer-assignments",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Retailer Assignment History",
+   "link_count": 0,
+   "link_to": "Retailer Assignment History",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"

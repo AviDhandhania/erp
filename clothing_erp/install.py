@@ -355,7 +355,22 @@ def after_install():
             _remove_custom_docperm(doctype, old_role)
     remove_legacy_roles()
     migrate_existing_assignments()
+    ensure_clothing_erp_sidebar()
     frappe.clear_cache()
+
+
+def ensure_clothing_erp_sidebar():
+    """Ensure standard Clothing ERP sidebar is imported and up-to-date."""
+    import os
+    sidebar_file = os.path.join(
+        os.path.dirname(__file__),
+        "clothing_erp",
+        "sidebar",
+        "clothing_erp",
+        "clothing_erp.json",
+    )
+    if os.path.exists(sidebar_file):
+        frappe.modules.import_file.import_file_by_path(sidebar_file, force=True, ignore_version=True)
 
 
 def configure_launcher():
@@ -368,3 +383,4 @@ def configure_launcher():
 
 def after_migrate():
     after_install()
+    ensure_clothing_erp_sidebar()

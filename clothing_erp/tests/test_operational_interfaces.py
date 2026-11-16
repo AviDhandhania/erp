@@ -51,6 +51,47 @@ class TestOperationalInterfaces(unittest.TestCase):
             self.assertEqual(data["title"], data["label"])
             self.assertTrue(data["roles"])
 
+    def test_sidebar_definition_is_valid_and_owned_by_clothing_erp(self):
+        sidebar_file = Path(__file__).parents[1] / "clothing_erp/sidebar/clothing_erp/clothing_erp.json"
+        self.assertTrue(sidebar_file.exists())
+        data = json.loads(sidebar_file.read_text())
+        self.assertEqual(data["doctype"], "Sidebar")
+        self.assertEqual(data["module"], "Clothing ERP")
+        self.assertEqual(data["title"], "Clothing ERP")
+        self.assertEqual(data["standard"], 1)
+
+        items = data["items"]
+        sections = [item["label"] for item in items if item["type"] == "Section Break"]
+        expected_sections = [
+            "Field Sales & Retailers",
+            "Apparel & Catalog",
+            "Fulfillment & Warehouse",
+            "Administration & Setup",
+        ]
+        self.assertEqual(sections, expected_sections)
+
+        current_section = None
+        for item in items:
+            if item["type"] == "Section Break":
+                current_section = item["label"]
+                self.assertEqual(item.get("indent"), 1)
+                self.assertEqual(item.get("child"), 0)
+            elif current_section is not None and item.get("type") == "Link":
+                self.assertEqual(item.get("child"), 1, f"{item['label']} under {current_section} must have child=1")
+
+    def test_clothing_erp_workspace_mirrors_sidebar_sections(self):
+        workspace_file = Path(__file__).parents[1] / "clothing_erp/workspace/clothing_erp/clothing_erp.json"
+        self.assertTrue(workspace_file.exists())
+        data = json.loads(workspace_file.read_text())
+        cards = [link["label"] for link in data.get("links", []) if link.get("type") == "Card Break"]
+        expected_cards = [
+            "Field Sales & Retailers",
+            "Apparel & Catalog",
+            "Fulfillment & Warehouse",
+            "Administration & Setup",
+        ]
+        self.assertEqual(cards, expected_cards)
+
     def test_monthly_sales_are_grouped_by_currency(self):
         currencies = [frappe._dict(currency="INR", total=100), frappe._dict(currency="USD", total=20)]
         def query(doctype, **kwargs):

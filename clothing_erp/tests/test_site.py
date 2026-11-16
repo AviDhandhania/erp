@@ -785,3 +785,28 @@ class TestSitePermissions(IntegrationTestCase):
     def test_legacy_sales_roles_do_not_exist_in_database(self):
         self.assertFalse(frappe.db.exists("Role", "Clothing Salesperson"))
         self.assertFalse(frappe.db.exists("Role", "Clothing Sales Manager"))
+
+    def test_sidebar_resolves_cleanly_for_operational_roles(self):
+        from frappe.desk.doctype.sidebar.sidebar import resolve_sidebar
+
+        frappe.set_user("Administrator")
+        admin_sidebar = resolve_sidebar("Clothing ERP", "Administrator")
+        self.assertIsNotNone(admin_sidebar)
+        admin_labels = [item.get("label") for item in admin_sidebar.items]
+        self.assertIn("Field Sales & Retailers", admin_labels)
+        self.assertIn("Apparel & Catalog", admin_labels)
+        self.assertIn("Fulfillment & Warehouse", admin_labels)
+        self.assertIn("Administration & Setup", admin_labels)
+        self.assertIn("Clothing Orders", admin_labels)
+        self.assertIn("Apparel Catalog", admin_labels)
+        self.assertIn("Fulfillment Tasks", admin_labels)
+        self.assertIn("Sales Territory Assignments", admin_labels)
+
+        frappe.set_user(self.email)
+        asm_sidebar = resolve_sidebar("Clothing ERP", self.email)
+        self.assertIsNotNone(asm_sidebar)
+        asm_labels = [item.get("label") for item in asm_sidebar.items]
+        self.assertIn("Clothing Orders", asm_labels)
+        self.assertIn("Retailers", asm_labels)
+        self.assertIn("Apparel Catalog", asm_labels)
+        self.assertIn("Sales Territory Assignments", asm_labels)
