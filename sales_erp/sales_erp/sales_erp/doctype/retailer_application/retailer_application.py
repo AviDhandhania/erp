@@ -160,16 +160,16 @@ class RetailerApplication(Document):
             stored_status = frappe.db.get_value(
                 "Retailer Application", self.name, "status"
             )
+            if stored_status in ("Approved", "Rejected"):
+                frappe.throw(
+                    frappe._("Reviewed retailer applications cannot be edited.")
+                )
             if stored_status != self.status:
                 frappe.throw(
                     frappe._(
-                        "Use the manager approval or rejection action to change status."
+                        "Use the specific workflow action to change status."
                     ),
                     frappe.PermissionError,
-                )
-            if stored_status != "Pending":
-                frappe.throw(
-                    frappe._("Reviewed retailer applications cannot be edited.")
                 )
         self.shop_name = self.shop_name.strip()
         self.contact_person = self.contact_person.strip()
@@ -280,8 +280,8 @@ def approve(name):
     require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
     application = _lock_application(name)
     application.check_permission("write")
-    if application.status != "Pending":
-        frappe.throw(frappe._("Only pending applications can be approved."))
+    if application.status not in ("Pending", "Resubmitted"):
+        frappe.throw(frappe._("Only pending or resubmitted applications can be approved."))
     if not is_clothing_admin():
         assert_rsm_supervises_asm(
             rsm=get_current_user(),
@@ -341,14 +341,75 @@ def approve(name):
 
 
 @frappe.whitelist(methods=["POST"])
+def request_more_info(name, comments):
+    """RSM requests more information from the responsible ASM."""
+    require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+    if not (comments or "").strip():
+        frappe.throw(frappe._("A comment explaining the required information is required."))
+    application = _lock_application(name)
+    application.check_permission("write")
+    if application.status not in ("Pending", "Resubmitted"):
+        frappe.throw(frappe._("Information can only be requested on pending or resubmitted applications."))
+    if not is_clothing_admin():
+        assert_rsm_supervises_asm(
+            rsm=get_current_user(),
+            asm=application.salesperson,
+            territory=application.territory,
+        )
+    user = get_current_user()
+    application.db_set(
+        {
+            "status": "More Information Requested",
+            "info_requested_by": user,
+            "info_requested_on": now_datetime(),
+            "requested_information": comments.strip(),
+        }
+    )
+    return {
+        "application": application.name,
+        "status": "More Information Requested",
+        "requested_information": comments.strip(),
+    }
+
+
+@frappe.whitelist(methods=["POST"])
+def resubmit(name, notes=None):
+    """Responsible ASM resubmits application after updating requested details."""
+    require_role({ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+    application = _lock_application(name)
+    application.check_permission("write")
+    if application.status != "More Information Requested":
+        frappe.throw(frappe._("Only applications with 'More Information Requested' can be resubmitted."))
+    user = get_current_user()
+    if user != application.salesperson and not is_clothing_admin(user):
+        frappe.throw(
+            frappe._("Only the responsible Area Sales Manager can resubmit this application."),
+            frappe.PermissionError,
+        )
+    application.validate()
+    updates = {
+        "status": "Resubmitted",
+        "resubmitted_on": now_datetime(),
+    }
+    if notes and notes.strip():
+        existing_notes = application.notes or ""
+        updates["notes"] = f"{existing_notes}\nResubmission notes ({user}): {notes.strip()}".strip()
+    application.db_set(updates)
+    return {
+        "application": application.name,
+        "status": "Resubmitted",
+    }
+
+
+@frappe.whitelist(methods=["POST"])
 def reject(name, reason):
     require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
     if not (reason or "").strip():
         frappe.throw(frappe._("A rejection reason is required."))
     application = _lock_application(name)
     application.check_permission("write")
-    if application.status != "Pending":
-        frappe.throw(frappe._("Only pending applications can be rejected."))
+    if application.status in ("Approved", "Rejected"):
+        frappe.throw(frappe._("Already reviewed applications cannot be rejected."))
     if not is_clothing_admin():
         assert_rsm_supervises_asm(
             rsm=get_current_user(),

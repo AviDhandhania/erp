@@ -40,6 +40,7 @@ after_install = "clothing_erp.install.after_install"
 after_migrate = "clothing_erp.install.after_migrate"
 
 extend_bootinfo = "clothing_erp.boot.restrict_erpnext_app_visibility"
+boot_session = "clothing_erp.boot.restrict_erpnext_app_visibility"
 
 before_request = [
 	"clothing_erp.insights_compat.enforce_insights_admin_access",

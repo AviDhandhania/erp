@@ -32,6 +32,8 @@ from sales_erp.supervision import (
 class TestSalesERP(FrappeTestCase):
     def setUp(self):
         super().setUp()
+        from collections import defaultdict
+        frappe.local.request_cache = defaultdict(dict)
         frappe.set_user("Administrator")
         seed_catalogue()
         self.asm_south = SEED_ASM_SOUTH
@@ -149,3 +151,83 @@ class TestSalesERP(FrappeTestCase):
         self.assertEqual(doc.territory, "TEST South Sales Territory")
         self.assertEqual(doc.new_asm, self.asm_south)
         self.assertEqual(doc.new_rsm, self.rsm)
+
+    def test_retailer_application_request_info_and_resubmit_flow(self):
+        """RSM requests more info -> status More Information Requested -> ASM resubmits -> RSM approves."""
+        frappe.set_user(self.asm_south)
+        app_doc = frappe.get_doc({
+            "doctype": "Retailer Application",
+            "shop_name": "TEST Info Flow Shop",
+            "contact_person": "Flow Owner",
+            "phone": "9876543210",
+            "territory": "TEST South Sales Territory",
+            "customer_group": "Buy & Sell",
+            "salesperson": self.asm_south,
+            "billing_address_line1": "123 South St",
+            "billing_city": "Bengaluru",
+            "billing_state": "Karnataka",
+            "country": "India",
+            "status": "Pending",
+        }).insert()
+
+        # 1. RSM requests more information
+        frappe.set_user(self.rsm)
+        from sales_erp.sales_erp.doctype.retailer_application.retailer_application import (
+            approve,
+            request_more_info,
+            resubmit,
+        )
+        # Empty comment raises error
+        with self.assertRaises(frappe.ValidationError):
+            request_more_info(app_doc.name, "  ")
+
+        res = request_more_info(app_doc.name, "Please upload latest shop photo and GSTIN")
+        self.assertEqual(res["status"], "More Information Requested")
+        app_doc.reload()
+        self.assertEqual(app_doc.status, "More Information Requested")
+        self.assertEqual(app_doc.requested_information, "Please upload latest shop photo and GSTIN")
+        self.assertEqual(app_doc.info_requested_by, self.rsm)
+
+        # 2. Cannot approve while in More Information Requested
+        with self.assertRaises(frappe.ValidationError):
+            approve(app_doc.name)
+
+        # 3. ASM resubmits application
+        frappe.set_user(self.asm_south)
+        resubmit_res = resubmit(app_doc.name, "Added GSTIN in notes")
+        self.assertEqual(resubmit_res["status"], "Resubmitted")
+        app_doc.reload()
+        self.assertEqual(app_doc.status, "Resubmitted")
+        self.assertIn("Added GSTIN in notes", app_doc.notes or "")
+
+        # 4. RSM approves resubmitted application
+        frappe.set_user(self.rsm)
+        approval_res = approve(app_doc.name)
+        self.assertEqual(approval_res["status"], "Approved")
+        app_doc.reload()
+        self.assertEqual(app_doc.status, "Approved")
+        self.assertTrue(bool(app_doc.customer))
+
+    def test_runtime_app_and_workspace_scoping(self):
+        """Operational ASM and RSM users only receive sales_erp apps and workspaces."""
+        from frappe.apps import get_apps
+        from frappe.desk.desktop import get_workspaces
+
+        for user in [self.asm_south, self.rsm]:
+            frappe.set_user(user)
+            frappe.local.request_cache.clear()
+            apps = [a["name"] for a in get_apps()]
+            self.assertEqual(apps, ["sales_erp"])
+
+            ws_pages = [w["name"] for w in get_workspaces()["pages"]]
+            self.assertEqual(ws_pages, ["Sales ERP"])
+
+        # Administrator sees all apps and all workspaces
+        frappe.set_user("Administrator")
+        frappe.local.request_cache.clear()
+        admin_apps = [a["name"] for a in get_apps()]
+        self.assertIn("sales_erp", admin_apps)
+        self.assertIn("warehouse_erp", admin_apps)
+        self.assertIn("quality_erp", admin_apps)
+        self.assertIn("erpnext", admin_apps)
+

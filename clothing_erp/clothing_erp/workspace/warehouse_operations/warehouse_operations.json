@@ -16,12 +16,6 @@
  "public": 1,
  "roles": [
   {
-   "role": "Clothing Warehouse Operator"
-  },
-  {
-   "role": "Clothing Warehouse Manager"
-  },
-  {
    "role": "Clothing Business Administrator"
   },
   {

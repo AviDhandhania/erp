@@ -40,8 +40,10 @@ after_install = "sales_erp.install.after_install"
 after_migrate = "sales_erp.install.after_migrate"
 
 extend_bootinfo = "sales_erp.boot.restrict_sales_app_visibility"
+boot_session = "sales_erp.boot.restrict_sales_app_visibility"
 
 before_request = [
+	"sales_erp.boot.apply_runtime_patches",
 	"sales_erp.insights_compat.enforce_insights_admin_access",
 ]
 

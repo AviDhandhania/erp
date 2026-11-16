@@ -41,7 +41,7 @@ def is_warehouse_operator(user=None):
     return has_any_role({ROLE_WAREHOUSE_OPERATOR, ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN}, user)
 
 def has_app_access():
-    return has_any_role({r["role_name"] for r in ALL_ROLES})
+    return has_any_role({ROLE_BUSINESS_ADMIN})
 
 def get_active_operational_role(user=None):
     for check, label in ((is_clothing_admin, "Administrator"), (is_sales_manager, "Regional Sales Manager"),

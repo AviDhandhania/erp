@@ -1,5 +1,5 @@
 {
- "autoname":"format:RET-VIS-{YYYY}-{#####}","doctype":"DocType","engine":"InnoDB","module":"Clothing ERP","name":"Retailer Visit","track_changes":1,
+ "autoname":"format:RET-VIS-{YYYY}-{#####}","doctype":"DocType","engine":"InnoDB","module":"Sales ERP","name":"Retailer Visit","track_changes":1,
  "field_order":["customer","salesperson","visit_date","outcome","notes","follow_up_date"],
  "fields":[
   {"fieldname":"customer","fieldtype":"Link","label":"Retailer","options":"Customer","reqd":1,"in_list_view":1},

@@ -31,6 +31,8 @@ from warehouse_erp.seed import (
 class TestWarehouseERP(FrappeTestCase):
     def setUp(self):
         super().setUp()
+        from collections import defaultdict
+        frappe.local.request_cache = defaultdict(dict)
         frappe.set_user("Administrator")
         seed_warehouse_data()
         self.operator = SEED_WAREHOUSE_OPERATOR
@@ -117,3 +119,17 @@ class TestWarehouseERP(FrappeTestCase):
         tasks = get_fulfillment_tasks(task_type="pick", state="all")
         self.assertIn("tasks", tasks)
         self.assertIn("pagination", tasks)
+
+    def test_warehouse_runtime_scoping(self):
+        """Warehouse users only see warehouse_erp and Warehouse ERP workspace."""
+        from frappe.apps import get_apps
+        from frappe.desk.desktop import get_workspaces
+
+        for user in [self.operator, self.manager]:
+            frappe.set_user(user)
+            frappe.local.request_cache.clear()
+            apps = [a["name"] for a in get_apps()]
+            self.assertEqual(apps, ["warehouse_erp"])
+
+            ws_pages = [w["name"] for w in get_workspaces()["pages"]]
+            self.assertEqual(ws_pages, ["Warehouse ERP"])

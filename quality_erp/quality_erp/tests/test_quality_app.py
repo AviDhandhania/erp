@@ -26,6 +26,8 @@ from quality_erp.seed import (
 class TestQualityERP(FrappeTestCase):
     def setUp(self):
         super().setUp()
+        from collections import defaultdict
+        frappe.local.request_cache = defaultdict(dict)
         frappe.set_user("Administrator")
         seed_quality_data()
         self.inspector = SEED_QUALITY_INSPECTOR
@@ -166,3 +168,17 @@ class TestQualityERP(FrappeTestCase):
         self.assertEqual(doc["inspection_status"], "Quarantined")
         self.assertEqual(doc["quantity"], 5.0)
         self.assertEqual(doc["inspected_by"], self.inspector)
+
+    def test_quality_runtime_scoping(self):
+        """Quality users only see quality_erp and Quality ERP workspace."""
+        from frappe.apps import get_apps
+        from frappe.desk.desktop import get_workspaces
+
+        for user in [self.inspector, self.manager]:
+            frappe.set_user(user)
+            frappe.local.request_cache.clear()
+            apps = [a["name"] for a in get_apps()]
+            self.assertEqual(apps, ["quality_erp"])
+
+            ws_pages = [w["name"] for w in get_workspaces()["pages"]]
+            self.assertEqual(ws_pages, ["Quality ERP"])

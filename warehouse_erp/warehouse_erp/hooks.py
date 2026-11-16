@@ -33,6 +33,11 @@ after_install = "warehouse_erp.install.after_install"
 after_migrate = "warehouse_erp.install.after_migrate"
 
 extend_bootinfo = "warehouse_erp.boot.restrict_warehouse_app_visibility"
+boot_session = "warehouse_erp.boot.restrict_warehouse_app_visibility"
+
+before_request = [
+	"warehouse_erp.boot.apply_runtime_patches",
+]
 
 # Document Permission Hooks (Document-level access control)
 has_permission = {
