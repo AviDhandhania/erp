@@ -291,13 +291,18 @@ def retailer_record_has_permission(doc, user=None, ptype=None, **kwargs):
     if not (roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}):
         return False
     if doc.doctype == "Retailer Application":
+        if ptype == "create":
+            return True
         if ROLE_SALES_MANAGER in roles:
             return doc.territory in assigned_sales_territories(user)
-        return doc.owner == get_current_user(user)
+        return doc.owner == get_current_user(user) or doc.salesperson == get_current_user(user)
+    # Retailer Visit
+    if ptype == "create":
+        return not getattr(doc, "customer", None) or has_retailer_access(doc.customer, user)
     if ROLE_SALES_MANAGER in roles:
         return has_retailer_access(doc.customer, user)
     return (
-        doc.salesperson == get_current_user(user)
+        (doc.salesperson == get_current_user(user) or doc.owner == get_current_user(user))
         and has_retailer_access(doc.customer, user)
     )
 

@@ -66,7 +66,7 @@ def assigned_warehouses(user=None):
     return sorted(descendants)
 
 
-def warehouse_has_permission(doc, ptype="read", user=None):
+def warehouse_has_permission(doc, ptype="read", user=None, **kwargs):
     user = get_current_user(user)
     if is_warehouse_admin(user):
         return True
@@ -77,7 +77,7 @@ def warehouse_has_permission(doc, ptype="read", user=None):
     return doc_name in allowed if allowed else False
 
 
-def pick_list_has_permission(doc, ptype="read", user=None):
+def pick_list_has_permission(doc, ptype="read", user=None, **kwargs):
     user = get_current_user(user)
     if is_warehouse_admin(user):
         return True
@@ -93,7 +93,7 @@ def pick_list_has_permission(doc, ptype="read", user=None):
     return True
 
 
-def delivery_note_has_permission(doc, ptype="read", user=None):
+def delivery_note_has_permission(doc, ptype="read", user=None, **kwargs):
     user = get_current_user(user)
     if is_warehouse_admin(user):
         return True
@@ -109,9 +109,21 @@ def delivery_note_has_permission(doc, ptype="read", user=None):
     return True
 
 
-def serial_batch_bundle_has_permission(doc, ptype="read", user=None):
-    if ptype in ("write", "create", "delete"):
-        return is_warehouse_admin(user)
+def serial_batch_bundle_has_permission(doc, user=None, ptype=None, **kwargs):
+    """Allow bundle mutation only inside the authorized Pick List submit service or for warehouse admin."""
+    user = get_current_user(user)
+    if is_warehouse_admin(user):
+        return True
+    if ptype in {"create", "write", "submit", "cancel", "delete"}:
+        pick_list = frappe.flags.get("clothing_pick_bundle")
+        doc_obj = frappe.get_doc("Serial and Batch Bundle", doc) if isinstance(doc, str) else doc
+        return bool(
+            pick_list
+            and is_warehouse_operator(user)
+            and doc_obj
+            and doc_obj.get("voucher_type") == "Pick List"
+            and doc_obj.get("voucher_no") == pick_list
+        )
     return is_warehouse_operator(user)
 
 

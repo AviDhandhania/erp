@@ -1,18 +1,60 @@
 {
- "autoname":"format:RET-VIS-{YYYY}-{#####}","doctype":"DocType","engine":"InnoDB","module":"Sales ERP","name":"Retailer Visit","track_changes":1,
- "field_order":["customer","salesperson","visit_date","outcome","notes","follow_up_date"],
- "fields":[
-  {"fieldname":"customer","fieldtype":"Link","label":"Retailer","options":"Customer","reqd":1,"in_list_view":1},
-  {"fieldname":"salesperson","fieldtype":"Link","label":"Area Sales Manager","options":"User","reqd":1,"in_list_view":1},
-  {"fieldname":"visit_date","fieldtype":"Datetime","label":"Visit Date","reqd":1,"in_list_view":1},
-  {"fieldname":"outcome","fieldtype":"Select","label":"Outcome","options":"Order Expected\nFollow-up Required\nNo Requirement\nIssue Reported\nClosed","reqd":1,"in_list_view":1},
-  {"fieldname":"notes","fieldtype":"Text","label":"Notes","reqd":1},
-  {"fieldname":"follow_up_date","fieldtype":"Date","label":"Follow-up Date"}
+ "autoname": "format:RET-VIS-{YYYY}-{#####}",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "module": "Sales ERP",
+ "name": "Retailer Visit",
+ "track_changes": 1,
+ "field_order": [
+  "customer",
+  "salesperson",
+  "rsm",
+  "visit_date",
+  "visitor_role",
+  "visit_type",
+  "outcome",
+  "notes",
+  "follow_up_date",
+  "rsm_assessment_section",
+  "financial_assessment",
+  "customer_footfall",
+  "stock_condition",
+  "recommended_credit_limit",
+  "dealer_feedback",
+  "review_section",
+  "review_status",
+  "reviewed_by",
+  "reviewed_on",
+  "review_notes"
  ],
- "permissions":[
-  {"role":"Clothing Area Sales Manager","create":1,"read":1,"write":1,"report":1,"if_owner":1},
-  {"role":"Clothing Regional Sales Manager","create":1,"read":1,"write":1,"report":1},
-  {"role":"Clothing Business Administrator","create":1,"read":1,"write":1,"delete":1,"report":1},
-  {"role":"System Manager","create":1,"read":1,"write":1,"delete":1,"report":1}
- ],"sort_field":"visit_date","sort_order":"DESC"
+ "fields": [
+  {"fieldname": "customer", "fieldtype": "Link", "label": "Retailer", "options": "Customer", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "salesperson", "fieldtype": "Link", "label": "Area Sales Manager", "options": "User", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "rsm", "fieldtype": "Link", "label": "Supervising RSM", "options": "User", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "visit_date", "fieldtype": "Datetime", "label": "Visit Date", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "visitor_role", "fieldtype": "Select", "label": "Visitor Role", "options": "Area Sales Manager\nRegional Sales Manager", "default": "Area Sales Manager", "read_only": 1},
+  {"fieldname": "visit_type", "fieldtype": "Select", "label": "Visit Type", "options": "General Visit\nSample & Order Taking\nStock Review\nRSM Periodic Review", "default": "General Visit", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "outcome", "fieldtype": "Select", "label": "Outcome", "options": "Order Expected\nFollow-up Required\nNo Requirement\nIssue Reported\nClosed", "reqd": 1, "in_list_view": 1},
+  {"fieldname": "notes", "fieldtype": "Text", "label": "Notes", "reqd": 1},
+  {"fieldname": "follow_up_date", "fieldtype": "Date", "label": "Follow-up Date"},
+  {"fieldname": "rsm_assessment_section", "fieldtype": "Section Break", "label": "RSM Assessment & Dealer Review"},
+  {"fieldname": "financial_assessment", "fieldtype": "Select", "label": "Financial Assessment", "options": "Healthy\nModerate Risk\nHigh Risk / Cash Constrained"},
+  {"fieldname": "customer_footfall", "fieldtype": "Int", "label": "Daily Customer Footfall (Walk-ins)"},
+  {"fieldname": "stock_condition", "fieldtype": "Select", "label": "Stock Condition", "options": "Well Maintained\nExcess Stock\nLow Stock\nDamaged / Aged Stock Found"},
+  {"fieldname": "recommended_credit_limit", "fieldtype": "Currency", "label": "Recommended Credit / Exposure Limit (₹)"},
+  {"fieldname": "dealer_feedback", "fieldtype": "Small Text", "label": "Dealer Feedback & Notes"},
+  {"fieldname": "review_section", "fieldtype": "Section Break", "label": "Supervisory Review"},
+  {"fieldname": "review_status", "fieldtype": "Select", "label": "Review Status", "options": "Submitted\nReviewed by RSM\nAction Required", "default": "Submitted", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "reviewed_by", "fieldtype": "Link", "label": "Reviewed By", "options": "User", "read_only": 1},
+  {"fieldname": "reviewed_on", "fieldtype": "Datetime", "label": "Reviewed On", "read_only": 1},
+  {"fieldname": "review_notes", "fieldtype": "Small Text", "label": "Review Notes", "read_only": 1}
+ ],
+ "permissions": [
+  {"role": "Clothing Area Sales Manager", "create": 1, "read": 1, "write": 1, "report": 1, "if_owner": 1},
+  {"role": "Clothing Regional Sales Manager", "create": 1, "read": 1, "write": 1, "report": 1},
+  {"role": "Clothing Business Administrator", "create": 1, "read": 1, "write": 1, "delete": 1, "report": 1},
+  {"role": "System Manager", "create": 1, "read": 1, "write": 1, "delete": 1, "report": 1}
+ ],
+ "sort_field": "visit_date",
+ "sort_order": "DESC"
 }

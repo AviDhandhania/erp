@@ -322,3 +322,88 @@ class TestSalesERP(FrappeTestCase):
             with self.assertRaises(frappe.PermissionError):
                 resubmit(app_doc.name, "Attempt unauthorized resubmit")
 
+    def test_asm_retailer_visit_supervisory_workflow(self):
+        """ASM visit automatically resolves supervising RSM and allows RSM review."""
+        from sales_erp.sales_erp.doctype.retailer_visit.retailer_visit import review_visit
+
+        # 1. ASM cannot log a visit for a retailer outside their assigned territory
+        frappe.set_user(self.asm_south)
+        with self.assertRaises(frappe.PermissionError):
+            frappe.get_doc({
+                "doctype": "Retailer Visit",
+                "customer": "TEST Catalogue Boutique",  # Belongs to TEST North Sales Territory
+                "visit_date": frappe.utils.now_datetime(),
+                "visit_type": "Sample & Order Taking",
+                "outcome": "Order Expected",
+                "notes": "Attempt unauthorized cross-territory visit",
+            }).insert()
+
+        # 2. ASM successfully logs a visit for an authorized South territory retailer
+        visit = frappe.get_doc({
+            "doctype": "Retailer Visit",
+            "customer": "TEST 2-1 Buy & Sell Store",  # Belongs to TEST South Sales Territory
+            "visit_date": frappe.utils.now_datetime(),
+            "visit_type": "Sample & Order Taking",
+            "outcome": "Order Expected",
+            "notes": "Presented summer knitwear collection.",
+        }).insert()
+
+        self.assertEqual(visit.salesperson, self.asm_south)
+        self.assertEqual(visit.visitor_role, "Area Sales Manager")
+        self.assertEqual(visit.rsm, self.rsm)
+        self.assertEqual(visit.review_status, "Submitted")
+
+        # 3. ASM cannot file an RSM Periodic Review
+        with self.assertRaises(frappe.PermissionError):
+            frappe.get_doc({
+                "doctype": "Retailer Visit",
+                "customer": "TEST 2-1 Buy & Sell Store",
+                "visit_date": frappe.utils.now_datetime(),
+                "visit_type": "RSM Periodic Review",
+                "outcome": "Closed",
+                "notes": "Attempt unauthorized review type",
+            }).insert()
+
+        # 4. Non-supervising user cannot review the visit
+        frappe.set_user("test-warehouse-operator@example.invalid")
+        with self.assertRaises(frappe.PermissionError):
+            review_visit(visit.name, status="Reviewed by RSM", notes="Unauthorized review attempt")
+
+        # 5. Supervising RSM reviews the ASM visit
+        frappe.set_user(self.rsm)
+        res = review_visit(visit.name, status="Reviewed by RSM", notes="Approved order target ₹50,000")
+        self.assertEqual(res["review_status"], "Reviewed by RSM")
+        self.assertEqual(res["reviewed_by"], self.rsm)
+
+        visit.reload()
+        self.assertEqual(visit.review_status, "Reviewed by RSM")
+        self.assertEqual(visit.reviewed_by, self.rsm)
+        self.assertEqual(visit.review_notes, "Approved order target ₹50,000")
+        self.assertTrue(bool(visit.reviewed_on))
+
+    def test_rsm_periodic_review_visit(self):
+        """RSM can file an RSM Periodic Review capturing dealer and financial assessments."""
+        frappe.set_user(self.rsm)
+        rsm_visit = frappe.get_doc({
+            "doctype": "Retailer Visit",
+            "customer": "TEST Catalogue Boutique",
+            "visit_date": frappe.utils.now_datetime(),
+            "visit_type": "RSM Periodic Review",
+            "outcome": "Order Expected",
+            "notes": "Conducted 80-day comprehensive shop assessment.",
+            "financial_assessment": "Healthy",
+            "customer_footfall": 40,
+            "stock_condition": "Well Maintained",
+            "recommended_credit_limit": 60000.0,
+            "dealer_feedback": "Dealer is satisfied with fabric quality and delivery speed.",
+        }).insert()
+
+        self.assertEqual(rsm_visit.salesperson, self.rsm)
+        self.assertEqual(rsm_visit.rsm, self.rsm)
+        self.assertEqual(rsm_visit.visitor_role, "Regional Sales Manager")
+        self.assertEqual(rsm_visit.review_status, "Reviewed by RSM")
+        self.assertEqual(rsm_visit.financial_assessment, "Healthy")
+        self.assertEqual(rsm_visit.customer_footfall, 40)
+        self.assertEqual(flt(rsm_visit.recommended_credit_limit), 60000.0)
+
+

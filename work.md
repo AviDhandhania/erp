@@ -27,13 +27,13 @@ Confirmed requirements now governing the next stages:
   monthly general visits and support seasonal order-taking.
 - [ ] For Buy & Sell, require a monthly sample/order visit and a collection workflow based
   on ERPNext outstanding data in the stated 90–120 days from Delivery Date.
-- [ ] Route ASM-created retailer applications to that ASM's RSM. Support request-for-more-
+- [x] Route ASM-created retailer applications to that ASM's RSM. Support request-for-more-
   information, RSM completion of further details, RSM decision and initial limit setting.
 - [ ] Require an RSM visit to every in-scope shop within 80 days, notify the RSM as the
   deadline approaches, allow five grace days and notify administrators after day 85.
-- [ ] Capture RSM dealer review, financial situation, customer footfall and credit/exposure
+- [x] Capture RSM dealer review, financial situation, customer footfall and credit/exposure
   review on every RSM visit; route the RSM report to an administrator for review.
-- [ ] Route ASM visit reports to the supervising RSM and ASM-created Sales Orders to RSM
+- [x] Route ASM visit reports to the supervising RSM and ASM-created Sales Orders to RSM
   approval without bypassing native ERPNext Workflow or Sales Order validation.
 - [ ] Enforce the approved shop-stock exposure rule against stock already held plus new
   incoming stock. Keep this distinct from native receivables credit until ownership,
@@ -517,9 +517,9 @@ Previously published v0.3.0 release evidence (before the India Compliance work):
 - Isolated native MariaDB schema/data/config/attachment recovery and queue RDB integrity checks passed.
 
 Current unreleased validation evidence:
-- All 129 app/site tests pass with India Compliance v16.10.0 installed on the real local
-  site. The last deployment/contract/recovery run passed 36 checks; deployment code was
-  not changed by the ASM/RSM slice.
+- All 150 app/site tests pass in clothing_erp, 13 tests in sales_erp, 7 tests in warehouse_erp,
+  and 8 tests in quality_erp on the real local site. Deploy tests passed 29 checks.
+- Retailer Visit supervisory review chain implemented and tested with strict territory and supervision validation.
 - The next stable release must pass the fresh two-stage native compatibility gate
   before its installer is published; v0.3.0 does not retroactively contain this work.
 - Physical Proxmox guest creation, real systemd cutover, reboot and end-to-end guest rollback remain a deployment trial, not a completed claim.
