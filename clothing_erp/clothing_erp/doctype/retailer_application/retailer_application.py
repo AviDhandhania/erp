@@ -4,9 +4,10 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
-from clothing_erp.retailer_defaults import get_retailer_defaults
+from clothing_erp.retailer_defaults import validate_retailer_type
 from clothing_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
 from clothing_erp.security import (
+    assigned_documents,
     get_current_user,
     get_user_roles,
     is_sales_manager,
@@ -94,24 +95,39 @@ def find_duplicates(doc, exclude=None):
 def _validate_salesperson(user):
     details = frappe.db.get_value("User", user, ["enabled", "user_type"], as_dict=True)
     if not details or not details.enabled or details.user_type != "System User":
-        frappe.throw(frappe._("Select an enabled system user as the salesperson."))
+        frappe.throw(frappe._("Select an enabled system user as the Area Sales Manager."))
     if ROLE_SALESPERSON not in get_user_roles(user):
         frappe.throw(
-            frappe._("The selected user must have the Clothing Salesperson role.")
+            frappe._("The selected user must have the Clothing Area Sales Manager role.")
         )
 
 
-def _salesperson_application_defaults():
-    defaults = get_retailer_defaults()
-    if not frappe.db.exists("Territory", defaults.territory) or not frappe.db.exists(
-        "Customer Group", defaults.customer_group
-    ):
+def _salesperson_application_territory(user):
+    explicit = frappe.get_all(
+        "User Permission",
+        filters={"user": user, "allow": "Territory"},
+        fields=["for_value", "is_default"],
+        order_by="is_default desc, creation asc",
+    )
+    if not explicit:
         frappe.throw(
-            frappe._(
-                "The default Territory or Customer Group configured in Selling Settings does not exist."
-            )
+            frappe._("Your Area Sales Manager account has no assigned territory. Contact an administrator."),
+            frappe.PermissionError,
         )
-    return defaults
+    if len(explicit) > 1 and not explicit[0].is_default:
+        frappe.throw(
+            frappe._("Set one assigned Territory as the default for this Area Sales Manager."),
+            frappe.PermissionError,
+        )
+    return explicit[0].for_value
+
+
+def _validate_salesperson_territory(user, territory):
+    if territory not in assigned_documents("Territory", user):
+        frappe.throw(
+            frappe._("The selected Area Sales Manager is not assigned to this territory."),
+            frappe.PermissionError,
+        )
 
 
 class RetailerApplication(Document):
@@ -152,12 +168,12 @@ class RetailerApplication(Document):
             )
         if ROLE_SALESPERSON in get_user_roles() and not is_sales_manager():
             self.salesperson = get_current_user()
-            defaults = _salesperson_application_defaults()
-            # These are server-owned master-data choices. A salesperson neither
+            # These are server-owned master-data choices. An ASM neither
             # needs read access to the masters nor may override submitted values.
-            self.territory = defaults.territory
-            self.customer_group = defaults.customer_group
+            self.territory = _salesperson_application_territory(self.salesperson)
+        validate_retailer_type(self.customer_group)
         _validate_salesperson(self.salesperson)
+        _validate_salesperson_territory(self.salesperson, self.territory)
         if self.is_new() and find_duplicates(self):
             frappe.throw(
                 frappe._(
@@ -232,6 +248,7 @@ def _lock_application(name):
 def approve(name):
     require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
     application = _lock_application(name)
+    application.check_permission("write")
     if application.status != "Pending":
         frappe.throw(frappe._("Only pending applications can be approved."))
     _validate_salesperson(application.salesperson)
@@ -266,23 +283,6 @@ def approve(name):
     )
     if application.shipping_address_line1 and shipping_address != billing_address:
         _make_address(application, customer, shipping=True)
-    if not frappe.db.exists(
-        "User Permission",
-        {
-            "user": application.salesperson,
-            "allow": "Customer",
-            "for_value": customer.name,
-        },
-    ):
-        frappe.get_doc(
-            {
-                "doctype": "User Permission",
-                "user": application.salesperson,
-                "allow": "Customer",
-                "for_value": customer.name,
-                "apply_to_all_doctypes": 1,
-            }
-        ).insert(ignore_permissions=True)
     application.db_set(
         {
             "status": "Approved",
@@ -309,6 +309,7 @@ def reject(name, reason):
     if not (reason or "").strip():
         frappe.throw(frappe._("A rejection reason is required."))
     application = _lock_application(name)
+    application.check_permission("write")
     if application.status != "Pending":
         frappe.throw(frappe._("Only pending applications can be rejected."))
     application.db_set(

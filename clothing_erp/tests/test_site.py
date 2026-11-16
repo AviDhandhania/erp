@@ -12,7 +12,6 @@ from clothing_erp.clothing_erp.doctype.retailer_application.retailer_application
     reject,
 )
 from clothing_erp.pricing import get_customer_prices
-from clothing_erp.retailer_assignment import reassign_retailer
 from clothing_erp.roles import ROLE_SALESPERSON, ROLE_WAREHOUSE_OPERATOR
 
 
@@ -43,6 +42,19 @@ class TestSitePermissions(IntegrationTestCase):
         frappe.clear_cache(user=self.email)
         super().tearDown()
 
+    def _assign_sales_territory(self, territory, user=None):
+        frappe.get_doc(
+            {
+                "doctype": "User Permission",
+                "user": user or self.email,
+                "allow": "Territory",
+                "for_value": territory,
+                "is_default": 1,
+                "apply_to_all_doctypes": 1,
+            }
+        ).insert()
+        frappe.clear_cache(user=user or self.email)
+
     def test_unassigned_salesperson_cannot_list_any_retailers(self):
         frappe.set_user(self.email)
         self.assertTrue(frappe.db.exists("Page", "clothing-catalogue"))
@@ -67,7 +79,7 @@ class TestSitePermissions(IntegrationTestCase):
         with self.assertRaises(frappe.PermissionError):
             api.get_warehouse_dashboard()
 
-    def test_native_user_permission_controls_customer_access(self):
+    def test_native_territory_permission_controls_customer_access(self):
         for doctype, field, value in (
             ("Customer Group", "customer_group_name", "TEST Clothing Group"),
             ("Territory", "territory_name", "TEST Clothing Territory"),
@@ -85,19 +97,20 @@ class TestSitePermissions(IntegrationTestCase):
                 "territory": "TEST Clothing Territory",
             }
         ).insert()
-        frappe.get_doc(
+        second_customer = frappe.get_doc(
             {
-                "doctype": "User Permission",
-                "user": self.email,
-                "allow": "Customer",
-                "for_value": customer.name,
-                "apply_to_all_doctypes": 1,
+                "doctype": "Customer",
+                "customer_name": "TEST Clothing Same Territory Retailer",
+                "customer_type": "Company",
+                "customer_group": "TEST Clothing Group",
+                "territory": "TEST Clothing Territory",
             }
         ).insert()
-        frappe.clear_cache(user=self.email)
+        self._assign_sales_territory("TEST Clothing Territory")
         frappe.set_user(self.email)
         self.assertTrue(security.has_retailer_access(customer.name))
-        self.assertEqual(frappe.get_list("Customer", pluck="name"), [customer.name])
+        visible = set(frappe.get_list("Customer", pluck="name"))
+        self.assertTrue({customer.name, second_customer.name}.issubset(visible))
         self.assertTrue(frappe.has_permission("Customer", "read", customer.name))
         self.assertFalse(security.has_retailer_access("TEST Unassigned Retailer"))
 
@@ -484,16 +497,7 @@ class TestSitePermissions(IntegrationTestCase):
         self.assertEqual(price_list_name, price_list)
         self.assertEqual(currency, "INR")
 
-        frappe.get_doc(
-            {
-                "doctype": "User Permission",
-                "user": self.email,
-                "allow": "Customer",
-                "for_value": customer.name,
-                "apply_to_all_doctypes": 1,
-            }
-        ).insert()
-        frappe.clear_cache(user=self.email)
+        self._assign_sales_territory(customer.territory)
         frappe.set_user(self.email)
         assigned_prices, assigned_price_list, assigned_currency = get_customer_prices(
             customer.name, [variant.name]
@@ -504,13 +508,6 @@ class TestSitePermissions(IntegrationTestCase):
 
     def test_retailer_application_approval_creates_native_customer_and_assignment(self):
         for doctype, field, value, parent_field, parent in (
-            (
-                "Customer Group",
-                "customer_group_name",
-                "TEST Stage Four Retailers",
-                "parent_customer_group",
-                "All Customer Groups",
-            ),
             (
                 "Territory",
                 "territory_name",
@@ -528,6 +525,7 @@ class TestSitePermissions(IntegrationTestCase):
                         "is_group": 0,
                     }
                 ).insert()
+        self._assign_sales_territory("TEST Stage Four Territory")
         frappe.set_user(self.email)
         application = frappe.get_doc(
             {
@@ -538,7 +536,7 @@ class TestSitePermissions(IntegrationTestCase):
                 "email": "test-stage-four@example.invalid",
                 "gstin": "TESTGSTIN123",
                 "territory": "TEST Stage Four Territory",
-                "customer_group": "TEST Stage Four Retailers",
+                "customer_group": "Buy & Sell",
                 "salesperson": self.email,
                 "billing_address_line1": "TEST 10 Fictional Market Road",
                 "billing_city": "TEST City",
@@ -561,16 +559,6 @@ class TestSitePermissions(IntegrationTestCase):
         self.assertEqual(
             frappe.db.count("Address", {"address_title": application.shop_name}), 2
         )
-        self.assertTrue(
-            frappe.db.exists(
-                "User Permission",
-                {
-                    "user": self.email,
-                    "allow": "Customer",
-                    "for_value": application.customer,
-                },
-            )
-        )
         frappe.clear_cache(user=self.email)
         frappe.set_user(self.email)
         self.assertTrue(security.has_retailer_access(application.customer))
@@ -586,67 +574,10 @@ class TestSitePermissions(IntegrationTestCase):
             }
         ).insert()
         self.assertEqual(visit.salesperson, self.email)
-        frappe.set_user("Administrator")
-        new_salesperson = "test-clothing-salesperson-two@example.invalid"
-        frappe.get_doc(
-            {
-                "doctype": "User",
-                "email": new_salesperson,
-                "first_name": "TEST Clothing Two",
-                "send_welcome_email": 0,
-                "roles": [{"role": ROLE_SALESPERSON}],
-            }
-        ).insert()
-        reassignment = reassign_retailer(
-            application.customer,
-            new_salesperson,
-            "TEST territory ownership change",
-            expected_current_salesperson=self.email,
-        )
-        self.assertFalse(reassignment["unchanged"])
-        self.assertFalse(
-            frappe.db.exists(
-                "User Permission",
-                {
-                    "user": self.email,
-                    "allow": "Customer",
-                    "for_value": application.customer,
-                },
-            )
-        )
-        self.assertTrue(
-            frappe.db.exists(
-                "User Permission",
-                {
-                    "user": new_salesperson,
-                    "allow": "Customer",
-                    "for_value": application.customer,
-                },
-            )
-        )
-        history = frappe.get_doc("Retailer Assignment History", reassignment["history"])
-        self.assertEqual(history.previous_salesperson, self.email)
-        self.assertEqual(history.new_salesperson, new_salesperson)
-        self.assertEqual(history.reason, "TEST territory ownership change")
-        history.reason = "TEST attempted history rewrite"
-        with self.assertRaises(frappe.ValidationError):
-            history.save()
-        frappe.clear_cache(user=self.email)
-        frappe.clear_cache(user=new_salesperson)
-        frappe.set_user(self.email)
-        self.assertFalse(security.has_retailer_access(application.customer))
-        frappe.set_user(new_salesperson)
         self.assertTrue(security.has_retailer_access(application.customer))
 
     def test_retailer_application_rejection_is_final(self):
         for doctype, field, value, parent_field, parent in (
-            (
-                "Customer Group",
-                "customer_group_name",
-                "TEST Stage Four Retailers",
-                "parent_customer_group",
-                "All Customer Groups",
-            ),
             (
                 "Territory",
                 "territory_name",
@@ -664,6 +595,7 @@ class TestSitePermissions(IntegrationTestCase):
                         "is_group": 0,
                     }
                 ).insert()
+        self._assign_sales_territory("TEST Stage Four Territory")
         frappe.set_user(self.email)
         application = frappe.get_doc(
             {
@@ -673,7 +605,7 @@ class TestSitePermissions(IntegrationTestCase):
                 "phone": "+91 90000 54321",
                 "email": "test-rejected-stage-four@example.invalid",
                 "territory": "TEST Stage Four Territory",
-                "customer_group": "TEST Stage Four Retailers",
+                "customer_group": "SIS (Shop-in-Shop)",
                 "salesperson": self.email,
                 "billing_address_line1": "TEST 30 Fictional Market Road",
                 "billing_city": "TEST City",

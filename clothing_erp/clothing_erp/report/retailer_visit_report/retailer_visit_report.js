@@ -20,7 +20,7 @@ frappe.query_reports["Retailer Visit Report"] = {
 		},
 		{
 			fieldname: "salesperson",
-			label: __("Salesperson User"),
+			label: __("Area Sales Manager"),
 			fieldtype: "Link",
 			options: "User",
 		},

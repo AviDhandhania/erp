@@ -1,20 +1,31 @@
 """Role definitions and configurations for Clothing ERP."""
 
-# Operational Roles
-ROLE_SALESPERSON = "Clothing Salesperson"
+# Field Sales Roles
+ROLE_ASM = "Clothing Area Sales Manager"
+ROLE_RSM = "Clothing Regional Sales Manager"
+
+# Source-compatible aliases. New permissions and stored role assignments use the
+# business names above; these aliases keep existing service modules readable
+# while the wider sales workflow is migrated in small, testable slices.
+ROLE_SALESPERSON = ROLE_ASM
+ROLE_SALES_MANAGER = ROLE_RSM
+
+LEGACY_ROLE_SALESPERSON = "Clothing Salesperson"
+LEGACY_ROLE_SALES_MANAGER = "Clothing Sales Manager"
+
+# Warehouse roles
 ROLE_WAREHOUSE_OPERATOR = "Clothing Warehouse Operator"
 
 # Management Roles
-ROLE_SALES_MANAGER = "Clothing Sales Manager"
 ROLE_WAREHOUSE_MANAGER = "Clothing Warehouse Manager"
 ROLE_BUSINESS_ADMIN = "Clothing Business Administrator"
 
 # All defined Clothing ERP roles with their metadata
 ALL_ROLES = [
 	{
-		"role_name": ROLE_SALESPERSON,
+		"role_name": ROLE_ASM,
 		"desk_access": 1,
-		"description": "Operational role for wholesale salespeople. Can view assigned retailers, browse catalog, create orders, and log visits.",
+		"description": "Area Sales Manager. Works with every retailer in assigned territories, creates applications and orders, and records visits.",
 		"home_page": "salesperson-portal",
 	},
 	{
@@ -24,9 +35,9 @@ ALL_ROLES = [
 		"home_page": "warehouse-operations",
 	},
 	{
-		"role_name": ROLE_SALES_MANAGER,
+		"role_name": ROLE_RSM,
 		"desk_access": 1,
-		"description": "Management role for sales oversight. Can assign retailers, approve discounts, review performance, and approve registrations.",
+		"description": "Regional Sales Manager. Supervises field sales, reviews retailer applications, visits, and orders in assigned territories.",
 		"home_page": "clothing-erp",
 	},
 	{

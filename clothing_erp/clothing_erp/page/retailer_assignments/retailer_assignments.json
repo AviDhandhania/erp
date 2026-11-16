@@ -8,7 +8,7 @@
  "owner": "Administrator",
  "page_name": "retailer-assignments",
  "roles": [
-  {"role": "Clothing Sales Manager"},
+  {"role": "Clothing Regional Sales Manager"},
   {"role": "Clothing Business Administrator"},
   {"role": "System Manager"}
  ],

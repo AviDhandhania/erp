@@ -32,7 +32,7 @@ class TestRetailerWorkflow(unittest.TestCase):
         ):
             application.validate()
 
-    def test_salesperson_application_identity_and_master_defaults_are_forced(self):
+    def test_asm_application_identity_and_territory_are_forced(self):
         application = retailer_application.RetailerApplication(
             {
                 "doctype": "Retailer Application",
@@ -40,16 +40,14 @@ class TestRetailerWorkflow(unittest.TestCase):
                 "contact_person": " TEST Person ",
                 "phone": "+91 90000 11111",
                 "salesperson": "other@example.invalid",
+                "customer_group": "Buy & Sell",
             }
-        )
-        defaults = frappe._dict(
-            territory="Default Territory", customer_group="Default Group"
         )
         with (
             patch.object(
                 retailer_application,
                 "get_user_roles",
-                return_value={"Clothing Salesperson"},
+                return_value={"Clothing Area Sales Manager"},
             ),
             patch.object(retailer_application, "is_sales_manager", return_value=False),
             patch.object(
@@ -59,8 +57,8 @@ class TestRetailerWorkflow(unittest.TestCase):
             ),
             patch.object(
                 retailer_application,
-                "_salesperson_application_defaults",
-                return_value=defaults,
+                "_salesperson_application_territory",
+                return_value="Default Territory",
             ),
             patch.object(
                 retailer_application.RetailerApplication,
@@ -68,14 +66,15 @@ class TestRetailerWorkflow(unittest.TestCase):
                 return_value=True,
             ),
             patch.object(retailer_application, "_validate_salesperson"),
+            patch.object(retailer_application, "_validate_salesperson_territory"),
             patch.object(retailer_application, "find_duplicates", return_value=[]),
         ):
             application.validate()
         self.assertEqual(application.salesperson, "sales@example.com")
         self.assertEqual(application.territory, "Default Territory")
-        self.assertEqual(application.customer_group, "Default Group")
+        self.assertEqual(application.customer_group, "Buy & Sell")
 
-    def test_salesperson_cannot_override_territory_or_customer_group(self):
+    def test_asm_cannot_override_territory_but_selects_retailer_type(self):
         application = retailer_application.RetailerApplication(
             {
                 "doctype": "Retailer Application",
@@ -84,17 +83,14 @@ class TestRetailerWorkflow(unittest.TestCase):
                 "phone": "+91 90000 11111",
                 "salesperson": "sales@example.com",
                 "territory": "Valid Territory",
-                "customer_group": "Valid Customer Group",
+                "customer_group": "SIS (Shop-in-Shop)",
             }
-        )
-        defaults = frappe._dict(
-            territory="Default Territory", customer_group="Default Group"
         )
         with (
             patch.object(
                 retailer_application,
                 "get_user_roles",
-                return_value={"Clothing Salesperson"},
+                return_value={"Clothing Area Sales Manager"},
             ),
             patch.object(retailer_application, "is_sales_manager", return_value=False),
             patch.object(
@@ -104,8 +100,8 @@ class TestRetailerWorkflow(unittest.TestCase):
             ),
             patch.object(
                 retailer_application,
-                "_salesperson_application_defaults",
-                return_value=defaults,
+                "_salesperson_application_territory",
+                return_value="Default Territory",
             ),
             patch.object(
                 retailer_application.RetailerApplication,
@@ -113,12 +109,13 @@ class TestRetailerWorkflow(unittest.TestCase):
                 return_value=True,
             ),
             patch.object(retailer_application, "_validate_salesperson"),
+            patch.object(retailer_application, "_validate_salesperson_territory"),
             patch.object(retailer_application, "find_duplicates", return_value=[]),
         ):
             application.validate()
         self.assertEqual(application.salesperson, "sales@example.com")
         self.assertEqual(application.territory, "Default Territory")
-        self.assertEqual(application.customer_group, "Default Group")
+        self.assertEqual(application.customer_group, "SIS (Shop-in-Shop)")
 
     def test_reassignment_controls_live_only_in_clothing_erp(self):
         app_root = Path(__file__).parents[1]
@@ -132,7 +129,7 @@ class TestRetailerWorkflow(unittest.TestCase):
         self.assertEqual(
             {row["role"] for row in page["roles"]},
             {
-                "Clothing Sales Manager",
+                "Clothing Regional Sales Manager",
                 "Clothing Business Administrator",
                 "System Manager",
             },
@@ -229,7 +226,12 @@ class TestRetailerWorkflow(unittest.TestCase):
             patch.object(
                 retailer_assignment, "_validate_salesperson"
             ) as validate_salesperson,
-            patch.object(retailer_assignment, "_lock_customer") as lock_customer,
+            patch.object(
+                retailer_assignment,
+                "_lock_customer",
+                return_value=frappe._dict(territory="TEST Territory"),
+            ) as lock_customer,
+            patch.object(retailer_assignment, "_assert_salesperson_scope"),
             self.assertRaises(frappe.ValidationError),
         ):
             retailer_assignment.bulk_reassign_retailers(
@@ -248,7 +250,12 @@ class TestRetailerWorkflow(unittest.TestCase):
         with (
             patch.object(retailer_assignment, "require_role"),
             patch.object(retailer_assignment, "_validate_salesperson"),
-            patch.object(retailer_assignment, "_lock_customer") as lock_customer,
+            patch.object(
+                retailer_assignment,
+                "_lock_customer",
+                return_value=frappe._dict(territory="TEST Territory"),
+            ) as lock_customer,
+            patch.object(retailer_assignment, "_assert_salesperson_scope"),
             patch.object(
                 retailer_assignment,
                 "_single_assignment",
@@ -277,6 +284,20 @@ class TestRetailerWorkflow(unittest.TestCase):
             ["TEST A", "TEST B"],
         )
         self.assertEqual(result["changed"], 2)
+
+    def test_responsible_asm_must_share_the_retailer_territory(self):
+        with (
+            patch.object(
+                retailer_assignment,
+                "assigned_documents",
+                return_value=["TEST North"],
+            ),
+            patch.object(frappe, "throw", side_effect=frappe.PermissionError),
+            self.assertRaises(frappe.PermissionError),
+        ):
+            retailer_assignment._assert_salesperson_scope(
+                "asm@example.invalid", "TEST South"
+            )
 
     def test_duplicate_detection_normalizes_phone_email_and_gstin(self):
         application = frappe._dict(

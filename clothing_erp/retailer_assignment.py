@@ -56,12 +56,28 @@ def _active_salespeople():
     )
     if not users:
         return []
-    return frappe.get_all(
+    users = frappe.get_all(
         "User",
         filters={"name": ["in", users], "enabled": 1, "user_type": "System User"},
         fields=["name", "full_name"],
         order_by="full_name asc, name asc",
     )
+    manager_territories = _manager_territories()
+    if manager_territories is None:
+        return users
+    return [
+        user
+        for user in users
+        if set(assigned_documents("Territory", user.name)) & set(manager_territories)
+    ]
+
+
+def _assert_salesperson_scope(user, territory):
+    if territory not in assigned_documents("Territory", user):
+        frappe.throw(
+            frappe._("The selected Area Sales Manager is not assigned to this retailer's territory."),
+            frappe.PermissionError,
+        )
 
 
 def _clear_assignment_caches(*users):
@@ -114,7 +130,7 @@ def _single_assignment(customer):
     if len(assignments) > 1:
         frappe.throw(
             frappe._(
-                "This retailer has multiple Clothing Salesperson permissions. Resolve the duplicate permissions before reassigning."
+                "This retailer has multiple legacy salesperson permissions. Resolve the duplicate permissions before reassigning."
             )
         )
     return assignments[0] if assignments else None
@@ -226,9 +242,10 @@ def reassign_retailer(
         :140
     ] or None
     if not customer or not new_salesperson:
-        frappe.throw(frappe._("Retailer and new salesperson are required."))
+        frappe.throw(frappe._("Retailer and new Area Sales Manager are required."))
     _validate_salesperson(new_salesperson)
-    _lock_customer(customer)
+    details = _lock_customer(customer)
+    _assert_salesperson_scope(new_salesperson, details.territory)
     assignment = _single_assignment(customer)
     current_salesperson = assignment.user if assignment else None
     if expected_was_supplied and expected_current_salesperson != current_salesperson:
@@ -312,13 +329,14 @@ def bulk_reassign_retailers(customers, new_salesperson, reason):
             )
         )
     if not new_salesperson:
-        frappe.throw(frappe._("Select a new salesperson."))
+        frappe.throw(frappe._("Select a new Area Sales Manager."))
     if not reason:
         frappe.throw(frappe._("A reassignment reason is required."))
     _validate_salesperson(new_salesperson)
     assignments = []
     for customer in customers:
-        _lock_customer(customer)
+        details = _lock_customer(customer)
+        _assert_salesperson_scope(new_salesperson, details.territory)
         assignments.append((customer, _single_assignment(customer)))
     results = [
         (

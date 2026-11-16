@@ -43,8 +43,8 @@ def has_app_access():
     return has_any_role({r["role_name"] for r in ALL_ROLES})
 
 def get_active_operational_role(user=None):
-    for check, label in ((is_clothing_admin, "Administrator"), (is_sales_manager, "Sales Manager"),
-                         (is_warehouse_manager, "Warehouse Manager"), (is_salesperson, "Salesperson"),
+    for check, label in ((is_clothing_admin, "Administrator"), (is_sales_manager, "Regional Sales Manager"),
+                         (is_warehouse_manager, "Warehouse Manager"), (is_salesperson, "Area Sales Manager"),
                          (is_warehouse_operator, "Warehouse Operator")):
         if check(user):
             return label
@@ -60,20 +60,20 @@ def has_retailer_access(customer_name, user=None):
     if is_clothing_admin(user):
         return True
     roles = get_user_roles(user)
-    if ROLE_SALES_MANAGER in roles:
+    if roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}:
         territories = assigned_documents("Territory", user)
         return bool(
             territories
             and frappe.db.get_value("Customer", customer_name, "territory")
             in territories
         )
-    return is_salesperson(user) and customer_name in assigned_documents("Customer", user)
+    return False
 
 def has_warehouse_access(warehouse_name, user=None):
     return is_warehouse_manager(user) or (is_warehouse_operator(user) and warehouse_name in assigned_documents("Warehouse", user))
 
 def customer_has_permission(doc, user=None, ptype=None, **kwargs):
-    if ROLE_SALESPERSON not in get_user_roles(user) or is_sales_manager(user):
+    if not (get_user_roles(user) & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}) or is_clothing_admin(user):
         return True
     return has_retailer_access(doc.name, user)
 
@@ -91,17 +91,29 @@ def _assignment_conditions(doctype, role, manager_check, user):
     return f"`tab{doctype}`.`name` in ({', '.join(frappe.db.escape(n) for n in names)})"
 
 def get_salesperson_customer_conditions(user=None):
-    return _assignment_conditions("Customer", ROLE_SALESPERSON, is_sales_manager, user)
+    if not (get_user_roles(user) & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}) or is_clothing_admin(user):
+        return ""
+    territories = assigned_documents("Territory", user)
+    if not territories:
+        return "1=0"
+    allowed = ", ".join(frappe.db.escape(name) for name in territories)
+    return f"`tabCustomer`.`territory` in ({allowed})"
 
 def get_operator_warehouse_conditions(user=None):
     return _assignment_conditions("Warehouse", ROLE_WAREHOUSE_OPERATOR, is_warehouse_manager, user)
 
 
 def _sales_document_conditions(doctype, user=None):
-    if ROLE_SALESPERSON not in get_user_roles(user) or is_sales_manager(user):
+    if not (get_user_roles(user) & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}) or is_clothing_admin(user):
         return ""
-    names = assigned_documents("Customer", user)
-    return f"`tab{doctype}`.`customer` in ({', '.join(frappe.db.escape(n) for n in names)})" if names else "1=0"
+    territories = assigned_documents("Territory", user)
+    if not territories:
+        return "1=0"
+    allowed = ", ".join(frappe.db.escape(name) for name in territories)
+    return (
+        f"`tab{doctype}`.`customer` in "
+        f"(select name from `tabCustomer` where territory in ({allowed}))"
+    )
 
 
 def _warehouse_document_conditions(doctype, user=None):
@@ -133,34 +145,59 @@ def pick_list_conditions(user=None):
 
 
 def retailer_application_conditions(user=None):
-    if is_sales_manager(user):
+    if is_clothing_admin(user):
         return ""
-    if ROLE_SALESPERSON in get_user_roles(user):
+    roles = get_user_roles(user)
+    if ROLE_SALES_MANAGER in roles:
+        territories = assigned_documents("Territory", user)
+        if not territories:
+            return "1=0"
+        allowed = ", ".join(frappe.db.escape(name) for name in territories)
+        return f"`tabRetailer Application`.`territory` in ({allowed})"
+    if ROLE_SALESPERSON in roles:
         return f"`tabRetailer Application`.`owner` = {frappe.db.escape(get_current_user(user))}"
     return "1=0"
 
 
 def retailer_visit_conditions(user=None):
-    if is_sales_manager(user):
+    if is_clothing_admin(user):
         return ""
-    if ROLE_SALESPERSON in get_user_roles(user):
+    roles = get_user_roles(user)
+    if ROLE_SALES_MANAGER in roles:
+        territories = assigned_documents("Territory", user)
+        if not territories:
+            return "1=0"
+        allowed = ", ".join(frappe.db.escape(name) for name in territories)
+        return (
+            "`tabRetailer Visit`.`customer` in "
+            f"(select name from `tabCustomer` where territory in ({allowed}))"
+        )
+    if ROLE_SALESPERSON in roles:
         return f"`tabRetailer Visit`.`salesperson` = {frappe.db.escape(get_current_user(user))}"
     return "1=0"
 
 
 def retailer_record_has_permission(doc, user=None, ptype=None, **kwargs):
-    if is_sales_manager(user):
+    if is_clothing_admin(user):
         return True
-    if ROLE_SALESPERSON not in get_user_roles(user):
+    roles = get_user_roles(user)
+    if not (roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}):
         return False
     if doc.doctype == "Retailer Application":
+        if ROLE_SALES_MANAGER in roles:
+            return doc.territory in assigned_documents("Territory", user)
         return doc.owner == get_current_user(user)
-    return doc.salesperson == get_current_user(user) and has_retailer_access(doc.customer, user)
+    if ROLE_SALES_MANAGER in roles:
+        return has_retailer_access(doc.customer, user)
+    return (
+        doc.salesperson == get_current_user(user)
+        and has_retailer_access(doc.customer, user)
+    )
 
 
 def operational_document_has_permission(doc, user=None, ptype=None, **kwargs):
     roles = get_user_roles(user)
-    if doc.doctype in ("Sales Order", "Delivery Note") and ROLE_SALESPERSON in roles and not is_sales_manager(user):
+    if doc.doctype in ("Sales Order", "Delivery Note") and roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER} and not is_clothing_admin(user):
         customer = doc.get("customer")
         if customer and not has_retailer_access(customer, user):
             return False
@@ -194,7 +231,7 @@ def user_has_permission(doc, user=None, ptype=None, **kwargs):
     roles = get_user_roles(user)
     if is_clothing_admin(user) or "System Manager" in roles:
         return True
-    if ROLE_SALESPERSON in roles and not is_sales_manager(user):
+    if roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}:
         return False
     if ROLE_WAREHOUSE_OPERATOR in roles and not is_warehouse_manager(user):
         return False
@@ -209,7 +246,7 @@ def user_query_conditions(user=None):
     roles = get_user_roles(user)
     if is_clothing_admin(user) or "System Manager" in roles:
         return ""
-    if ROLE_SALESPERSON in roles and not is_sales_manager(user):
+    if roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}:
         return "1=0"
     if ROLE_WAREHOUSE_OPERATOR in roles and not is_warehouse_manager(user):
         return "1=0"

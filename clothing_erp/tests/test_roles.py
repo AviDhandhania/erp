@@ -17,6 +17,7 @@ class TestSecurity(unittest.TestCase):
         self.assertNotIn("Sales Order", install._role_doctypes(ROLE_SALESPERSON))
         self.assertNotIn("Sales Order", install._role_doctypes(ROLE_SALES_MANAGER))
         self.assertNotIn("Territory", install._role_doctypes(ROLE_SALESPERSON))
+        self.assertIn("Customer Group", install._role_doctypes(ROLE_SALESPERSON))
         self.assertIn("Sales Order", install._role_doctypes(ROLE_BUSINESS_ADMIN))
 
     def test_warehouse_roles_receive_read_only_tracked_stock_dependencies(self):
@@ -66,8 +67,8 @@ class TestSecurity(unittest.TestCase):
             self.assertEqual(security.get_salesperson_customer_conditions("test@example.invalid"), "1=0")
             self.assertEqual(security.sales_order_conditions("test@example.invalid"), "1=0")
 
-    def test_assignment_is_required_for_each_retailer(self):
-        with patch.object(security, "get_user_roles", return_value={ROLE_SALESPERSON}), patch.object(security, "assigned_documents", return_value=["TEST-A"]):
+    def test_asm_access_is_required_for_each_retailer_territory(self):
+        with patch.object(security, "get_user_roles", return_value={ROLE_SALESPERSON}), patch.object(security, "assigned_documents", return_value=["TEST North"]), patch.object(frappe.db, "get_value", side_effect=["TEST North", "TEST South", "TEST South"]):
             self.assertTrue(security.has_retailer_access("TEST-A", "test@example.invalid"))
             self.assertFalse(security.has_retailer_access("TEST-B", "test@example.invalid"))
             self.assertFalse(security.customer_has_permission(SimpleNamespace(name="TEST-B"), user="test@example.invalid"))
@@ -84,9 +85,10 @@ class TestSecurity(unittest.TestCase):
             self.assertEqual(security.get_salesperson_customer_conditions("test@example.invalid"), "")
             self.assertTrue(security.customer_has_permission(SimpleNamespace(name="TEST-A"), user="test@example.invalid"))
 
-    def test_clothing_manager_uses_native_permissions(self):
+    def test_clothing_manager_is_also_territory_scoped(self):
         with patch.object(security, "get_user_roles", return_value={ROLE_SALESPERSON, ROLE_SALES_MANAGER}):
-            self.assertEqual(security.get_salesperson_customer_conditions("test@example.invalid"), "")
+            with patch.object(security, "assigned_documents", return_value=[]):
+                self.assertEqual(security.get_salesperson_customer_conditions("test@example.invalid"), "1=0")
 
     def test_sales_manager_retailer_access_is_territory_scoped(self):
         with (
@@ -97,6 +99,33 @@ class TestSecurity(unittest.TestCase):
             self.assertFalse(
                 security.has_retailer_access("TEST Retailer", "manager@example.invalid")
             )
+
+    def test_asm_application_and_visit_records_remain_owner_scoped(self):
+        with patch.object(
+            security, "get_user_roles", return_value={ROLE_SALESPERSON}
+        ):
+            application_condition = security.retailer_application_conditions(
+                "asm@example.invalid"
+            )
+            visit_condition = security.retailer_visit_conditions(
+                "asm@example.invalid"
+            )
+        self.assertIn("`owner` = 'asm@example.invalid'", application_condition)
+        self.assertIn("`salesperson` = 'asm@example.invalid'", visit_condition)
+
+    def test_rsm_application_records_are_territory_scoped(self):
+        with (
+            patch.object(
+                security, "get_user_roles", return_value={ROLE_SALES_MANAGER}
+            ),
+            patch.object(
+                security, "assigned_documents", return_value=["TEST North"]
+            ),
+        ):
+            condition = security.retailer_application_conditions(
+                "rsm@example.invalid"
+            )
+        self.assertIn("`territory` in ('TEST North')", condition)
 
     def test_mixed_warehouse_document_is_denied(self):
         doc = frappe._dict(doctype="Delivery Note", items=[frappe._dict(warehouse="TEST-A"), frappe._dict(warehouse="TEST-B")])
@@ -118,9 +147,9 @@ class TestSecurity(unittest.TestCase):
             self.assertFalse(security.user_has_permission(doc, user="test@example.invalid"))
             self.assertEqual(security.user_query_conditions("test@example.invalid"), "1=0")
 
-    def test_manager_and_admin_can_access_user_management(self):
+    def test_rsm_cannot_access_user_management_but_admin_can(self):
         doc = frappe._dict(doctype="User", name="test@example.invalid")
         with patch.object(security, "get_user_roles", return_value={ROLE_SALESPERSON, ROLE_SALES_MANAGER}):
-            self.assertTrue(security.user_has_permission(doc, user="test@example.invalid"))
-            self.assertEqual(security.user_query_conditions("test@example.invalid"), "")
+            self.assertFalse(security.user_has_permission(doc, user="test@example.invalid"))
+            self.assertEqual(security.user_query_conditions("test@example.invalid"), "1=0")
         self.assertTrue(security.user_has_permission(doc, user="Administrator"))

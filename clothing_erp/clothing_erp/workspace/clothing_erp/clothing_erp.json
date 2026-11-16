@@ -19,7 +19,7 @@
    "role": "Clothing Business Administrator"
   },
   {
-   "role": "Clothing Sales Manager"
+   "role": "Clothing Regional Sales Manager"
   },
   {
    "role": "Clothing Warehouse Manager"
@@ -28,7 +28,7 @@
    "role": "System Manager"
   },
   {
-   "role": "Clothing Salesperson"
+   "role": "Clothing Area Sales Manager"
   },
   {
    "role": "Clothing Warehouse Operator"
@@ -36,7 +36,7 @@
  ],
  "shortcuts": [
   {
-   "label": "Salesperson Portal",
+   "label": "Field Sales",
    "link_to": "salesperson-portal",
    "type": "Workspace"
   },

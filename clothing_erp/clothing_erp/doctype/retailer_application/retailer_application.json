@@ -10,8 +10,8 @@
   {"fieldname":"email","fieldtype":"Data","label":"Email","options":"Email"},
   {"fieldname":"gstin","fieldtype":"Data","label":"GSTIN"},
   {"fieldname":"territory","fieldtype":"Link","label":"Territory","options":"Territory","reqd":1},
-  {"fieldname":"customer_group","fieldtype":"Link","label":"Customer Group","options":"Customer Group","reqd":1},
-  {"fieldname":"salesperson","fieldtype":"Link","label":"Salesperson User","options":"User","reqd":1},
+  {"fieldname":"customer_group","fieldtype":"Link","label":"Retailer Type","options":"Customer Group","reqd":1},
+  {"fieldname":"salesperson","fieldtype":"Link","label":"Area Sales Manager","options":"User","reqd":1},
   {"fieldname":"address_section","fieldtype":"Section Break","label":"Addresses"},
   {"fieldname":"billing_address_line1","fieldtype":"Data","label":"Billing Address","reqd":1},
   {"fieldname":"billing_city","fieldtype":"Data","label":"Billing City","reqd":1},
@@ -34,8 +34,8 @@
  "module": "Clothing ERP",
  "name": "Retailer Application",
  "permissions": [
-  {"role":"Clothing Salesperson","create":1,"read":1,"write":1,"if_owner":1},
-  {"role":"Clothing Sales Manager","create":1,"read":1,"write":1,"report":1},
+  {"role":"Clothing Area Sales Manager","create":1,"read":1,"write":1,"if_owner":1},
+  {"role":"Clothing Regional Sales Manager","create":1,"read":1,"write":1,"report":1},
   {"role":"Clothing Business Administrator","create":1,"read":1,"write":1,"delete":1,"report":1},
   {"role":"System Manager","create":1,"read":1,"write":1,"delete":1,"report":1}
  ],

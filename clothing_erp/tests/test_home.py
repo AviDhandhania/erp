@@ -40,8 +40,8 @@ class TestLauncher(unittest.TestCase):
 
     def test_erpnext_tile_is_hidden_for_operational_clothing_users(self):
         restricted_roles = (
-            "Clothing Salesperson",
-            "Clothing Sales Manager",
+            "Clothing Area Sales Manager",
+            "Clothing Regional Sales Manager",
             "Clothing Warehouse Operator",
             "Clothing Warehouse Manager",
         )

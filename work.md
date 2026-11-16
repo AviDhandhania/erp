@@ -6,23 +6,23 @@ This is the canonical roadmap. The workspace-level work.md points here.
 
 The field-sales operating model has changed materially and is documented in full at
 [`docs/field-sales-operating-model.md`](docs/field-sales-operating-model.md). No workflow
-code was changed during this intake because more requirements are expected in the next
-prompt. The old generic salesperson/manager design must not be extended as though it were
-the final model.
+The first access-and-classification implementation slice was completed later the same day.
+The remaining workflow items below are still requirements, not completion claims.
 
 Confirmed requirements now governing the next stages:
 
-- [ ] Classify every retailer as exactly one of: **Buy & Sell**, **Buy & Sell — Stock
+- [x] Classify every new retailer as exactly one of: **Buy & Sell**, **Buy & Sell — Stock
   Correction**, **SIS (Shop-in-Shop)** or **EBOC (Exclusive Brand Outlet)**.
-- [ ] Give administrators an editable global source for those classifications and their
+- [x] Give administrators an editable global source for those classifications and their
   behavior. Prefer native ERPNext Customer Group leaves for classification and add
   Clothing ERP settings only for cadence/escalation behavior Customer Group cannot hold.
-- [ ] Replace/migrate the legacy Clothing Salesperson/Sales Manager access model with
+- [x] Replace/migrate the legacy Clothing Salesperson/Sales Manager access model with
   **ASM** and **RSM**. Only ASM, RSM and authorized administrators may access the Clothing
   ERP sales area; common salespeople must have no access.
-- [ ] Scope each ASM to allotted Territory retailers using native Territory/User
-  Permissions. Model the RSM-to-ASM supervisory relationship explicitly; an RSM normally
-  handles 3–4 ASMs and 200–250 shops.
+- [x] Scope ASM and RSM retailer/application/order visibility to allotted native Territory
+  User Permissions, including permitted descendant Territories.
+- [ ] Model the RSM-to-ASM supervisory relationship explicitly; an RSM normally handles
+  3–4 ASMs and 200–250 shops.
 - [ ] For SIS, automatically assign quarterly stock-review obligations, require separate
   monthly general visits and support seasonal order-taking.
 - [ ] For Buy & Sell, require a monthly sample/order visit and a collection workflow based
@@ -107,17 +107,42 @@ legacy warehouse-operator migration.
 - The Frappe checkout still has pre-existing local changes in `package.json` and
   `yarn.lock`; they were not created or modified by this work and must not be committed
   into Clothing ERP.
-- The local database service was stopped during the audit, so a live `list-apps` query
-  could not be repeated. The last completed validation (2026-11-10) had Frappe, ERPNext,
-  Clothing ERP, Insights and India Compliance installed and passing the tests recorded
-  below. This audit does not turn that historical result into a new live verification.
+- The live local site was migrated on 2026-11-16 with Frappe, ERPNext, Clothing ERP,
+  Insights and India Compliance installed. All 129 app/site tests pass after the first
+  ASM/RSM implementation slice.
+
+## Field-sales access foundation — implemented 2026-11-16
+
+- [x] Added canonical `Clothing Area Sales Manager` and `Clothing Regional Sales Manager`
+  roles and replaced the legacy role literals on workspaces, pages, reports and DocTypes.
+- [x] Added idempotent migration of legacy User roles and Role Profiles. Existing Customer
+  assignments are converted into Territory assignments and a deterministic default is set
+  when legacy data yields no default.
+- [x] Changed retailer and Sales Order authorization from per-Customer visibility to
+  server-enforced Territory visibility. ASM application/visit records remain owner-scoped;
+  RSM review visibility is Territory-scoped.
+- [x] Retained retailer reassignment as the responsible-ASM marker, while requiring that
+  the selected ASM is assigned to the retailer's Territory; it no longer acts as the
+  retailer visibility boundary.
+- [x] Ordinary ERPNext `Sales User` accounts receive no Clothing ERP sales access; ASM/RSM
+  users remain inside Clothing ERP and cannot browse framework User records.
+- [x] Created a native `Clothing ERP Retailer Types` Customer Group parent with exactly four
+  canonical leaf groups. Administrators edit these through native Customer Group; cadence
+  settings still require the planned app-owned settings model.
+- [x] Changed Retailer Application to require a canonical Retailer Type, auto-fill and lock
+  the logged-in ASM, and resolve its server-owned default Territory from User Permission.
+- [x] Approval creates the native Customer with that Customer Group classification. RSM
+  approve/reject actions now perform document permission checks, preventing cross-territory
+  review by guessing a document name.
+- [x] Renamed the visible sales workspace label to **Field Sales** while preserving its
+  stable internal route for existing bookmarks and upgrades.
 
 ## Current foundation
 
 - [x] Independent clothing_erp app, version 0.3.0; no upstream core source edits.
 - [x] Real Frappe/ERPNext site and native launcher showing ERPNext, Clothing ERP, Framework.
 - [x] Root redirects through login to the native launcher.
-- [x] Three module-owned workspaces and five clothing roles.
+- [x] Three module-owned workspaces and five current clothing roles, including ASM/RSM.
 - [x] Permission-aware native dashboard queries; empty data produces zero/empty results.
 - [x] Remove preview-role authorization bypass and mock ERPNext HTTP clients.
 - [x] Restrict operational Customers, Warehouses, Sales Orders, Delivery Notes and Pick Lists.
@@ -277,21 +302,23 @@ complete implementation of the target warehouse workflow.
 - [x] Permission-aware assigned-retailer directory API with search and bounded pagination.
 - [x] Retailer detail API with contact fields and authorized recent Sales Order history.
 - [x] Simplified Retailer Application DocType and submission form.
-- [x] Salesperson-only applications force the logged-in salesperson and server-owned
-  Customer Group/Territory defaults; those master fields are hidden from intake users.
+- [x] ASM applications force the logged-in ASM and server-owned default assigned Territory;
+  the ASM selects one canonical Retailer Type without needing Territory master access.
 - [x] Duplicate detection across normalized shop name, phone, email and GSTIN.
-- [x] Manager-only approval/rejection with immutable review results.
+- [x] RSM/admin approval/rejection with immutable review results and Territory checks.
 - [x] Approval creates native Customer, Contact and billing/shipping Address records.
-- [x] Approval assigns the Customer through a native User Permission for the salesperson.
+- [x] Approval preserves classification through the native Customer Group. Retailer
+  visibility follows Territory User Permission; per-Customer permission is only retained
+  as the responsible-ASM marker used by the assignment history feature.
 - [x] Retailer Visit records with outcomes, notes and required future follow-up dates.
-- [x] Manager-only Retailer Visit Report with date, retailer, salesperson and outcome
-  filters, outcome chart and operational summary counts; it is absent from salesperson
-  navigation and rejects direct salesperson execution.
+- [x] RSM/admin Retailer Visit Report with date, retailer, ASM and outcome filters,
+  outcome chart and operational summary counts; it is absent from ASM navigation and
+  rejects direct ASM execution.
 - [x] Manager-only Retailer Assignments page owned entirely by Clothing ERP; native Customer
   forms/lists contain no custom reassignment controls.
 - [x] Responsive Retailer Assignments list layout with contained columns, functional 20/50
   row limits and pagination directly below the results instead of pinned to the viewport.
-- [x] Territory-scoped Clothing Sales Managers can manage only Customers covered by their
+- [x] Territory-scoped RSMs can manage only Customers covered by their
   native Territory User Permissions; system/business administrators retain global scope.
 - [x] Atomic single and bounded bulk reassignment services with sorted row locking,
   full-selection preflight and all-or-nothing request behavior.
@@ -300,18 +327,18 @@ complete implementation of the target warehouse workflow.
 - [x] Database integration coverage for application, approval, native records, assignment
   visibility, reassignment cache changes, immutable history and visit creation.
 
-Stage 4 was complete against the previous generic salesperson/manager requirements.
-The new ASM/RSM hierarchy, retailer classifications, scheduled obligations, multi-level
-review and credit/exposure approval requirements reopen the field-sales workflow. Existing
-retailer applications, visits and assignment history remain migration inputs; the live
-retailer assignment remains a native User Permission and approved commercial masters
-remain native ERPNext documents. No ERPNext source was modified.
+The ASM/RSM access and retailer-classification foundation is now migrated. Explicit RSM
+supervision, scheduled obligations, multi-level review and credit/exposure approval remain
+open. Existing retailer applications, visits and assignment history remain migration
+inputs; responsible-ASM assignment remains a native User Permission while visibility is
+Territory-based. Approved commercial masters remain native ERPNext documents. No ERPNext
+source was modified.
 
 All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Last full verification on 2026-11-10: 126 app tests passed through the real site runner and 36 installer/package
+Last full app verification on 2026-11-16: 129 app tests passed through the real site runner. The last deployment run had 36 installer/package
 tests passed. Chromium checks verified that salesperson intake hides server-owned master
 fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
 resulting native Sales Order. Desktop/mobile Chromium checks passed with all three icons,
@@ -328,8 +355,9 @@ intentionally direct on port 8000; nginx is deferred from this phase.
   retailer context exists.
 - [x] Catalogue stock aggregation respects Warehouse User Permissions without exposing
   warehouse-level quantities.
-- [x] Retailer approval revalidates the assigned enabled Clothing Salesperson and uses
-  native Customer, Contact, Address and User Permission documents.
+- [x] Retailer approval revalidates the assigned enabled ASM, canonical native Customer
+  Group retailer type and assigned Territory, then uses native Customer, Contact and
+  Address documents.
 - [x] Retailer reassignment replaces native User Permissions atomically, records immutable
   app-owned history, invalidates affected user permission caches and enforces manager
   Territory scope before reading or changing an assignment.
@@ -399,8 +427,9 @@ Previously published v0.3.0 release evidence (before the India Compliance work):
 - Isolated native MariaDB schema/data/config/attachment recovery and queue RDB integrity checks passed.
 
 Current unreleased validation evidence:
-- 36 deployment/contract/recovery checks and all 126 app/site tests pass with
-  India Compliance v16.10.0 installed on the real local site.
+- All 129 app/site tests pass with India Compliance v16.10.0 installed on the real local
+  site. The last deployment/contract/recovery run passed 36 checks; deployment code was
+  not changed by the ASM/RSM slice.
 - The next stable release must pass the fresh two-stage native compatibility gate
   before its installer is published; v0.3.0 does not retroactively contain this work.
 - Physical Proxmox guest creation, real systemd cutover, reboot and end-to-end guest rollback remain a deployment trial, not a completed claim.

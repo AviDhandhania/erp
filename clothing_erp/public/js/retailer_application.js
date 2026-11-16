@@ -1,7 +1,7 @@
-function clothing_erp_is_salesperson_only() {
+function clothing_erp_is_asm_only() {
 	const roles = new Set(frappe.user_roles || []);
-	return roles.has("Clothing Salesperson")
-		&& !["Administrator", "System Manager", "Clothing Sales Manager", "Clothing Business Administrator"]
+	return roles.has("Clothing Area Sales Manager")
+		&& !["Administrator", "System Manager", "Clothing Regional Sales Manager", "Clothing Business Administrator"]
 			.some((role) => roles.has(role));
 }
 
@@ -54,13 +54,14 @@ frappe.ui.form.on("Retailer Application", {
 });
 
 function clothing_erp_scope_retailer_application(frm) {
-	if (!clothing_erp_is_salesperson_only()) return;
+	frm.set_query("customer_group", () => ({
+		filters: { parent_customer_group: "Clothing ERP Retailer Types", is_group: 0 },
+	}));
+	if (!clothing_erp_is_asm_only()) return;
 
 	frm.set_df_property("salesperson", "read_only", 1);
-	frm.toggle_display(["territory", "customer_group"], false);
-	["territory", "customer_group"].forEach((fieldname) => {
-		frm.set_df_property(fieldname, "reqd", 0);
-	});
+	frm.toggle_display("territory", false);
+	frm.set_df_property("territory", "reqd", 0);
 	clothing_erp_disable_link_navigation(frm, "salesperson");
 	clothing_erp_disable_link_navigation(frm, "reviewed_by");
 
@@ -71,7 +72,7 @@ function clothing_erp_scope_retailer_application(frm) {
 
 	if (!frm.is_new()) return;
 
-	// On new intake, hide salesperson field and auto-assign current salesperson
+	// On new intake, hide the ASM field and auto-assign the current ASM.
 	frm.toggle_display("salesperson", false);
 	frm.set_df_property("salesperson", "hidden", 1);
 

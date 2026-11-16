@@ -117,7 +117,7 @@ def _columns():
             "width": 190,
         },
         {
-            "label": _("Salesperson User"),
+            "label": _("Area Sales Manager"),
             "fieldname": "salesperson",
             "fieldtype": "Link",
             "options": "User",

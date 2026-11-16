@@ -49,8 +49,8 @@ class TestInsightsCompat(unittest.TestCase):
 
         # Operational / non-admin roles
         for role in (
-            "Clothing Salesperson",
-            "Clothing Sales Manager",
+            "Clothing Area Sales Manager",
+            "Clothing Regional Sales Manager",
             "Clothing Warehouse Operator",
             "Clothing Warehouse Manager",
             "Insights User",

@@ -45,7 +45,7 @@ class RetailerAssignments {
 						<div role="columnheader">${__("ID")}</div>
 						<div role="columnheader">${__("Shop Name")}</div>
 						<div class="assignment-territory" role="columnheader">${__("Territory")}</div>
-						<div role="columnheader">${__("Current Salesperson")}</div>
+						<div role="columnheader">${__("Responsible ASM")}</div>
 						<div class="assignment-action-heading" role="columnheader">${__("Action")}</div>
 					</div>
 					<div class="assignment-rows" role="rowgroup">
@@ -223,8 +223,8 @@ class RetailerAssignments {
 		const dialog = new frappe.ui.Dialog({
 			title: __("Reassign {0}", [customer]),
 			fields: [
-				{ fieldtype: "Data", fieldname: "current_salesperson", label: __("Current Salesperson"), default: message.current_salesperson || __("Unassigned"), read_only: 1 },
-				{ fieldtype: "Select", fieldname: "new_salesperson", label: __("New Salesperson"), options: salespeople, reqd: 1 },
+				{ fieldtype: "Data", fieldname: "current_salesperson", label: __("Current Responsible ASM"), default: message.current_salesperson || __("Unassigned"), read_only: 1 },
+				{ fieldtype: "Select", fieldname: "new_salesperson", label: __("New Responsible ASM"), options: salespeople, reqd: 1 },
 				{ fieldtype: "Small Text", fieldname: "reason", label: __("Reason"), reqd: 1 },
 			],
 			primary_action_label: __("Reassign"),

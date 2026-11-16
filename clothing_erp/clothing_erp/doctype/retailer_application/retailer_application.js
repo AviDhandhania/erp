@@ -1,7 +1,7 @@
 frappe.ui.form.on("Retailer Application", {
 	refresh(frm) {
 		if (frm.is_new() || frm.doc.status !== "Pending") return;
-		const can_review = frappe.user_roles.some((role) => ["Clothing Sales Manager", "Clothing Business Administrator", "System Manager"].includes(role));
+		const can_review = frappe.user_roles.some((role) => ["Clothing Regional Sales Manager", "Clothing Business Administrator", "System Manager"].includes(role));
 		if (!can_review) return;
 		frm.add_custom_button(__("Approve"), async () => {
 			await frappe.call({ method: "clothing_erp.clothing_erp.doctype.retailer_application.retailer_application.approve", type: "POST", args: { name: frm.doc.name }, freeze: true });
