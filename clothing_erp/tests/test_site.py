@@ -25,6 +25,7 @@ class TestSitePermissions(IntegrationTestCase):
         self.previous_user = frappe.session.user
         frappe.set_user("Administrator")
         self.email = "test-clothing-salesperson@example.invalid"
+        self.rsm_email = "test-clothing-rsm@example.invalid"
         if not frappe.db.exists("User", self.email):
             frappe.get_doc(
                 {
@@ -35,25 +36,34 @@ class TestSitePermissions(IntegrationTestCase):
                     "roles": [{"role": ROLE_SALESPERSON}],
                 }
             ).insert()
+        if not frappe.db.exists("User", self.rsm_email):
+            frappe.get_doc(
+                {
+                    "doctype": "User",
+                    "email": self.rsm_email,
+                    "first_name": "Test Clothing RSM",
+                    "send_welcome_email": 0,
+                    "roles": [{"role": ROLE_RSM}],
+                }
+            ).insert()
 
     def tearDown(self):
         frappe.set_user(self.previous_user)
         frappe.db.rollback(save_point="clothing_test_case")
         frappe.clear_cache(user=self.email)
+        frappe.clear_cache(user=self.rsm_email)
         super().tearDown()
 
     def _assign_sales_territory(self, territory, user=None):
-        frappe.get_doc(
-            {
-                "doctype": "User Permission",
-                "user": user or self.email,
-                "allow": "Territory",
-                "for_value": territory,
-                "is_default": 1,
-                "apply_to_all_doctypes": 1,
-            }
-        ).insert()
-        frappe.clear_cache(user=user or self.email)
+        asm = user or self.email
+        frappe.set_user("Administrator")
+        supervision.assign_asm_supervision(
+            asm=asm,
+            rsm=self.rsm_email,
+            territory=territory,
+            reason="TEST integration territory assignment",
+        )
+        frappe.clear_cache(user=asm)
 
     def test_unassigned_salesperson_cannot_list_any_retailers(self):
         frappe.set_user(self.email)
@@ -656,9 +666,26 @@ class TestSitePermissions(IntegrationTestCase):
                         "roles": [{"role": role}],
                     }
                 ).insert()
-            self._assign_sales_territory(territory_name, user=email)
+        frappe.set_user("Administrator")
+        assign_res = supervision.assign_asm_supervision(
+            asm=asm_email,
+            rsm=rsm1_email,
+            territory=territory_name,
+            effective_from=frappe.utils.nowdate(),
+            reason="Initial territory assignment",
+        )
+        self.assertFalse(assign_res["unchanged"])
+        sup1_name = assign_res["name"]
+        self.assertEqual(security.assigned_sales_territories(asm_email), [territory_name])
+        self.assertEqual(security.assigned_sales_territories(rsm1_email), [territory_name])
+        self.assertTrue(
+            frappe.db.exists(
+                "User Permission",
+                {"user": asm_email, "allow": "Territory", "for_value": territory_name},
+            )
+        )
 
-        # 1. ASM creates an application
+        # 1. Assigned ASM creates an application
         frappe.set_user(asm_email)
         app1 = frappe.get_doc(
             {
@@ -677,37 +704,22 @@ class TestSitePermissions(IntegrationTestCase):
             }
         ).insert()
 
-        # 2. RSM 1 attempts approval before supervision exists -> rejected
-        frappe.set_user(rsm1_email)
-        with self.assertRaises(frappe.PermissionError):
-            approve(app1.name)
-
-        # 3. Administrator assigns supervision: RSM 1 supervises ASM
-        frappe.set_user("Administrator")
-        assign_res = supervision.assign_asm_supervision(
-            asm=asm_email,
-            rsm=rsm1_email,
-            effective_from=frappe.utils.nowdate(),
-            reason="Initial supervision assignment",
-        )
-        self.assertFalse(assign_res["unchanged"])
-        sup1_name = assign_res["name"]
-
-        # 4. RSM 2 attempts approval -> rejected because RSM 2 does not supervise ASM
+        # 2. RSM 2 attempts approval -> rejected because RSM 2 does not supervise ASM
         frappe.set_user(rsm2_email)
         with self.assertRaises(frappe.PermissionError):
             approve(app1.name)
 
-        # 5. RSM 1 approves -> succeeds
+        # 3. RSM 1 approves -> succeeds
         frappe.set_user(rsm1_email)
         res1 = approve(app1.name)
         self.assertEqual(res1["status"], "Approved")
 
-        # 6. Administrator reassigns ASM to RSM 2
+        # 4. Administrator reassigns the Territory and ASM to RSM 2
         frappe.set_user("Administrator")
         reassign_res = supervision.assign_asm_supervision(
             asm=asm_email,
             rsm=rsm2_email,
+            territory=territory_name,
             effective_from=frappe.utils.nowdate(),
             reason="Reassigned to RSM 2",
         )
@@ -720,8 +732,20 @@ class TestSitePermissions(IntegrationTestCase):
         new_sup = frappe.get_doc("ASM Supervision", reassign_res["name"])
         self.assertEqual(new_sup.status, "Active")
         self.assertEqual(new_sup.rsm, rsm2_email)
+        self.assertFalse(
+            frappe.db.exists(
+                "User Permission",
+                {"user": rsm1_email, "allow": "Territory", "for_value": territory_name},
+            )
+        )
+        self.assertTrue(
+            frappe.db.exists(
+                "User Permission",
+                {"user": rsm2_email, "allow": "Territory", "for_value": territory_name},
+            )
+        )
 
-        # 7. ASM creates a second application
+        # 5. ASM creates a second application
         frappe.set_user(asm_email)
         app2 = frappe.get_doc(
             {
@@ -740,18 +764,20 @@ class TestSitePermissions(IntegrationTestCase):
             }
         ).insert()
 
-        # 8. RSM 1 attempts approval on second application -> rejected (no longer supervisor)
+        # 6. RSM 1 attempts approval on second application -> rejected
         frappe.set_user(rsm1_email)
         with self.assertRaises(frappe.PermissionError):
             approve(app2.name)
 
-        # 9. RSM 2 approves second application -> succeeds
+        # 7. RSM 2 approves second application -> succeeds
         frappe.set_user(rsm2_email)
         res2 = approve(app2.name)
         self.assertEqual(res2["status"], "Approved")
 
-        # 10. Administrator ends supervision
+        # 8. Administrator ends the Territory assignment
         frappe.set_user("Administrator")
         supervision.end_asm_supervision(new_sup.name, reason="Testing end supervision")
         new_sup.reload()
         self.assertEqual(new_sup.status, "Cancelled")
+        self.assertEqual(security.assigned_sales_territories(asm_email), [])
+        self.assertEqual(security.assigned_sales_territories(rsm2_email), [])

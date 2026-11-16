@@ -24,6 +24,7 @@ class ASMSupervision(Document):
 
         self.asm = (self.asm or "").strip()
         self.rsm = (self.rsm or "").strip()
+        self.territory = (self.territory or "").strip()
 
         supervision.validate_asm_user(self.asm)
         supervision.validate_rsm_user(self.rsm)
@@ -34,7 +35,7 @@ class ASMSupervision(Document):
                 frappe.ValidationError,
             )
 
-        supervision.validate_supervision_territories(self.asm, self.rsm)
+        supervision.validate_assignment_territory(self.asm, self.rsm, self.territory)
 
         if not self.effective_from:
             self.effective_from = nowdate()
@@ -50,6 +51,12 @@ class ASMSupervision(Document):
 
         # Enforce that an ASM can only have one active supervising RSM across overlapping dates
         if self.status == "Active":
+            today = getdate(nowdate())
+            if from_date > today or (to_date and to_date < today):
+                frappe.throw(
+                    frappe._("An active territory assignment must include today's date."),
+                    frappe.ValidationError,
+                )
             # Row lock existing active records for this ASM
             frappe.db.sql(
                 """
@@ -86,7 +93,45 @@ class ASMSupervision(Document):
                         frappe.ValidationError,
                     )
 
+            territory_conflict = frappe.db.get_value(
+                "ASM Supervision",
+                {
+                    "territory": self.territory,
+                    "status": "Active",
+                    "name": ["!=", self.name or ""],
+                },
+                ["name", "asm"],
+                as_dict=True,
+            )
+            if territory_conflict:
+                frappe.throw(
+                    frappe._(
+                        "Territory {0} is already assigned to Area Sales Manager {1}."
+                    ).format(self.territory, territory_conflict.asm),
+                    frappe.ValidationError,
+                )
+
+    def on_update(self):
+        previous = self.get_doc_before_save()
+        if previous and (
+            previous.status == "Active"
+            and (
+                self.status != "Active"
+                or previous.asm != self.asm
+                or previous.rsm != self.rsm
+                or previous.territory != self.territory
+            )
+        ):
+            supervision.remove_assignment_permissions(previous)
+        if self.status == "Active":
+            supervision.sync_assignment_permissions(self)
+
+    def after_insert(self):
+        if self.status == "Active":
+            supervision.sync_assignment_permissions(self)
+
     def on_trash(self):
         if not self.flags.ignore_permissions:
             supervision.assert_supervision_admin()
+        supervision.remove_assignment_permissions(self)
 

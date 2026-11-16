@@ -98,31 +98,33 @@ legacy warehouse-operator migration.
 
 ## Repository audit — 2026-11-16
 
-- The application-code baseline was clean at `60f9beb`. After the sales and warehouse/
-  quality requirements-only documentation commits, local `main` is **36 commits ahead**
-  of `origin/main`; these
-  commits have not been pushed by this audit.
+- The application-code baseline was clean at `60f9beb`. The local feature history remains
+  ahead of `origin/main`; no history was rewritten and the reviewed Antigravity commits remain
+  separately attributable in Git.
 - The ERPNext checkout is clean. The India Compliance checkout is clean at its pinned
   release. No upstream source was changed during requirements capture.
 - The Frappe checkout still has pre-existing local changes in `package.json` and
   `yarn.lock`; they were not created or modified by this work and must not be committed
   into Clothing ERP.
 - The live local site was migrated on 2026-11-16 with Frappe, ERPNext, Clothing ERP,
-  Insights and India Compliance installed. All 150 app/site tests pass after the
-  explicit RSM-to-ASM supervision model implementation slice.
+  Insights and India Compliance installed. All 151 app/site tests pass after the
+  Sales Territory Assignment (Territory -> ASM -> RSM) model and seed data implementation slice.
 
 ## RSM-to-ASM supervision model — implemented 2026-11-16
 
-- [x] Added app-owned `ASM Supervision` DocType with effective dates (`effective_from`,
-  `effective_to`), status (`Active`, `Superseded`, `Cancelled`), notes, and immutable audit
-  tracking (`assigned_by`, `assigned_on`).
+- [x] Converted the app-owned `ASM Supervision` record into the authoritative **Sales
+  Territory Assignment**: one leaf Territory → one ASM → one supervising RSM, with effective
+  dates, status (`Active`, `Superseded`, `Cancelled`), notes and immutable audit tracking.
 - [x] Supported multiple ASMs per supervising RSM; strictly enforced that an ASM has at most
   one active supervising RSM across overlapping effective date ranges.
 - [x] Enforced enabled System User status and canonical Clothing ERP roles: ASM must have
   `Clothing Area Sales Manager` and RSM must have `Clothing Regional Sales Manager`.
   Directly rejected self-supervision.
-- [x] Validated territory overlap between RSM and ASM upon assignment: RSM and ASM must share
-  at least one assigned native Territory User Permission.
+- [x] The assignment now creates the required native Territory User Permissions for its ASM
+  and RSM automatically. App assignments are authoritative; native permissions are synchronized
+  mirrors for ERPNext compatibility and only app-created mirrors are removed on end/reassignment.
+- [x] Enforced one active ASM per Territory and one active Territory per ASM while allowing an
+  RSM to supervise multiple ASMs/Territories.
 - [x] Restricted creation, update, and cancellation of supervision to authorized administrators
   (`System Manager`, `Administrator`, `Clothing Business Administrator`). Ordinary ASM and
   RSM users are denied modification server-side and kept out of framework user management.
@@ -133,8 +135,7 @@ legacy warehouse-operator migration.
   reasons without deleting audit records.
 - [x] Implemented document permission hook (`asm_supervision_has_permission`) and list query
   conditions (`asm_supervision_conditions`):
-  - RSM users can only view supervision records where they are the supervisor and share
-    territory with the ASM.
+  - RSM users can only view assignment records where they are the supervisor.
   - ASM users can only view their own supervision record.
   - System/business administrators retain global visibility.
 - [x] Enforced supervision checks in Retailer Application review endpoints:
@@ -143,13 +144,19 @@ legacy warehouse-operator migration.
   - Applications from unassigned ASMs are visibly blocked from RSM review with clear guidance
     that an administrator must assign supervision.
   - Administrators retain global oversight and can approve/reject directly.
-- [x] Scoped Retailer Assignments: RSMs can only reassign retailers to ASMs they actively
-  supervise within their territory scope.
-- [x] Provided a clean native DocType UI in Clothing ERP linked under **Sales Operations**
+- [x] Retired per-retailer salesperson reassignment. The old route redirects to Sales Territory
+  Assignments and every old mutation endpoint rejects calls server-side; historical records are
+  retained as an archive.
+- [x] Provided a clean native DocType UI in Clothing ERP as **Sales Territory Assignments**
+  under **Sales Operations**
   with client-side User link filtering to enabled ASMs/RSMs, read-only mode for non-admins,
   and administrator actions for reassigning and ending supervision.
-- [x] Migrations safely preserve existing records without guessing relationships; unassigned
-  ASMs remain unassigned until administrator action. Double migration verified for idempotency.
+- [x] Migration backfills a legacy record only when ASM/RSM permissions identify exactly one
+  unambiguous leaf Territory; ambiguous legacy records are cancelled with an administrative
+  migration note rather than guessing. Double migration is idempotent.
+- [x] Development seed now creates two Territories, two ASMs, one RSM, business-admin and
+  warehouse-manager test accounts, authoritative assignments and eight retailers spanning all
+  four retailer types. Every run rotates and prints random test passwords.
 - [x] Unit and database integration tests: 15 unit tests in `test_supervision.py`, expanded
   workflow tests in `test_retailer_workflow.py` and `test_roles.py`, plus real-database
   integration tests in `test_site.py`.
@@ -158,13 +165,13 @@ legacy warehouse-operator migration.
 
 - **Implemented and tested behavior:**
   - Classify retailers into four canonical native Customer Groups.
-  - Role migration to ASM/RSM with Territory User Permissions.
+  - Role migration to ASM/RSM with authoritative Territory assignments and synchronized native
+    Territory User Permissions.
   - Retailer visibility and draft Sales Orders scoped to Territory.
-  - Responsible-ASM reassignment within Territory.
-  - App-owned, audited RSM-to-ASM supervision model with effective dates, row-locking concurrency,
-    uniqueness of active supervisor per ASM, multi-ASM supervision per RSM, territory overlap
-    validation, administrator-only mutations, query/document permission scoping, and Retailer
-    Application review gating.
+  - App-owned, audited Territory → ASM → RSM model with effective dates, row-locking concurrency,
+    unique active ASM per Territory, unique active Territory/supervisor per ASM, multi-ASM RSMs,
+    automatic native permission synchronization, administrator-only mutations, query/document
+    permission scoping and Retailer Application review gating.
 - **Partially implemented behavior:**
   - Retailer intake: ASM draft application and RSM/admin approval/rejection are implemented;
     routing to a dedicated RSM inbox queue and request-for-more-information/resubmission states
@@ -189,22 +196,21 @@ legacy warehouse-operator migration.
 
 - [x] Added canonical `Clothing Area Sales Manager` and `Clothing Regional Sales Manager`
   roles and replaced the legacy role literals on workspaces, pages, reports and DocTypes.
-- [x] Added idempotent migration of legacy User roles and Role Profiles. Existing Customer
-  assignments are converted into Territory assignments and a deterministic default is set
-  when legacy data yields no default.
+- [x] Added idempotent migration of legacy User roles and Role Profiles. Legacy supervision
+  records are converted only when their native permissions identify one unambiguous leaf
+  Territory; ambiguous records are cancelled for administrator review.
 - [x] Changed retailer and Sales Order authorization from per-Customer visibility to
   server-enforced Territory visibility. ASM application/visit records remain owner-scoped;
   RSM review visibility is Territory-scoped.
-- [x] Retained retailer reassignment as the responsible-ASM marker, while requiring that
-  the selected ASM is assigned to the retailer's Territory; it no longer acts as the
-  retailer visibility boundary.
+- [x] Retired retailer-by-retailer salesperson reassignment. The active Territory assignment
+  determines the responsible ASM and the RSM's supervisory scope.
 - [x] Ordinary ERPNext `Sales User` accounts receive no Clothing ERP sales access; ASM/RSM
   users remain inside Clothing ERP and cannot browse framework User records.
 - [x] Created a native `Clothing ERP Retailer Types` Customer Group parent with exactly four
   canonical leaf groups. Administrators edit these through native Customer Group; cadence
   settings still require the planned app-owned settings model.
 - [x] Changed Retailer Application to require a canonical Retailer Type, auto-fill and lock
-  the logged-in ASM, and resolve its server-owned default Territory from User Permission.
+  the logged-in ASM, and resolve its Territory from the authoritative active assignment.
 - [x] Approval creates the native Customer with that Customer Group classification. RSM
   approve/reject actions now perform document permission checks, preventing cross-territory
   review by guessing a document name.
@@ -382,41 +388,36 @@ complete implementation of the target warehouse workflow.
 - [x] RSM/admin approval/rejection with immutable review results and Territory checks.
 - [x] Approval creates native Customer, Contact and billing/shipping Address records.
 - [x] Approval preserves classification through the native Customer Group. Retailer
-  visibility follows Territory User Permission; per-Customer permission is only retained
-  as the responsible-ASM marker used by the assignment history feature.
+  visibility follows the active Sales Territory Assignment and its native Territory User
+  Permission mirror; no per-Customer salesperson grant is created.
 - [x] Retailer Visit records with outcomes, notes and required future follow-up dates.
 - [x] RSM/admin Retailer Visit Report with date, retailer, ASM and outcome filters,
   outcome chart and operational summary counts; it is absent from ASM navigation and
   rejects direct ASM execution.
-- [x] Manager-only Retailer Assignments page owned entirely by Clothing ERP; native Customer
-  forms/lists contain no custom reassignment controls.
-- [x] Responsive Retailer Assignments list layout with contained columns, functional 20/50
-  row limits and pagination directly below the results instead of pinned to the viewport.
-- [x] Territory-scoped RSMs can manage only Customers covered by their
-  native Territory User Permissions; system/business administrators retain global scope.
-- [x] Atomic single and bounded bulk reassignment services with sorted row locking,
-  full-selection preflight and all-or-nothing request behavior.
-- [x] Immutable Retailer Assignment History recording previous/new salesperson, reason,
-  actor and timestamp for every actual assignment change.
+- [x] Replaced the former per-retailer assignment UI with administrator-owned Sales Territory
+  Assignments. The old route redirects and its mutation APIs are retired server-side; the old
+  immutable Retailer Assignment History remains readable as migration/archive data.
+- [x] Atomic territory assignment/reassignment locks active ASM and Territory rows, preserves
+  dated history, synchronizes native User Permissions and clears affected permission caches.
 - [x] Database integration coverage for application, approval, native records, assignment
   visibility, reassignment cache changes, immutable history and visit creation.
 
 The ASM/RSM access foundation, retailer classification, and explicit RSM-to-ASM supervision
 model are now implemented and tested. Routing applications to dedicated supervisor queues,
 scheduled obligations, multi-level review and credit/exposure approval remain open. Existing
-retailer applications, visits and assignment history remain migration inputs; responsible-ASM
-assignment remains a native User Permission while visibility is Territory-based. Approved commercial
+retailer applications, visits and assignment history remain migration inputs; ASM responsibility
+is derived from the active Territory assignment while native User Permissions mirror its scope. Approved commercial
 masters remain native ERPNext documents. No ERPNext source was modified.
 
 All business rules and permission enforcement belong in this custom app. Use
 standard ERPNext accounting, stock and commercial documents. Never add duplicate
 ledgers or implement business behavior by modifying upstream core.
 
-Last full app verification on 2026-11-16: 150 app tests passed through the real site runner (8 integration tests + 142 unit tests). The last deployment run had 36 installer/package
+Last full app verification on 2026-11-16: 151 app tests passed through the real site runner (8 integration tests + 143 unit tests). The last deployment run had 36 installer/package
 tests passed. Chromium checks verified that salesperson intake hides server-owned master
 fields, draft creation stays on the Clothing ERP catalogue, and Administrator can open the
 resulting native Sales Order. Desktop/mobile Chromium checks passed with all three icons,
-the Clothing ERP workspace, the role-scoped Retailer Assignments page and the new Clothing
+the Clothing ERP workspace, the Sales Territory Assignments list and the new Clothing
 Orders directory/detail dialog without horizontal overflow. Current local testing is
 intentionally direct on port 8000; nginx is deferred from this phase.
 
@@ -432,9 +433,9 @@ intentionally direct on port 8000; nginx is deferred from this phase.
 - [x] Retailer approval revalidates the assigned enabled ASM, canonical native Customer
   Group retailer type and assigned Territory, then uses native Customer, Contact and
   Address documents.
-- [x] Retailer reassignment replaces native User Permissions atomically, records immutable
-  app-owned history, invalidates affected user permission caches and enforces manager
-  Territory scope before reading or changing an assignment.
+- [x] Sales Territory reassignment updates only app-managed native User Permissions atomically,
+  preserves effective-dated app-owned history, invalidates affected caches and makes the active
+  Territory → ASM → RSM record the row-scope authority.
 - [x] Gallery upload restrictions, privacy, storage and deletion use native File lifecycle
   checks; the app only removes confirmed unreferenced local uploads.
 - [x] Current custom APIs retain native role and User Permission enforcement.

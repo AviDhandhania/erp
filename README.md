@@ -111,12 +111,14 @@ installable only when its verified assets exist. Details: [release guide](docs/r
 The native launcher, three clothing workspaces, five clothing roles, read-only
 operational APIs, assignment restrictions, responsive native Item/Variant clothing
 catalogue, retailer application/approval/visit workflow, installer, release pipeline,
-and update/recovery tooling. Customer-aware pricing, garment ordering and warehouse workflows remain on the
-[roadmap](work.md).
+and update/recovery tooling. Customer-aware pricing, draft garment ordering and the
+row-locked Pick List flow are implemented; later approval, delivery, returns and quality
+stages remain on the [roadmap](work.md).
 
-ASM/RSM users use native Territory User Permissions; warehouse roles use native Warehouse
-User Permissions, and pick lists additionally require an open ToDo assignment. All access is
-subject to native ERPNext permissions. No mock sales or simulated ERP server is used.
+The app-owned Sales Territory Assignment is the ASM/RSM scope authority and automatically
+maintains native Territory User Permissions so standard ERPNext queries enforce the same
+scope. Warehouse roles use native Warehouse User Permissions, and pick lists additionally
+require an open ToDo assignment. No mock sales or simulated ERP server is used.
 
 ### ASM/RSM sales model — foundation & supervision implemented
 
@@ -130,9 +132,10 @@ a five-day escalation grace period.
 Every new retailer is classified as **Buy & Sell**, **Buy & Sell — Stock Correction**,
 **SIS (Shop-in-Shop)** or **EBOC (Exclusive Brand Outlet)** using native Customer Group
 leaves. The app now includes tested ASM/RSM roles, Territory-scoped server permissions,
-an idempotent migration for legacy User roles, and an explicit, audited RSM-to-ASM supervision
-model (`ASM Supervision`) with effective dates, row-locking concurrency, safe reassignment
-history, and server-side supervisor verification on retailer application approval endpoints.
+an idempotent migration for legacy User roles, and an explicit, audited Territory → ASM → RSM
+assignment model (internally stored as `ASM Supervision`) with effective dates, row-locking
+concurrency, safe reassignment history, native User Permission synchronization and server-side
+supervisor verification on retailer application approval endpoints.
 Common ERPNext salespeople have no Clothing ERP access. SIS/Buy & Sell cadence, credit/exposure
 approvals and notifications remain planned, not claimed as implemented.
 
@@ -179,15 +182,20 @@ system service. It contains the fictional **TEST Clothing ERP Demo** company. It
 pre-existing ERPNext develop checkout is not a release target and has not been
 downgraded.
 
-Populate the local catalogue with fictional ERPNext templates, variants, prices,
-submitted stock and a test retailer by running this idempotent development-only command:
+Populate the local catalogue and field-sales test model with fictional ERPNext templates,
+variants, prices, submitted stock, territories, retailers and accounts by running this
+idempotent development-only command:
 
 ```bash
 cd /home/avi/GitHub/erp/frappe-bench
 ../bench --site clothing.local execute clothing_erp.seed.seed_catalogue
 ```
 
-It refuses non-developer sites and only uses clearly labelled `TEST` catalogue data.
+It refuses non-developer sites and only uses clearly labelled `TEST` data. It creates two
+leaf Territories, one RSM, two ASMs, a business administrator, a warehouse manager and
+eight retailers (all four retailer types in both Territories). The result prints a fresh
+random password for every test account on each run; passwords are deliberately never
+committed. Re-run the command whenever you want to rotate all test passwords.
 
 To add a product gallery without changing ERPNext core, open the colour-specific Item
 template in ERPNext, find **Clothing Product Gallery** beside the primary image, and add
@@ -221,13 +229,15 @@ pinned-release compatibility gate before Stage 5 is complete.
    filled and enforced by the server; the ASM cannot substitute either value.
 2. Duplicate shop names, phone numbers, email addresses and GSTINs are rejected before
    submission, including common phone-prefix and letter-case differences.
-3. An in-scope RSM (who actively supervises the applicant ASM and has Territory access),
+3. An in-scope RSM (who actively supervises the applicant ASM through the same Sales
+   Territory Assignment),
    Clothing Business Administrator or System Manager opens **Retailer Applications**,
    then uses **Review → Approve** or **Review → Reject**. Applications from unassigned ASMs
    require administrator action to assign supervision before an RSM can review.
 4. Approval creates standard ERPNext Customer, Contact and Address records. The Customer's
-   native Customer Group is the selected Retailer Type; access follows Territory User
-   Permission rather than a redundant per-Customer grant. Rejection requires a reason.
+   native Customer Group is the selected Retailer Type; access follows the assignment's
+   Territory and its native User Permission mirror rather than a per-Customer grant.
+   Rejection requires a reason.
    A reviewed application cannot be edited or reviewed again.
 
 ASMs, RSMs, warehouse operators and warehouse managers use the
@@ -236,21 +246,21 @@ Manager and Clothing Business Administrator users retain the ERPNext tile. This 
 navigation scoping; document permissions and server-side assignment checks remain the
 security boundary.
 
-Retailer reassignment lives only at **Clothing ERP → Retailer Assignments**. Administrator,
-System Manager and Clothing Business Administrator users can manage all territories. A
-Regional Sales Manager must have a native Territory User Permission and can see or change
-only Customers in that territory. Reassignment records the responsible ASM; the selected
-ASM must be actively supervised by the RSM and assigned to the Customer's Territory. It
-does not grant visibility outside the ASM's Territory. System and business administrators
-retain global oversight. The native ERPNext Customer form and list contain no Clothing ERP
-reassignment controls.
+Retailer-by-retailer salesperson reassignment is retired. Administrators manage
+**Clothing ERP → Sales Territory Assignments** instead: choose one leaf Territory, its ASM
+and the supervising RSM. The ASM immediately sees every retailer in that Territory; the
+RSM sees the union of all Territories assigned to their ASMs. Ending or replacing an
+assignment removes only the native Territory User Permissions created by Clothing ERP and
+preserves the dated assignment history. Existing retailer-assignment history remains
+archived, and the old page redirects to the new assignment list.
+
 5. The ASM records meetings from **Retailer Visits**. Choosing
    **Follow-up Required** requires a non-past follow-up date.
 
-ASMs see all retailers in their assigned Territories but only their own applications and
-visits. RSM review visibility is limited to assigned Territories, including permitted
-descendants. The workflow does not duplicate ERPNext customer, address, contact or
-classification masters.
+ASMs see all retailers in their active assigned Territory but only their own applications
+and visits. RSM review visibility is the union of active Territories belonging to their
+ASMs. The workflow does not duplicate ERPNext customer, address, contact or classification
+masters.
 
 **Validation limits:** automated app/database/recovery tests run locally and in CI.
 Host-command tests simulate Proxmox. A complete install/update/reboot/restore on an

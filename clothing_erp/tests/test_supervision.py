@@ -65,24 +65,29 @@ class TestSupervision(unittest.TestCase):
         ):
             doc.validate()
 
-    def test_rsm_and_asm_must_share_assigned_territory(self):
-        with patch.object(
-            supervision,
-            "assigned_documents",
-            side_effect=lambda doctype, user: ["TEST North"] if user == "asm@example.invalid" else ["TEST South"],
-        ):
-            with self.assertRaisesRegex(frappe.ValidationError, "must share at least one assigned Territory"):
-                supervision.validate_supervision_territories("asm@example.invalid", "rsm@example.invalid")
+    def test_assignment_requires_an_existing_leaf_territory(self):
+        with patch.object(frappe.db, "exists", return_value=False):
+            with self.assertRaisesRegex(frappe.ValidationError, "existing Sales Territory"):
+                supervision.validate_assignment_territory(
+                    "asm@example.invalid", "rsm@example.invalid", "Missing"
+                )
 
-        with patch.object(
-            supervision,
-            "assigned_documents",
-            side_effect=lambda doctype, user: ["TEST North", "TEST East"]
-            if user == "asm@example.invalid"
-            else ["TEST North", "TEST South"],
+        with (
+            patch.object(frappe.db, "exists", return_value=True),
+            patch.object(frappe.db, "get_value", return_value=1),
+            self.assertRaisesRegex(frappe.ValidationError, "leaf Sales Territory"),
         ):
-            common = supervision.validate_supervision_territories("asm@example.invalid", "rsm@example.invalid")
-            self.assertEqual(common, {"TEST North"})
+            supervision.validate_assignment_territory(
+                "asm@example.invalid", "rsm@example.invalid", "Group"
+            )
+
+        with (
+            patch.object(frappe.db, "exists", return_value=True),
+            patch.object(frappe.db, "get_value", return_value=0),
+        ):
+            supervision.validate_assignment_territory(
+                "asm@example.invalid", "rsm@example.invalid", "TEST North"
+            )
 
     def test_date_validation_effective_to_cannot_precede_effective_from(self):
         doc = asm_supervision.ASMSupervision(
@@ -90,6 +95,7 @@ class TestSupervision(unittest.TestCase):
                 "doctype": "ASM Supervision",
                 "asm": "asm@example.invalid",
                 "rsm": "rsm@example.invalid",
+                "territory": "TEST North",
                 "status": "Active",
                 "effective_from": "2026-11-20",
                 "effective_to": "2026-11-10",
@@ -99,7 +105,7 @@ class TestSupervision(unittest.TestCase):
             patch.object(supervision, "assert_supervision_admin"),
             patch.object(supervision, "validate_asm_user"),
             patch.object(supervision, "validate_rsm_user"),
-            patch.object(supervision, "validate_supervision_territories"),
+            patch.object(supervision, "validate_assignment_territory"),
             self.assertRaisesRegex(frappe.ValidationError, "cannot be earlier than"),
         ):
             doc.validate()
@@ -119,6 +125,7 @@ class TestSupervision(unittest.TestCase):
                 "name": "ASM-SUP-2026-00002",
                 "asm": "asm@example.invalid",
                 "rsm": "rsm2@example.invalid",
+                "territory": "TEST North",
                 "status": "Active",
                 "effective_from": "2026-11-15",
                 "effective_to": None,
@@ -128,7 +135,7 @@ class TestSupervision(unittest.TestCase):
             patch.object(supervision, "assert_supervision_admin"),
             patch.object(supervision, "validate_asm_user"),
             patch.object(supervision, "validate_rsm_user"),
-            patch.object(supervision, "validate_supervision_territories"),
+            patch.object(supervision, "validate_assignment_territory"),
             patch.object(frappe.db, "sql"),
             patch.object(frappe, "get_all", return_value=existing_active),
             self.assertRaisesRegex(frappe.ValidationError, "already has an active supervising RSM"),
@@ -143,6 +150,7 @@ class TestSupervision(unittest.TestCase):
                 "name": "ASM-SUP-2026-00001",
                 "asm": "asm1@example.invalid",
                 "rsm": "rsm1@example.invalid",
+                "territory": "TEST North",
                 "status": "Active",
                 "effective_from": "2026-11-01",
             }
@@ -153,6 +161,7 @@ class TestSupervision(unittest.TestCase):
                 "name": "ASM-SUP-2026-00002",
                 "asm": "asm2@example.invalid",
                 "rsm": "rsm1@example.invalid",
+                "territory": "TEST South",
                 "status": "Active",
                 "effective_from": "2026-11-01",
             }
@@ -161,8 +170,9 @@ class TestSupervision(unittest.TestCase):
             patch.object(supervision, "assert_supervision_admin"),
             patch.object(supervision, "validate_asm_user"),
             patch.object(supervision, "validate_rsm_user"),
-            patch.object(supervision, "validate_supervision_territories"),
+            patch.object(supervision, "validate_assignment_territory"),
             patch.object(frappe.db, "sql"),
+            patch.object(frappe.db, "get_value", return_value=None),
             patch.object(frappe, "get_all", return_value=[]),
         ):
             doc1.validate()
@@ -213,7 +223,7 @@ class TestSupervision(unittest.TestCase):
             patch.object(supervision, "assert_supervision_admin"),
             patch.object(supervision, "validate_asm_user"),
             patch.object(supervision, "validate_rsm_user"),
-            patch.object(supervision, "validate_supervision_territories"),
+            patch.object(supervision, "validate_assignment_territory"),
             patch.object(frappe.db, "sql", side_effect=mock_sql),
             patch.object(
                 frappe,
@@ -222,6 +232,7 @@ class TestSupervision(unittest.TestCase):
                     frappe._dict(
                         name="ASM-SUP-2026-00001",
                         rsm="old_rsm@example.invalid",
+                        territory="TEST North",
                         effective_from=getdate("2026-11-01"),
                         effective_to=None,
                     )
@@ -233,6 +244,7 @@ class TestSupervision(unittest.TestCase):
             result = supervision.assign_asm_supervision(
                 asm="asm@example.invalid",
                 rsm="new_rsm@example.invalid",
+                territory="TEST North",
                 effective_from="2026-11-15",
                 reason="Territory realignment",
             )
@@ -288,17 +300,9 @@ class TestSupervision(unittest.TestCase):
                     frappe._dict(asm="asm2@example.invalid"),
                 ],
             ),
-            patch.object(
-                supervision,
-                "assigned_documents",
-                side_effect=lambda doctype, user: ["TEST North"]
-                if user in ("rsm@example.invalid", "asm1@example.invalid")
-                else ["TEST South"],
-            ),
         ):
             supervised = supervision.get_supervised_asms("rsm@example.invalid", "2026-11-16")
-            # asm1 shares TEST North, asm2 only has TEST South
-            self.assertEqual(supervised, ["asm1@example.invalid"])
+            self.assertEqual(supervised, ["asm1@example.invalid", "asm2@example.invalid"])
 
     def test_is_active_supervisor_checks_supervision_and_territory(self):
         with (
@@ -307,15 +311,7 @@ class TestSupervision(unittest.TestCase):
                 "get_active_supervising_rsm",
                 return_value="rsm1@example.invalid",
             ),
-            patch.object(
-                supervision,
-                "assigned_documents",
-                side_effect=lambda doctype, user: ["TEST North"]
-                if user in ("rsm1@example.invalid", "asm1@example.invalid")
-                else ["TEST South"],
-            ),
         ):
-            # Same supervisor and sharing territory -> True
             self.assertTrue(supervision.is_active_supervisor("rsm1@example.invalid", "asm1@example.invalid"))
             # Different supervisor -> False
             self.assertFalse(supervision.is_active_supervisor("other_rsm@example.invalid", "asm1@example.invalid"))
@@ -331,22 +327,7 @@ class TestSupervision(unittest.TestCase):
 
         with (
             patch.object(supervision, "get_active_supervising_rsm", return_value="rsm@example.invalid"),
-            patch.object(
-                supervision,
-                "assigned_documents",
-                side_effect=lambda doctype, user: ["TEST North"] if user == "rsm@example.invalid" else ["TEST South"],
-            ),
-        ):
-            with self.assertRaisesRegex(frappe.PermissionError, "do not share an assigned territory"):
-                supervision.assert_rsm_supervises_asm("rsm@example.invalid", "asm@example.invalid")
-
-        with (
-            patch.object(supervision, "get_active_supervising_rsm", return_value="rsm@example.invalid"),
-            patch.object(
-                supervision,
-                "assigned_documents",
-                side_effect=lambda doctype, user: ["TEST North"],
-            ),
+            patch.object(frappe.db, "get_value", return_value="TEST North"),
         ):
             # Outside territory -> PermissionError
             with self.assertRaisesRegex(frappe.PermissionError, "not authorized to manage actions in territory"):
@@ -365,12 +346,10 @@ class TestSupervision(unittest.TestCase):
         with (
             patch.object(security, "is_clothing_admin", return_value=False),
             patch.object(security, "get_user_roles", return_value={ROLE_RSM}),
-            patch.object(security, "assigned_documents", return_value=["TEST North"]),
             patch.object(security, "get_current_user", return_value="rsm@example.invalid"),
         ):
             condition = security.asm_supervision_conditions("rsm@example.invalid")
-            self.assertIn("`tabASM Supervision`.`rsm` = 'rsm@example.invalid'", condition)
-            self.assertIn("TEST North", condition)
+            self.assertEqual(condition, "`tabASM Supervision`.`rsm` = 'rsm@example.invalid'")
 
         with (
             patch.object(security, "is_clothing_admin", return_value=False),
@@ -401,23 +380,7 @@ class TestSupervision(unittest.TestCase):
             # Mutation rejected for RSM
             self.assertFalse(security.asm_supervision_has_permission(doc, "rsm@example.invalid", "write"))
 
-            # Read permitted if territories overlap
-            with patch.object(
-                security,
-                "assigned_documents",
-                side_effect=lambda doctype, user: ["TEST North"],
-            ):
-                self.assertTrue(security.asm_supervision_has_permission(doc, "rsm@example.invalid", "read"))
-
-            # Read denied if no territory overlap
-            with patch.object(
-                security,
-                "assigned_documents",
-                side_effect=lambda doctype, user: ["TEST North"]
-                if user == "rsm@example.invalid"
-                else ["TEST South"],
-            ):
-                self.assertFalse(security.asm_supervision_has_permission(doc, "rsm@example.invalid", "read"))
+            self.assertTrue(security.asm_supervision_has_permission(doc, "rsm@example.invalid", "read"))
 
         with (
             patch.object(security, "is_clothing_admin", return_value=False),

@@ -1,5 +1,6 @@
 """Server authorization and assignment restrictions, alongside native permissions."""
 import frappe
+from frappe.utils import getdate, nowdate
 from clothing_erp.roles import (
     ALL_ROLES, ROLE_BUSINESS_ADMIN, ROLE_SALESPERSON, ROLE_SALES_MANAGER,
     ROLE_WAREHOUSE_MANAGER, ROLE_WAREHOUSE_OPERATOR, SUPER_USER_ROLES,
@@ -56,12 +57,39 @@ def assigned_documents(doctype, user=None, applicable_for=None):
     permissions = get_user_permissions(get_current_user(user)).get(doctype, [])
     return sorted({p.doc for p in permissions if not p.applicable_for or p.applicable_for == (applicable_for or doctype)})
 
+
+def assigned_sales_territories(user=None):
+    """Return active assignment Territories; User Permissions are only the native mirror."""
+    current = get_current_user(user)
+    roles = get_user_roles(current)
+    if ROLE_SALESPERSON in roles:
+        fieldname = "asm"
+    elif ROLE_SALES_MANAGER in roles:
+        fieldname = "rsm"
+    else:
+        return []
+    today = getdate(nowdate())
+    rows = frappe.db.sql(
+        f"""
+        SELECT DISTINCT territory
+        FROM `tabASM Supervision`
+        WHERE `{fieldname}` = %s
+          AND status = 'Active'
+          AND effective_from <= %s
+          AND (effective_to IS NULL OR effective_to >= %s)
+          AND territory IS NOT NULL
+        """,
+        (current, today, today),
+        as_dict=True,
+    )
+    return sorted(row.territory for row in rows)
+
 def has_retailer_access(customer_name, user=None):
     if is_clothing_admin(user):
         return True
     roles = get_user_roles(user)
     if roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}:
-        territories = assigned_documents("Territory", user)
+        territories = assigned_sales_territories(user)
         return bool(
             territories
             and frappe.db.get_value("Customer", customer_name, "territory")
@@ -93,7 +121,7 @@ def _assignment_conditions(doctype, role, manager_check, user):
 def get_salesperson_customer_conditions(user=None):
     if not (get_user_roles(user) & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}) or is_clothing_admin(user):
         return ""
-    territories = assigned_documents("Territory", user)
+    territories = assigned_sales_territories(user)
     if not territories:
         return "1=0"
     allowed = ", ".join(frappe.db.escape(name) for name in territories)
@@ -106,7 +134,7 @@ def get_operator_warehouse_conditions(user=None):
 def _sales_document_conditions(doctype, user=None):
     if not (get_user_roles(user) & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}) or is_clothing_admin(user):
         return ""
-    territories = assigned_documents("Territory", user)
+    territories = assigned_sales_territories(user)
     if not territories:
         return "1=0"
     allowed = ", ".join(frappe.db.escape(name) for name in territories)
@@ -149,7 +177,7 @@ def retailer_application_conditions(user=None):
         return ""
     roles = get_user_roles(user)
     if ROLE_SALES_MANAGER in roles:
-        territories = assigned_documents("Territory", user)
+        territories = assigned_sales_territories(user)
         if not territories:
             return "1=0"
         allowed = ", ".join(frappe.db.escape(name) for name in territories)
@@ -164,7 +192,7 @@ def retailer_visit_conditions(user=None):
         return ""
     roles = get_user_roles(user)
     if ROLE_SALES_MANAGER in roles:
-        territories = assigned_documents("Territory", user)
+        territories = assigned_sales_territories(user)
         if not territories:
             return "1=0"
         allowed = ", ".join(frappe.db.escape(name) for name in territories)
@@ -183,16 +211,7 @@ def asm_supervision_conditions(user=None):
     roles = get_user_roles(user)
     current = get_current_user(user)
     if ROLE_SALES_MANAGER in roles:
-        territories = assigned_documents("Territory", user)
-        if not territories:
-            return "1=0"
-        allowed = ", ".join(frappe.db.escape(name) for name in territories)
-        return (
-            f"`tabASM Supervision`.`rsm` = {frappe.db.escape(current)} AND "
-            f"`tabASM Supervision`.`asm` in ("
-            f"SELECT user FROM `tabUser Permission` WHERE allow = 'Territory' AND for_value in ({allowed})"
-            f")"
-        )
+        return f"`tabASM Supervision`.`rsm` = {frappe.db.escape(current)}"
     if ROLE_SALESPERSON in roles:
         return f"`tabASM Supervision`.`asm` = {frappe.db.escape(current)}"
     return "1=0"
@@ -206,11 +225,7 @@ def asm_supervision_has_permission(doc, user=None, ptype=None, **kwargs):
     roles = get_user_roles(user)
     current = get_current_user(user)
     if ROLE_SALES_MANAGER in roles:
-        if doc.rsm != current:
-            return False
-        rsm_territories = set(assigned_documents("Territory", user))
-        asm_territories = set(assigned_documents("Territory", doc.asm))
-        return bool(rsm_territories & asm_territories)
+        return doc.rsm == current
     if ROLE_SALESPERSON in roles:
         return doc.asm == current
     return False
@@ -224,7 +239,7 @@ def retailer_record_has_permission(doc, user=None, ptype=None, **kwargs):
         return False
     if doc.doctype == "Retailer Application":
         if ROLE_SALES_MANAGER in roles:
-            return doc.territory in assigned_documents("Territory", user)
+            return doc.territory in assigned_sales_territories(user)
         return doc.owner == get_current_user(user)
     if ROLE_SALES_MANAGER in roles:
         return has_retailer_access(doc.customer, user)

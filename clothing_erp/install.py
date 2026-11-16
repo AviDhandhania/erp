@@ -16,6 +16,7 @@ from clothing_erp.roles import (
     ROLE_WAREHOUSE_MANAGER,
     ROLE_WAREHOUSE_OPERATOR,
 )
+from clothing_erp.supervision import migrate_existing_assignments
 
 
 LEGACY_SALES_ROLE_MAP = {
@@ -327,6 +328,7 @@ def after_install():
             "Account", "Price List", "Territory", "Customer Group", "Sales Order",
         }:
             _remove_custom_docperm(doctype, old_role)
+    migrate_existing_assignments()
     frappe.clear_cache()
 
 

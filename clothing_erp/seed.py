@@ -1,10 +1,30 @@
-"""Fictional, idempotent development data for manual catalogue testing."""
+"""Fictional, idempotent development data for end-to-end manual testing."""
+
+import secrets
 
 import frappe
 from erpnext.controllers.item_variant import create_variant
 
+from clothing_erp.retailer_defaults import RETAILER_TYPES, ensure_retailer_defaults
+from clothing_erp.roles import (
+    ROLE_ASM,
+    ROLE_BUSINESS_ADMIN,
+    ROLE_RSM,
+    ROLE_WAREHOUSE_MANAGER,
+)
+from clothing_erp.supervision import assign_asm_supervision
+
 SEED_REFERENCE = "Clothing ERP fictional catalogue seed"
 SEED_RETAILER = "TEST Catalogue Boutique"
+SEED_RSM = "test-rsm@example.invalid"
+SEED_ASM_NORTH = "test-asm-north@example.invalid"
+SEED_ASM_SOUTH = "test-asm-south@example.invalid"
+SEED_BUSINESS_ADMIN = "test-business-admin@example.invalid"
+SEED_WAREHOUSE_MANAGER = "test-warehouse-manager@example.invalid"
+SEED_TERRITORIES = (
+    ("TEST North Sales Territory", SEED_ASM_NORTH),
+    ("TEST South Sales Territory", SEED_ASM_SOUTH),
+)
 PRODUCTS = (
     {
         "code": "TEST-CLASSIC-TEE-BLK",
@@ -248,38 +268,134 @@ def _ensure_brand(name):
         ).insert()
 
 
-def _ensure_retailer():
-    customer_group = "TEST Clothing Retailers"
-    territory = "TEST Clothing Territory"
-    if not frappe.db.exists("Customer Group", customer_group):
-        frappe.get_doc(
+def _ensure_seed_user(email, first_name, role):
+    if frappe.db.exists("User", email):
+        user = frappe.get_doc("User", email)
+        if role not in {row.role for row in user.roles}:
+            user.add_roles(role)
+    else:
+        user = frappe.get_doc(
             {
-                "doctype": "Customer Group",
-                "customer_group_name": customer_group,
-                "parent_customer_group": "All Customer Groups",
-                "is_group": 0,
+                "doctype": "User",
+                "email": email,
+                "first_name": first_name,
+                "send_welcome_email": 0,
+                "user_type": "System User",
+                "roles": [{"role": role}],
             }
-        ).insert()
-    if not frappe.db.exists("Territory", territory):
+        ).insert(ignore_permissions=True)
+    password = secrets.token_urlsafe(14)
+    user.new_password = password
+    user.save(ignore_permissions=True)
+    return {"email": email, "password": password, "role": role}
+
+
+def _ensure_user_permission(user, allow, for_value, is_default=False):
+    existing = frappe.db.exists(
+        "User Permission", {"user": user, "allow": allow, "for_value": for_value}
+    )
+    if existing:
+        return existing
+    return frappe.get_doc(
+        {
+            "doctype": "User Permission",
+            "user": user,
+            "allow": allow,
+            "for_value": for_value,
+            "apply_to_all_doctypes": 1,
+            "is_default": int(bool(is_default)),
+        }
+    ).insert(ignore_permissions=True).name
+
+
+def _ensure_sales_territories():
+    parent = "TEST India Sales Region"
+    if not frappe.db.exists("Territory", parent):
         frappe.get_doc(
             {
                 "doctype": "Territory",
-                "territory_name": territory,
+                "territory_name": parent,
                 "parent_territory": "All Territories",
-                "is_group": 0,
+                "is_group": 1,
             }
-        ).insert()
-    if not frappe.db.exists("Customer", SEED_RETAILER):
-        frappe.get_doc(
-            {
-                "doctype": "Customer",
-                "customer_name": SEED_RETAILER,
-                "customer_type": "Company",
-                "customer_group": customer_group,
-                "territory": territory,
-            }
-        ).insert()
-    return SEED_RETAILER
+        ).insert(ignore_permissions=True)
+    for territory, _asm in SEED_TERRITORIES:
+        if not frappe.db.exists("Territory", territory):
+            frappe.get_doc(
+                {
+                    "doctype": "Territory",
+                    "territory_name": territory,
+                    "parent_territory": parent,
+                    "is_group": 0,
+                }
+            ).insert(ignore_permissions=True)
+
+
+def _ensure_seed_retailers():
+    retailers = []
+    for territory_index, (territory, _asm) in enumerate(SEED_TERRITORIES, 1):
+        for type_index, retailer_type in enumerate(RETAILER_TYPES, 1):
+            name = (
+                SEED_RETAILER
+                if territory_index == 1 and type_index == 1
+                else f"TEST {territory_index}-{type_index} {retailer_type} Store"
+            )
+            if frappe.db.exists("Customer", name):
+                customer = frappe.get_doc("Customer", name)
+                changed = False
+                if customer.customer_group != retailer_type:
+                    customer.customer_group = retailer_type
+                    changed = True
+                if customer.territory != territory:
+                    customer.territory = territory
+                    changed = True
+                if changed:
+                    customer.save(ignore_permissions=True)
+            else:
+                frappe.get_doc(
+                    {
+                        "doctype": "Customer",
+                        "customer_name": name,
+                        "customer_type": "Company",
+                        "customer_group": retailer_type,
+                        "territory": territory,
+                    }
+                ).insert(ignore_permissions=True)
+            retailers.append(name)
+    return retailers
+
+
+def _seed_test_accounts_and_assignments(company):
+    ensure_retailer_defaults()
+    _ensure_sales_territories()
+    credentials = [
+        _ensure_seed_user(SEED_RSM, "TEST Regional Manager", ROLE_RSM),
+        _ensure_seed_user(SEED_ASM_NORTH, "TEST North ASM", ROLE_ASM),
+        _ensure_seed_user(SEED_ASM_SOUTH, "TEST South ASM", ROLE_ASM),
+        _ensure_seed_user(
+            SEED_BUSINESS_ADMIN, "TEST Business Administrator", ROLE_BUSINESS_ADMIN
+        ),
+        _ensure_seed_user(
+            SEED_WAREHOUSE_MANAGER, "TEST Warehouse Manager", ROLE_WAREHOUSE_MANAGER
+        ),
+    ]
+    _ensure_user_permission(
+        SEED_WAREHOUSE_MANAGER, "Warehouse", company.default_warehouse, is_default=True
+    )
+    assignments = []
+    for territory, asm in SEED_TERRITORIES:
+        assignment = assign_asm_supervision(
+            asm=asm,
+            rsm=SEED_RSM,
+            territory=territory,
+            reason=SEED_REFERENCE,
+        )
+        assignments.append(assignment["name"])
+    return {
+        "credentials": credentials,
+        "assignments": assignments,
+        "retailers": _ensure_seed_retailers(),
+    }
 
 
 def _ensure_attribute(name, values):
@@ -468,7 +584,7 @@ def _receive_initial_stock(company, variants):
 
 
 def seed_catalogue():
-    """Create or complete the fictional catalogue and return a concise summary."""
+    """Create the fictional catalogue, users, territories and retailer hierarchy."""
     _require_development_site()
     company = _seed_company()
     price_list = frappe.db.get_single_value("Selling Settings", "selling_price_list")
@@ -476,7 +592,7 @@ def seed_catalogue():
         frappe.throw(frappe._("Configure a default Selling Price List before seeding."))
 
     item_group = _ensure_item_group()
-    retailer = _ensure_retailer()
+    field_sales = _seed_test_accounts_and_assignments(company)
     for brand in {product["brand"] for product in PRODUCTS}:
         _ensure_brand(brand)
     _ensure_attribute(
@@ -497,7 +613,10 @@ def seed_catalogue():
         "company": company.name,
         "warehouse": company.default_warehouse,
         "price_list": price_list,
-        "retailer": retailer,
+        "retailer": SEED_RETAILER,
+        "retailers": field_sales["retailers"],
+        "sales_territory_assignments": field_sales["assignments"],
+        "test_accounts": field_sales["credentials"],
         "templates": len(PRODUCTS),
         "variants": len(all_variants),
         "stock_entry": stock_entry,

@@ -20,6 +20,15 @@ MAX_BULK_REASSIGNMENTS = 100
 MAX_DIRECTORY_PAGE_SIZE = 50
 
 
+def _retailer_assignment_retired():
+    frappe.throw(
+        frappe._(
+            "Per-retailer salesperson assignment has been retired. Manage Sales Territory Assignments instead."
+        ),
+        frappe.ValidationError,
+    )
+
+
 def _is_assignment_admin(user=None):
     user = get_current_user(user)
     roles = get_user_roles(user)
@@ -150,6 +159,7 @@ def _single_assignment(customer):
 def get_reassignment_directory(search=None, page=1, page_size=20, match_type="like"):
     """Return only retailers in the manager's native Territory scope."""
     require_role(MANAGER_ROLES)
+    _retailer_assignment_retired()
     page = max(1, min(cint(page), 10_000))
     page_size = max(1, min(cint(page_size), MAX_DIRECTORY_PAGE_SIZE))
     territories = _manager_territories()
@@ -206,6 +216,7 @@ def get_reassignment_directory(search=None, page=1, page_size=20, match_type="li
 @frappe.whitelist()
 def get_retailer_assignment(customer):
     require_role(MANAGER_ROLES)
+    _retailer_assignment_retired()
     customer = (customer or "").strip()[:140]
     if not customer:
         frappe.throw(frappe._("Select a retailer."))
@@ -244,6 +255,7 @@ def reassign_retailer(
 ):
     """Atomically replace one retailer's native salesperson User Permission."""
     require_role(MANAGER_ROLES)
+    _retailer_assignment_retired()
     customer = (customer or "").strip()[:140]
     new_salesperson = (new_salesperson or "").strip()[:140]
     reason = (reason or "").strip()[:500]
@@ -320,6 +332,7 @@ def _replace_assignment(customer, new_salesperson, reason, assignment):
 def bulk_reassign_retailers(customers, new_salesperson, reason):
     """Atomically reassign a bounded Customer selection after preflighting every row."""
     require_role(MANAGER_ROLES)
+    _retailer_assignment_retired()
     customers = (
         frappe.parse_json(customers) if isinstance(customers, str) else customers
     )

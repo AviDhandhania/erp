@@ -41,3 +41,17 @@ class TestSeedSafety(unittest.TestCase):
             image = public_root / relative
             self.assertTrue(image.is_file(), image)
             self.assertGreater(image.stat().st_size, 20_000)
+
+    def test_seed_accounts_and_territories_are_clearly_test_only(self):
+        accounts = (
+            seed.SEED_RSM,
+            seed.SEED_ASM_NORTH,
+            seed.SEED_ASM_SOUTH,
+            seed.SEED_BUSINESS_ADMIN,
+            seed.SEED_WAREHOUSE_MANAGER,
+        )
+        self.assertTrue(all(email.startswith("test-") for email in accounts))
+        self.assertTrue(all(email.endswith("@example.invalid") for email in accounts))
+        self.assertTrue(
+            all(territory.startswith("TEST ") for territory, _asm in seed.SEED_TERRITORIES)
+        )

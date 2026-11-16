@@ -1,5 +1,8 @@
 frappe.ui.form.on("ASM Supervision", {
 	setup(frm) {
+		frm.set_query("territory", function() {
+			return { filters: { is_group: 0 } };
+		});
 		frm.set_query("asm", function() {
 			return {
 				query: "frappe.core.doctype.user.user.user_query",
@@ -22,6 +25,7 @@ frappe.ui.form.on("ASM Supervision", {
 	},
 
 	refresh(frm) {
+		frm.page.set_title(__("Sales Territory Assignment"));
 		const is_admin = frappe.user_roles.includes("Administrator") ||
 			frappe.user_roles.includes("System Manager") ||
 			frappe.user_roles.includes("Clothing Business Administrator");
@@ -35,8 +39,16 @@ frappe.ui.form.on("ASM Supervision", {
 		if (!frm.is_new() && frm.doc.status === "Active") {
 			frm.add_custom_button(__("Reassign RSM"), function() {
 				const dialog = new frappe.ui.Dialog({
-					title: __("Reassign Area Sales Manager"),
+					title: __("Reassign Territory's RSM"),
 					fields: [
+						{
+							fieldname: "territory",
+							fieldtype: "Link",
+							label: __("Sales Territory"),
+							options: "Territory",
+							default: frm.doc.territory,
+							read_only: 1
+						},
 						{
 							fieldname: "new_rsm",
 							fieldtype: "Link",
@@ -74,11 +86,12 @@ frappe.ui.form.on("ASM Supervision", {
 							args: {
 								asm: frm.doc.asm,
 								rsm: values.new_rsm,
+								territory: frm.doc.territory,
 								effective_from: values.effective_from,
 								reason: values.reason
 							},
 							freeze: true,
-							freeze_message: __("Reassigning supervision..."),
+							freeze_message: __("Updating territory assignment..."),
 							callback(r) {
 								if (!r.exc) {
 									frappe.show_alert({
@@ -100,7 +113,7 @@ frappe.ui.form.on("ASM Supervision", {
 						{
 							fieldname: "reason",
 							fieldtype: "Small Text",
-							label: __("Reason for ending supervision"),
+							label: __("Reason for ending assignment"),
 							reqd: 1
 						},
 						{
@@ -120,11 +133,11 @@ frappe.ui.form.on("ASM Supervision", {
 								end_date: values.end_date
 							},
 							freeze: true,
-							freeze_message: __("Ending supervision..."),
+							freeze_message: __("Ending territory assignment..."),
 							callback(r) {
 								if (!r.exc) {
 									frappe.show_alert({
-										message: __("Supervision ended"),
+										message: __("Territory assignment ended"),
 										indicator: "orange"
 									});
 									frm.reload_doc();

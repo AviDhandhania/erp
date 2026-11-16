@@ -16,6 +16,10 @@ doctype_js = {
 	"ASM Supervision": "clothing_erp/doctype/asm_supervision/asm_supervision.js",
 }
 
+doctype_list_js = {
+	"ASM Supervision": "clothing_erp/doctype/asm_supervision/asm_supervision_list.js",
+}
+
 add_to_apps_screen = [
 	{
 		"name": "clothing_erp",

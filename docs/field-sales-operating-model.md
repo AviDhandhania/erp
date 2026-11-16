@@ -1,9 +1,9 @@
 # Field sales operating model
 
-Status: requirements captured on 2026-11-16; implementation is intentionally deferred
-until the remaining business details are supplied. This document is the hand-off source
-for the next development prompt. It distinguishes confirmed requirements, proposed
-ERPNext mappings and questions that must not be answered by assumption.
+Status: requirements captured on 2026-11-16. The role, retailer-type, Territory assignment
+and retailer-intake foundations are implemented; cadence, credit/exposure, visit review and
+order approval stages remain pending the business details below. This document distinguishes
+implemented foundations, confirmed requirements and questions that must not be guessed.
 
 ## Confirmed retailer classifications
 
@@ -38,10 +38,9 @@ The Clothing ERP sales area is restricted to:
 - **RSM — Regional Sales Manager**
 - Administrator and explicitly authorized business/system administrators
 
-A common salesperson will not be granted Clothing ERP sales access. The current
-`Clothing Salesperson` and `Clothing Sales Manager` roles are legacy implementation
-names, not approval to preserve the old access model. They need a controlled role and
-data migration to ASM/RSM; simply relabelling UI text is insufficient.
+A common salesperson is not granted Clothing ERP sales access. Canonical roles are now
+`Clothing Area Sales Manager` and `Clothing Regional Sales Manager`; legacy role names are
+migrated by the app rather than being treated as continuing authorization.
 
 Confirmed hierarchy:
 
@@ -51,13 +50,13 @@ Confirmed hierarchy:
 - An RSM normally covers about 200–250 shops.
 - Administrators have global oversight.
 
-Native ERPNext Territory and Frappe User Permission records should remain the row-level
-scope authority. A separate, explicit RSM-to-ASM supervisory relationship is still
-required for approvals, review queues and escalation. The implementation must decide,
-after the remaining requirements arrive, whether native Sales Person hierarchy can carry
-that relationship without conflicting with User-based access. Counts such as 3–4 ASMs and
-200–250 shops are planning expectations; whether they are hard limits or warnings remains
-unconfirmed.
+The implemented authority is one effective-dated app-owned Sales Territory Assignment:
+one leaf Territory → one ASM → one supervising RSM. It automatically maintains native
+Frappe Territory User Permissions so standard ERPNext document queries enforce the same
+scope. An ASM sees all retailers in the assigned Territory; an RSM sees the union of the
+Territories assigned to their ASMs. Per-retailer salesperson assignment is retired.
+Counts such as 3–4 ASMs and 200–250 shops remain planning expectations; whether they are
+hard limits or warnings is unconfirmed.
 
 ## ASM responsibilities
 

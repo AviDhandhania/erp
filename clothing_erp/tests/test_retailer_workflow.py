@@ -117,12 +117,11 @@ class TestRetailerWorkflow(unittest.TestCase):
         self.assertEqual(application.territory, "Default Territory")
         self.assertEqual(application.customer_group, "SIS (Shop-in-Shop)")
 
-    def test_reassignment_controls_live_only_in_clothing_erp(self):
+    def test_legacy_reassignment_page_redirects_to_territory_assignments(self):
         app_root = Path(__file__).parents[1]
         page_root = app_root / "clothing_erp/page/retailer_assignments"
         page = json.loads((page_root / "retailer_assignments.json").read_text())
         script = (page_root / "retailer_assignments.js").read_text()
-        styles = (page_root / "retailer_assignments.css").read_text()
         self.assertNotIn("Customer", hooks.doctype_js)
         self.assertFalse((app_root / "public/js/customer_assignment.js").exists())
         self.assertFalse((app_root / "public/js/customer_list.js").exists())
@@ -134,13 +133,9 @@ class TestRetailerWorkflow(unittest.TestCase):
                 "System Manager",
             },
         )
-        self.assertIn("get_reassignment_directory", script)
-        self.assertIn("reassign_retailer", script)
-        self.assertIn("page_size: this.state.page_size", script)
-        self.assertIn("[20, 50]", script)
-        self.assertNotIn("set_result_height", script)
-        self.assertNotIn("position: sticky", styles)
-        self.assertIn("grid-template-columns", styles)
+        self.assertEqual(page["title"], "Sales Territory Assignments")
+        self.assertIn('frappe.set_route("List", "ASM Supervision")', script)
+        self.assertNotIn("reassign_retailer", script)
 
     def test_sales_manager_cannot_manage_another_territory(self):
         with (
@@ -156,38 +151,25 @@ class TestRetailerWorkflow(unittest.TestCase):
                 "TEST South Retailer", territory="TEST South"
             )
 
-    def test_manager_without_territory_gets_no_reassignment_directory(self):
+    def test_legacy_reassignment_directory_is_retired(self):
         with (
             patch.object(retailer_assignment, "require_role"),
-            patch.object(retailer_assignment, "_manager_territories", return_value=[]),
-            patch.object(retailer_assignment, "_active_salespeople", return_value=[]),
             patch.object(frappe, "get_list") as get_list,
+            self.assertRaises(frappe.ValidationError),
         ):
-            result = retailer_assignment.get_reassignment_directory()
-        self.assertTrue(result["scope_required"])
-        self.assertEqual(result["retailers"], [])
+            retailer_assignment.get_reassignment_directory()
         get_list.assert_not_called()
 
-    def test_reassignment_directory_honors_exact_search_and_page_size_limit(self):
+    def test_legacy_reassignment_mutation_is_retired_before_database_access(self):
         with (
             patch.object(retailer_assignment, "require_role"),
-            patch.object(retailer_assignment, "_manager_territories", return_value=None),
-            patch.object(retailer_assignment, "_active_salespeople", return_value=[]),
-            patch.object(frappe, "get_list", return_value=[]) as get_list,
+            patch.object(retailer_assignment, "_lock_customer") as lock_customer,
+            self.assertRaises(frappe.ValidationError),
         ):
-            retailer_assignment.get_reassignment_directory(
-                search="TEST Boutique", page=2, page_size=500, match_type="="
+            retailer_assignment.reassign_retailer(
+                "TEST Boutique", "asm@example.invalid", "obsolete assignment"
             )
-        query = get_list.call_args.kwargs
-        self.assertEqual(
-            query["or_filters"],
-            {
-                "name": ["=", "TEST Boutique"],
-                "customer_name": ["=", "TEST Boutique"],
-            },
-        )
-        self.assertEqual(query["start"], 50)
-        self.assertEqual(query["limit"], 51)
+        lock_customer.assert_not_called()
 
     def test_reassignment_requires_manager_before_reading_assignment_state(self):
         with (
@@ -242,48 +224,18 @@ class TestRetailerWorkflow(unittest.TestCase):
         validate_salesperson.assert_not_called()
         lock_customer.assert_not_called()
 
-    def test_bulk_reassignment_locks_sorted_unique_customers_before_changes(self):
-        assignments = {
-            "TEST A": frappe._dict(name="UP-A", user="test-old@example.invalid"),
-            "TEST B": None,
-        }
+    def test_legacy_bulk_reassignment_is_retired(self):
         with (
             patch.object(retailer_assignment, "require_role"),
-            patch.object(retailer_assignment, "_validate_salesperson"),
-            patch.object(
-                retailer_assignment,
-                "_lock_customer",
-                return_value=frappe._dict(territory="TEST Territory"),
-            ) as lock_customer,
-            patch.object(retailer_assignment, "_assert_salesperson_scope"),
-            patch.object(
-                retailer_assignment,
-                "_single_assignment",
-                side_effect=lambda customer: assignments[customer],
-            ),
-            patch.object(
-                retailer_assignment,
-                "_replace_assignment",
-                side_effect=lambda customer, new, reason, assignment: {
-                    "customer": customer,
-                    "unchanged": False,
-                },
-            ) as replace_assignment,
+            patch.object(retailer_assignment, "_lock_customer") as lock_customer,
+            self.assertRaises(frappe.ValidationError),
         ):
-            result = retailer_assignment.bulk_reassign_retailers(
+            retailer_assignment.bulk_reassign_retailers(
                 ["TEST B", "TEST A", "TEST B"],
                 "test-new@example.invalid",
                 "TEST territory redistribution",
             )
-        self.assertEqual(
-            [call.args[0] for call in lock_customer.call_args_list],
-            ["TEST A", "TEST B"],
-        )
-        self.assertEqual(
-            [call.args[0] for call in replace_assignment.call_args_list],
-            ["TEST A", "TEST B"],
-        )
-        self.assertEqual(result["changed"], 2)
+        lock_customer.assert_not_called()
 
     def test_responsible_asm_must_share_the_retailer_territory(self):
         with (

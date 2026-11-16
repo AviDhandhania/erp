@@ -5,7 +5,6 @@ from frappe.utils import add_days, getdate, now_datetime, nowdate
 
 from clothing_erp.roles import ROLE_ASM, ROLE_BUSINESS_ADMIN, ROLE_RSM
 from clothing_erp.security import (
-    assigned_documents,
     get_current_user,
     get_user_roles,
     is_clothing_admin,
@@ -63,29 +62,168 @@ def validate_rsm_user(user):
         )
 
 
-def validate_supervision_territories(asm, rsm):
-    """Ensure that the ASM and RSM share at least one assigned Territory."""
-    asm_territories = set(assigned_documents("Territory", asm))
-    rsm_territories = set(assigned_documents("Territory", rsm))
-    if not asm_territories:
+def validate_assignment_territory(asm, rsm, territory):
+    """Validate the native Territory selected as the ASM/RSM operating scope."""
+    if not territory or not frappe.db.exists("Territory", territory):
+        frappe.throw(frappe._("Select an existing Sales Territory."))
+    if frappe.db.get_value("Territory", territory, "is_group"):
         frappe.throw(
-            frappe._("Area Sales Manager {0} has no assigned territory. Assign territory first.").format(asm),
+            frappe._("Assign a leaf Sales Territory to an Area Sales Manager."),
             frappe.ValidationError,
         )
-    if not rsm_territories:
-        frappe.throw(
-            frappe._("Regional Sales Manager {0} has no assigned territory. Assign territory first.").format(rsm),
-            frappe.ValidationError,
+
+
+def _ensure_territory_permission(user, territory, make_default=False):
+    existing = frappe.db.get_value(
+        "User Permission",
+        {
+            "user": user,
+            "allow": "Territory",
+            "for_value": territory,
+            "applicable_for": ["in", (None, "")],
+        },
+        "name",
+    )
+    if existing:
+        return existing, False
+    is_default = bool(
+        make_default
+        and not frappe.db.exists(
+            "User Permission", {"user": user, "allow": "Territory", "is_default": 1}
         )
-    common = asm_territories & rsm_territories
-    if not common:
-        frappe.throw(
-            frappe._(
-                "Regional Sales Manager {0} and Area Sales Manager {1} must share at least one assigned Territory."
-            ).format(rsm, asm),
-            frappe.ValidationError,
+    )
+    permission = frappe.get_doc(
+        {
+            "doctype": "User Permission",
+            "user": user,
+            "allow": "Territory",
+            "for_value": territory,
+            "apply_to_all_doctypes": 1,
+            "is_default": is_default,
+        }
+    ).insert(ignore_permissions=True)
+    return permission.name, True
+
+
+def sync_assignment_permissions(doc):
+    """Materialize one active territory assignment as native User Permissions."""
+    asm_permission, asm_managed = _ensure_territory_permission(
+        doc.asm, doc.territory, make_default=True
+    )
+    rsm_permission, rsm_managed = _ensure_territory_permission(doc.rsm, doc.territory)
+    values = {
+        "asm_user_permission": asm_permission,
+        "asm_permission_managed": int(
+            bool(doc.get("asm_permission_managed")) or asm_managed
+        ),
+        "rsm_user_permission": rsm_permission,
+        "rsm_permission_managed": int(
+            bool(doc.get("rsm_permission_managed")) or rsm_managed
+        ),
+    }
+    frappe.db.set_value("ASM Supervision", doc.name, values, update_modified=False)
+    doc.update(values)
+    frappe.clear_cache(user=doc.asm)
+    frappe.clear_cache(user=doc.rsm)
+
+
+def _permission_still_required(doc, role_field, user):
+    return bool(
+        frappe.db.exists(
+            "ASM Supervision",
+            {
+                role_field: user,
+                "territory": doc.territory,
+                "status": "Active",
+                "name": ["!=", doc.name],
+            },
         )
-    return common
+    )
+
+
+def remove_assignment_permissions(doc):
+    """Remove only User Permissions created and still owned by this assignment."""
+    for role_field, user, permission_field, managed_field in (
+        (
+            "asm",
+            doc.asm,
+            "asm_user_permission",
+            "asm_permission_managed",
+        ),
+        (
+            "rsm",
+            doc.rsm,
+            "rsm_user_permission",
+            "rsm_permission_managed",
+        ),
+    ):
+        permission = doc.get(permission_field)
+        if (
+            doc.get(managed_field)
+            and permission
+            and not _permission_still_required(doc, role_field, user)
+            and frappe.db.exists("User Permission", permission)
+        ):
+            # The technical ownership link must be cleared before Frappe will
+            # permit deletion of the app-created User Permission.
+            frappe.db.set_value(
+                "ASM Supervision",
+                doc.name,
+                {permission_field: None, managed_field: 0},
+                update_modified=False,
+            )
+            doc.set(permission_field, None)
+            doc.set(managed_field, 0)
+            frappe.delete_doc("User Permission", permission, ignore_permissions=True)
+        frappe.clear_cache(user=user)
+
+
+def migrate_existing_assignments():
+    """Backfill the new Territory field only when legacy data is unambiguous."""
+    if not frappe.db.exists("DocType", "ASM Supervision"):
+        return
+    for row in frappe.get_all(
+        "ASM Supervision",
+        fields=["name", "asm", "rsm", "territory", "status", "reason"],
+    ):
+        if row.territory:
+            if row.status == "Active":
+                sync_assignment_permissions(frappe.get_doc("ASM Supervision", row.name))
+            continue
+        asm_territories = set(
+            frappe.get_all(
+                "User Permission",
+                filters={"user": row.asm, "allow": "Territory"},
+                pluck="for_value",
+            )
+        )
+        rsm_territories = set(
+            frappe.get_all(
+                "User Permission",
+                filters={"user": row.rsm, "allow": "Territory"},
+                pluck="for_value",
+            )
+        )
+        common = sorted(asm_territories & rsm_territories)
+        if len(common) == 1 and not frappe.db.get_value(
+            "Territory", common[0], "is_group"
+        ):
+            frappe.db.set_value(
+                "ASM Supervision", row.name, "territory", common[0], update_modified=False
+            )
+            if row.status == "Active":
+                sync_assignment_permissions(frappe.get_doc("ASM Supervision", row.name))
+        else:
+            note = "Migration requires an administrator to create a Sales Territory Assignment."
+            frappe.db.set_value(
+                "ASM Supervision",
+                row.name,
+                {
+                    "status": "Cancelled",
+                    "reason": f"{row.reason or ''}\n{note}".strip(),
+                },
+                update_modified=False,
+            )
 
 
 def get_active_supervising_rsm(asm, on_date=None):
@@ -128,15 +266,7 @@ def get_supervised_asms(rsm, on_date=None):
     )
     if not records:
         return []
-    rsm_territories = set(assigned_documents("Territory", rsm))
-    if not rsm_territories:
-        return []
-    supervised = []
-    for row in records:
-        asm_territories = set(assigned_documents("Territory", row.asm))
-        if asm_territories & rsm_territories:
-            supervised.append(row.asm)
-    return supervised
+    return [row.asm for row in records]
 
 
 def is_active_supervisor(rsm, asm, on_date=None):
@@ -146,9 +276,7 @@ def is_active_supervisor(rsm, asm, on_date=None):
     active_rsm = get_active_supervising_rsm(asm, on_date=on_date)
     if active_rsm != rsm:
         return False
-    rsm_territories = set(assigned_documents("Territory", rsm))
-    asm_territories = set(assigned_documents("Territory", asm))
-    return bool(rsm_territories & asm_territories)
+    return True
 
 
 def assert_rsm_supervises_asm(rsm, asm, territory=None, on_date=None):
@@ -167,14 +295,18 @@ def assert_rsm_supervises_asm(rsm, asm, territory=None, on_date=None):
             frappe._("You do not supervise Area Sales Manager {0}.").format(asm),
             frappe.PermissionError,
         )
-    rsm_territories = set(assigned_documents("Territory", rsm))
-    asm_territories = set(assigned_documents("Territory", asm))
-    if not (rsm_territories & asm_territories):
-        frappe.throw(
-            frappe._("You and Area Sales Manager {0} do not share an assigned territory.").format(asm),
-            frappe.PermissionError,
-        )
-    if territory and territory not in rsm_territories:
+    assigned_territory = frappe.db.get_value(
+        "ASM Supervision",
+        {
+            "asm": asm,
+            "rsm": rsm,
+            "status": "Active",
+            "effective_from": ["<=", getdate(on_date or nowdate())],
+        },
+        "territory",
+        order_by="effective_from desc, creation desc",
+    )
+    if territory and territory != assigned_territory:
         frappe.throw(
             frappe._("You are not authorized to manage actions in territory {0}.").format(territory),
             frappe.PermissionError,
@@ -182,17 +314,18 @@ def assert_rsm_supervises_asm(rsm, asm, territory=None, on_date=None):
 
 
 @frappe.whitelist(methods=["POST"])
-def assign_asm_supervision(asm, rsm, effective_from=None, reason=None):
+def assign_asm_supervision(asm, rsm, territory, effective_from=None, reason=None):
     """Administrator-controlled service to atomically assign or reassign supervision."""
     assert_supervision_admin()
     asm = (asm or "").strip()
     rsm = (rsm or "").strip()
+    territory = (territory or "").strip()
     reason = (reason or "").strip()[:500]
     validate_asm_user(asm)
     validate_rsm_user(rsm)
     if asm == rsm:
         frappe.throw(frappe._("An Area Sales Manager cannot supervise themselves."))
-    validate_supervision_territories(asm, rsm)
+    validate_assignment_territory(asm, rsm, territory)
     eff_from = getdate(effective_from or nowdate())
 
     # Lock active records for this ASM to prevent concurrent conflicting assignments
@@ -208,17 +341,26 @@ def assign_asm_supervision(asm, rsm, effective_from=None, reason=None):
     current_records = frappe.get_all(
         "ASM Supervision",
         filters={"asm": asm, "status": "Active"},
-        fields=["name", "rsm", "effective_from", "effective_to"],
+        fields=["name", "rsm", "territory", "effective_from", "effective_to"],
         order_by="effective_from desc",
+    )
+    frappe.db.sql(
+        """
+        SELECT name FROM `tabASM Supervision`
+        WHERE territory = %s AND status = 'Active'
+        FOR UPDATE
+        """,
+        territory,
     )
 
     # If the active assignment is already for this RSM and starts on or before eff_from
     for cur in current_records:
-        if cur.rsm == rsm and cur.effective_from <= eff_from and (not cur.effective_to or cur.effective_to >= eff_from):
+        if cur.rsm == rsm and cur.territory == territory and cur.effective_from <= eff_from and (not cur.effective_to or cur.effective_to >= eff_from):
             return {
                 "name": cur.name,
                 "asm": asm,
                 "rsm": rsm,
+                "territory": territory,
                 "effective_from": str(cur.effective_from),
                 "unchanged": True,
             }
@@ -243,6 +385,7 @@ def assign_asm_supervision(asm, rsm, effective_from=None, reason=None):
             "doctype": "ASM Supervision",
             "asm": asm,
             "rsm": rsm,
+            "territory": territory,
             "status": "Active",
             "effective_from": eff_from,
             "effective_to": None,
@@ -267,6 +410,7 @@ def assign_asm_supervision(asm, rsm, effective_from=None, reason=None):
         "name": new_doc.name,
         "asm": asm,
         "rsm": rsm,
+        "territory": territory,
         "effective_from": str(eff_from),
         "superseded": superseded,
         "unchanged": False,
@@ -339,6 +483,7 @@ def get_asm_supervision_directory(search=None, status=None, page=1, page_size=20
         or_filters=or_filters,
         fields=[
             "name",
+            "territory",
             "asm",
             "rsm",
             "status",

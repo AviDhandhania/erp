@@ -7,7 +7,7 @@ from frappe.utils import now_datetime
 from clothing_erp.retailer_defaults import validate_retailer_type
 from clothing_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
 from clothing_erp.security import (
-    assigned_documents,
+    assigned_sales_territories,
     get_current_user,
     get_user_roles,
     is_clothing_admin,
@@ -105,27 +105,22 @@ def _validate_salesperson(user):
 
 
 def _salesperson_application_territory(user):
-    explicit = frappe.get_all(
-        "User Permission",
-        filters={"user": user, "allow": "Territory"},
-        fields=["for_value", "is_default"],
-        order_by="is_default desc, creation asc",
-    )
-    if not explicit:
+    territories = assigned_sales_territories(user)
+    if not territories:
         frappe.throw(
             frappe._("Your Area Sales Manager account has no assigned territory. Contact an administrator."),
             frappe.PermissionError,
         )
-    if len(explicit) > 1 and not explicit[0].is_default:
+    if len(territories) > 1:
         frappe.throw(
-            frappe._("Set one assigned Territory as the default for this Area Sales Manager."),
+            frappe._("An Area Sales Manager must have exactly one active Sales Territory Assignment."),
             frappe.PermissionError,
         )
-    return explicit[0].for_value
+    return territories[0]
 
 
 def _validate_salesperson_territory(user, territory):
-    if territory not in assigned_documents("Territory", user):
+    if territory not in assigned_sales_territories(user):
         frappe.throw(
             frappe._("The selected Area Sales Manager is not assigned to this territory."),
             frappe.PermissionError,
