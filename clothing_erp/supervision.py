@@ -475,6 +475,7 @@ def get_asm_supervision_directory(search=None, status=None, page=1, page_size=20
             "name": ["like", pattern],
             "asm": ["like", pattern],
             "rsm": ["like", pattern],
+            "territory": ["like", pattern],
         }
 
     rows = frappe.get_list(
@@ -499,7 +500,21 @@ def get_asm_supervision_directory(search=None, status=None, page=1, page_size=20
     )
 
     has_more = len(rows) > page_size
+    admin_access = is_clothing_admin()
+    current = get_current_user()
+    roles = get_user_roles(current)
+    if admin_access:
+        scope_info = "Administrator scope — all territories"
+    elif ROLE_RSM in roles:
+        scope_info = "RSM scope — territories of supervised ASMs"
+    elif ROLE_ASM in roles:
+        scope_info = "ASM scope — assigned territory"
+    else:
+        scope_info = ""
+
     return {
         "records": rows[:page_size],
         "pagination": {"page": page, "has_more": has_more},
+        "is_admin": admin_access,
+        "scope_info": scope_info,
     }

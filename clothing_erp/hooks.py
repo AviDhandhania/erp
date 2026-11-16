@@ -13,11 +13,6 @@ required_apps = ["erpnext", "insights", "india_compliance"]
 
 doctype_js = {
 	"Retailer Application": "public/js/retailer_application.js",
-	"ASM Supervision": "clothing_erp/doctype/asm_supervision/asm_supervision.js",
-}
-
-doctype_list_js = {
-	"ASM Supervision": "clothing_erp/doctype/asm_supervision/asm_supervision_list.js",
 }
 
 add_to_apps_screen = [

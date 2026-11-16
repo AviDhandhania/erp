@@ -10,6 +10,7 @@
  "roles": [
   {"role": "Clothing Regional Sales Manager"},
   {"role": "Clothing Business Administrator"},
+  {"role": "Clothing Area Sales Manager"},
   {"role": "System Manager"}
  ],
  "script": null,

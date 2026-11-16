@@ -136,8 +136,13 @@ class TestSupervision(unittest.TestCase):
             patch.object(supervision, "validate_asm_user"),
             patch.object(supervision, "validate_rsm_user"),
             patch.object(supervision, "validate_assignment_territory"),
+            patch(
+                "clothing_erp.clothing_erp.doctype.asm_supervision.asm_supervision.nowdate",
+                return_value="2026-11-15",
+            ),
             patch.object(frappe.db, "sql"),
             patch.object(frappe, "get_all", return_value=existing_active),
+            patch.object(frappe.db, "get_value", return_value=None),
             self.assertRaisesRegex(frappe.ValidationError, "already has an active supervising RSM"),
         ):
             doc.validate()

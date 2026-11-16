@@ -130,11 +130,13 @@ class TestRetailerWorkflow(unittest.TestCase):
             {
                 "Clothing Regional Sales Manager",
                 "Clothing Business Administrator",
+                "Clothing Area Sales Manager",
                 "System Manager",
             },
         )
         self.assertEqual(page["title"], "Sales Territory Assignments")
-        self.assertIn('frappe.set_route("List", "ASM Supervision")', script)
+        self.assertIn("SalesTerritoryAssignments", script)
+        self.assertIn("assign_asm_supervision", script)
         self.assertNotIn("reassign_retailer", script)
 
     def test_sales_manager_cannot_manage_another_territory(self):

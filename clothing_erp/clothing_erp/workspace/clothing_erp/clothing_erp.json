@@ -90,8 +90,8 @@
    "is_query_report": 0,
    "label": "Sales Territory Assignments",
    "link_count": 0,
-   "link_to": "ASM Supervision",
-   "link_type": "DocType",
+   "link_to": "retailer-assignments",
+   "link_type": "Page",
    "onboard": 0,
    "type": "Link"
   },
