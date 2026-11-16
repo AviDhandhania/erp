@@ -48,10 +48,59 @@ cadences, store-stock ownership, stock valuation, calendar semantics, seasonal c
 RSM advance-warning timing, visit evidence, 90/120-day escalation behavior, capacity
 hard limits, overrides, notification channels and legacy-data migration details.
 
+## Warehouse and quality intake — 2026-11-16
+
+The target warehouse, returns/refurbishment and seven-stage supplier quality model is
+documented in full at
+[`docs/warehouse-quality-operating-model.md`](docs/warehouse-quality-operating-model.md).
+No workflow code was changed during this intake because billing, return accounting,
+quality disposition and production-cycle details are still expected.
+
+Confirmed requirements now governing the next warehouse/quality stages:
+
+- [ ] Replace/migrate the legacy Warehouse Operator/Manager split with manager-only
+  Clothing ERP warehouse access. Scope each manager using native Warehouse User
+  Permissions; administrators retain oversight.
+- [ ] Complete normal fulfilment from approved order through scan/pick, packing, the
+  permitted billing-preparation step and recorded handoff to delivery using native Sales
+  Order, Pick List, Delivery Note and Sales Invoice controllers.
+- [ ] Generate a delivery follow-up obligation for the responsible ASM, who contacts the
+  retailer and records confirmation or issues.
+- [ ] Implement return intake by scanning the exact Item/Size/serial/batch against an
+  authorized original transaction and prevent duplicate or excess returns.
+- [ ] Keep returned goods in a native quarantine Warehouse/location; require a quality
+  report and passing result before movement to refining/refurbishment.
+- [ ] Track refurbishment work and move completed goods back to saleable stock only through
+  submitted native ERPNext return/Stock Entry documents.
+- [ ] Add an app-owned production quality cycle linked to native Supplier, Purchase Order,
+  Items/styles and applicable Purchase Receipt/Quality Inspection records.
+- [ ] Enforce the ordered quality stages: First Submission (fit sample), Second Submission
+  (refit sample), Size Set Submission, Production Go Ahead, Inline Visits, Mid-line Visits
+  and Final Inspection.
+- [ ] Require a versioned report with appropriate native File photos for every quality
+  check; preserve rejected/superseded evidence and correction history.
+- [ ] At Production Go Ahead, present the combined prerequisite reports/photos to an
+  administrator and block workflow advancement until the recorded approval.
+- [ ] At Final Inspection, present the complete seven-stage report history/photos and both
+  gate decisions to an administrator for final approval/rejection.
+- [ ] Add bounded, permission-safe warehouse batch processing and the recommended scanning,
+  exception, printing, package, return/refurbishment and quality-review conveniences from
+  the operating-model document; bulk operations must expose every failure.
+- [ ] Preserve all fulfilment, handoff, follow-up, return, quality, refurbishment and gate
+  transitions with server-side permissions, row locking, idempotency and audit history.
+
+Known information still missing and explicitly deferred: billing submission authority,
+delivery/carrier details, ASM follow-up timing, customer-return financial treatment,
+failed-quality dispositions, post-refurbishment reinspection, refurbishment costing,
+production-cycle granularity, stage checklists/sampling/photos, Inline/Mid-line visit count,
+quality roles, gate correction/override policy, approval effects, notifications/SLAs and
+legacy warehouse-operator migration.
+
 ## Repository audit — 2026-11-16
 
-- The application-code baseline was clean at `60f9beb`. After this requirements-only
-  documentation commit, local `main` is **35 commits ahead** of `origin/main`; these
+- The application-code baseline was clean at `60f9beb`. After the sales and warehouse/
+  quality requirements-only documentation commits, local `main` is **36 commits ahead**
+  of `origin/main`; these
   commits have not been pushed by this audit.
 - The ERPNext checkout is clean. The India Compliance checkout is clean at its pinned
   release. No upstream source was changed during requirements capture.
@@ -216,6 +265,12 @@ coverage remains open.
   batch and serial reallocation to ERPNext and verifies that scanned rows remain unchanged.
 - [ ] Add incremental scanning for rows already backed by a prebuilt native Serial and
   Batch Bundle, partial-row shortage splitting, packing and native Delivery Note dispatch.
+
+Stage 6 was designed for the previous Warehouse Operator/Manager split. The new
+manager-only access model, billing preparation, delivery handoff, ASM follow-up and
+return/quarantine/quality/refurbishment requirements materially expand and reopen it.
+The existing row-locked native Pick List work remains a valid migration foundation, not a
+complete implementation of the target warehouse workflow.
 
 ## Stage 4 — retailer management
 

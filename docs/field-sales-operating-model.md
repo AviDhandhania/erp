@@ -67,6 +67,11 @@ The ASM can see every retailer in the allotted Territory and can create retailer
 applications for prospective shops. An ASM-created application is routed to that ASM's
 RSM, not to an arbitrary manager or a global unscoped queue.
 
+After a warehouse hands an order to delivery, the responsible ASM must follow up by
+contacting the retailer and record the delivery outcome or issue. Trigger timing and
+escalation are defined as open requirements in
+[`warehouse-quality-operating-model.md`](warehouse-quality-operating-model.md).
+
 ### SIS retailers
 
 For every SIS retailer, the ASM must:

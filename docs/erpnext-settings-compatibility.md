@@ -52,6 +52,29 @@ The final row must not be implemented using receivables outstanding alone. Nativ
 credit and physical store-stock exposure represent different facts unless the remaining
 business rules explicitly unify them.
 
+## Pending warehouse and supplier-quality compatibility decisions
+
+Requirements captured on 2026-11-16 replace the operator/manager warehouse target with
+manager-only Warehouse operations and add return/refurbishment plus seven supplier-quality
+stages. The detailed source is
+[`warehouse-quality-operating-model.md`](warehouse-quality-operating-model.md).
+
+| Requirement | Preferred native authority | Clothing ERP responsibility still needed |
+|---|---|---|
+| Manager Warehouse scope | Warehouse and User Permission | Manager-only role boundary, queues and cross-Warehouse denial |
+| Order scanning | Pick List, Item Barcode, Serial/Batch Bundle | Scan-first interface, idempotency, locking, batch/wave convenience |
+| Packing and dispatch | Pick List, Delivery Note and native package/transport fields where applicable | Packing workflow and recorded delivery handoff without fake stock status |
+| Billing preparation | Sales Invoice, taxes, pricing, credit and accounting permissions | Restricted preparation UI only after authority is confirmed; no commercial overrides |
+| ASM delivery follow-up | Customer, Sales Order/Delivery Note and ASM Territory scope | Due obligation, contact outcome, issue/escalation audit |
+| Customer return | Return Delivery Note/Sales Invoice and native stock/accounting controllers | Scan intake, quarantine workflow, duplicate/excess-return prevention |
+| Return quality | Quality Inspection and private File attachments where applicable | Return-specific checklist, decision, evidence and workflow linkage |
+| Refurbishment | Stock Entry and dedicated native Warehouse locations | Work queue, audit and gate before movement back to saleable stock |
+| Supplier production cycle | Supplier, Purchase Order, Item, Purchase Receipt and Quality Inspection | Seven-stage reports, revisions, photos and administrator approval bundles |
+
+A custom completion or approval state must never directly alter stock, receivables,
+payables or general ledger values. Only the applicable submitted native document may make
+that posting.
+
 ## Required checks for upcoming stages
 
 Draft ordering now calls the native pricing and Sales Order controllers. Before native

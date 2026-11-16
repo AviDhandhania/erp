@@ -141,10 +141,30 @@ requested ceiling on stock already held at a shop plus incoming stock is not sil
 treated as ERPNext's normal receivables credit limit; stock ownership and valuation must
 be confirmed before that control is implemented.
 
+### Confirmed target warehouse and quality model — implementation pending
+
+Requirements captured on **2026-11-16** also replace the warehouse operator/manager split
+with a target in which only each Warehouse's manager operates the Clothing ERP warehouse
+area. Managers scan and fulfil approved orders, prepare the permitted billing step and
+record delivery handoff; the ASM then contacts the retailer for delivery follow-up.
+
+Returned products must be scanned into quarantine, pass a quality-department inspection,
+move through refining/refurbishment and only then return to saleable stock through native
+ERPNext stock documents. Supplier production quality follows seven stages: fit sample,
+refit sample, size set, Production Go Ahead, Inline visits, Mid-line visits and Final
+Inspection. Every check has a report with appropriate photos. Administrators review the
+combined report set and approve at both Production Go Ahead and Final Inspection.
+
+These target workflows are documented but are not yet claimed as implemented. Details of
+billing authority, delivery handoff, return financial treatment, failed-quality
+disposition, quality checklists and stage cardinality remain intentionally open. See the
+[Warehouse and quality operating model](docs/warehouse-quality-operating-model.md).
+
 ## Development and operations
 
 - [Architecture and separation](docs/architecture.md)
 - [Field sales operating model and pending ASM/RSM requirements](docs/field-sales-operating-model.md)
+- [Warehouse, returns and supplier-quality operating model](docs/warehouse-quality-operating-model.md)
 - [ERPNext settings compatibility](docs/erpnext-settings-compatibility.md)
 - [Release workflow and upstream upgrades](docs/releasing.md)
 - [Backups, recovery, layout and service commands](docs/operations.md)
