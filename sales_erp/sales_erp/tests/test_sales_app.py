@@ -155,13 +155,15 @@ class TestSalesERP(FrappeTestCase):
 
     def test_retailer_application_request_info_and_resubmit_flow(self):
         """RSM requests more info -> status More Information Requested -> ASM resubmits -> RSM approves."""
+        import random
         uid = frappe.generate_hash(length=6)
+        phone = f"98{random.randint(10000000, 99999999)}"
         frappe.set_user(self.asm_south)
         app_doc = frappe.get_doc({
             "doctype": "Retailer Application",
             "shop_name": f"TEST Info Flow Shop {uid}",
             "contact_person": "Flow Owner",
-            "phone": f"987{uid[:6]}",
+            "phone": phone,
             "territory": "TEST South Sales Territory",
             "customer_group": "Buy & Sell",
             "salesperson": self.asm_south,
@@ -214,13 +216,15 @@ class TestSalesERP(FrappeTestCase):
         """RSM can approve retailer application with initial credit limit, propagating to Customer."""
         from sales_erp.sales_erp.doctype.retailer_application.retailer_application import approve
 
+        import random
         uid = frappe.generate_hash(length=6)
+        phone = f"98{random.randint(10000000, 99999999)}"
         frappe.set_user(self.asm_south)
         app_doc = frappe.get_doc({
             "doctype": "Retailer Application",
             "shop_name": f"TEST Credit Limit Boutique {uid}",
             "contact_person": "Credit Limit Owner",
-            "phone": f"988{uid[:6]}",
+            "phone": phone,
             "territory": "TEST South Sales Territory",
             "customer_group": "Buy & Sell",
             "salesperson": self.asm_south,
@@ -278,4 +282,43 @@ class TestSalesERP(FrappeTestCase):
         self.assertIn("warehouse_erp", admin_apps)
         self.assertIn("quality_erp", admin_apps)
         self.assertIn("erpnext", admin_apps)
+
+    def test_cross_app_sales_access_denied(self):
+        """Users outside sales roles cannot approve, request info, or resubmit retailer applications."""
+        from sales_erp.sales_erp.doctype.retailer_application.retailer_application import (
+            approve,
+            request_more_info,
+            resubmit,
+        )
+
+        import random
+        uid = frappe.generate_hash(length=6)
+        phone = f"98{random.randint(10000000, 99999999)}"
+        frappe.set_user(self.asm_south)
+        app_doc = frappe.get_doc({
+            "doctype": "Retailer Application",
+            "shop_name": f"TEST Cross App App {uid}",
+            "contact_person": "Cross Owner",
+            "phone": phone,
+            "territory": "TEST South Sales Territory",
+            "customer_group": "Buy & Sell",
+            "salesperson": self.asm_south,
+            "billing_address_line1": "789 Boundary Rd",
+            "billing_city": "Bengaluru",
+            "billing_state": "Karnataka",
+            "country": "India",
+            "status": "Pending",
+        }).insert()
+
+        for user in ["test-warehouse-operator@example.invalid", "test-quality-inspector@example.invalid"]:
+            frappe.set_user(user)
+            frappe.local.request_cache.clear()
+            with self.assertRaises(frappe.PermissionError):
+                approve(app_doc.name)
+
+            with self.assertRaises(frappe.PermissionError):
+                request_more_info(app_doc.name, "Attempt unauthorized comment")
+
+            with self.assertRaises(frappe.PermissionError):
+                resubmit(app_doc.name, "Attempt unauthorized resubmit")
 

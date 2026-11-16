@@ -133,3 +133,11 @@ class TestWarehouseERP(FrappeTestCase):
 
             ws_pages = [w["name"] for w in get_workspaces()["pages"]]
             self.assertEqual(ws_pages, ["Warehouse ERP"])
+
+    def test_cross_app_warehouse_access_denied(self):
+        """Users outside warehouse roles cannot access warehouse fulfillment tasks."""
+        for user in ["test-asm-south@example.invalid", "test-quality-inspector@example.invalid"]:
+            frappe.set_user(user)
+            frappe.local.request_cache.clear()
+            with self.assertRaises(frappe.PermissionError):
+                get_fulfillment_tasks(task_type="pick", state="all")

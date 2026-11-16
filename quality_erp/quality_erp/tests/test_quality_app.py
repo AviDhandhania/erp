@@ -182,3 +182,24 @@ class TestQualityERP(FrappeTestCase):
 
             ws_pages = [w["name"] for w in get_workspaces()["pages"]]
             self.assertEqual(ws_pages, ["Quality ERP"])
+
+    def test_cross_app_quality_access_denied(self):
+        """Users outside quality roles cannot create quality inspections or record quarantine."""
+        for user in ["test-asm-south@example.invalid", "test-warehouse-operator@example.invalid"]:
+            frappe.set_user(user)
+            frappe.local.request_cache.clear()
+            with self.assertRaises(frappe.PermissionError):
+                create_quality_inspection(
+                    supplier=self.supplier,
+                    item_code="TEST-CLASSIC-TEE-BLK",
+                    stage="1. First Submission",
+                )
+
+            with self.assertRaises(frappe.PermissionError):
+                record_return_quarantine(
+                    retailer="TEST Quality Customer",
+                    delivery_note=None,
+                    item_code="TEST-CLASSIC-TEE-BLK",
+                    quantity=1,
+                    return_reason="Defective Stitching",
+                )
