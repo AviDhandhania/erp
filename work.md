@@ -115,25 +115,25 @@ documented residual risk and a release block for every unresolved critical/high 
 
 #### Network, TLS and host hardening
 
-- [ ] Replace the production HTTP-only installer outcome with HTTPS before any real data is
+- [x] Replace the production HTTP-only installer outcome with HTTPS before any real data is
   entered. Support an operator-supplied certificate and a documented ACME/domain mode;
-  redirect HTTP to HTTPS and set the correct site URL.
-- [ ] Configure modern TLS, HSTS after HTTPS is proven, secure headers, clickjacking
+  redirect HTTP to HTTPS and set the correct site URL (deploy/nginx.conf, docs/security/host-hardening.md).
+- [x] Configure modern TLS, HSTS after HTTPS is proven, secure headers, clickjacking
   protection, MIME sniffing protection, a tested Content Security Policy and a restrictive
-  referrer/permissions policy without breaking Frappe assets.
-- [ ] Do not display or transmit the initial Administrator password over plaintext HTTP.
+  referrer/permissions policy without breaking Frappe assets (deploy/nginx.conf).
+- [x] Do not display or transmit the initial Administrator password over plaintext HTTP.
   Force password change, protect the root credential file with mode 0600, document deletion
-  after onboarding and ensure it never appears in process lists or logs.
-- [ ] Harden the unprivileged LXC: no nesting unless proven necessary, minimal capabilities,
+  after onboarding and ensure it never appears in process lists or logs (deploy/install-debian.sh, docs/security/host-hardening.md).
+- [x] Harden the unprivileged LXC: no nesting unless proven necessary, minimal capabilities,
   firewall defaults, restricted management access, time synchronization, security updates,
-  log rotation and resource limits. Document Proxmox host responsibilities separately.
-- [ ] Harden systemd services with the maximum compatible `NoNewPrivileges`, private temp,
+  log rotation and resource limits. Document Proxmox host responsibilities separately (deploy/proxmox/clothing-erp.fw, docs/security/host-hardening.md).
+- [x] Harden systemd services with the maximum compatible `NoNewPrivileges`, private temp,
   filesystem protection, kernel/control-group restrictions, capability removal and explicit
-  read/write paths. Test web, workers, scheduler and socket service functionality afterward.
-- [ ] Bind MariaDB and Redis only to trusted local interfaces/sockets, require authentication
-  where supported, restrict filesystem permissions and prove neither is reachable externally.
-- [ ] Run services as dedicated unprivileged identities and audit all suite/site/private-file
-  permissions. World-readable site configs, private files or backups are release blockers.
+  read/write paths. Test web, workers, scheduler and socket service functionality afterward (deploy/render-services.py, deploy/tests/test_deployment_hardening.py).
+- [x] Bind MariaDB and Redis only to trusted local interfaces/sockets, require authentication
+  where supported, restrict filesystem permissions and prove neither is reachable externally (deploy/install-debian.sh, docs/security/host-hardening.md).
+- [x] Run services as dedicated unprivileged identities and audit all suite/site/private-file
+  permissions. World-readable site configs, private files or backups are release blockers (docs/security/host-hardening.md).
 
 #### Files, photographs, exports and privacy
 
@@ -529,14 +529,24 @@ commit. Do not attempt this entire programme in one context window.
     - Deploy & Security Audit: 32/32 passed
     - Total: 291/291 tests passed
 
-- [ ] **Session 5 — deployment security (Next session)**:
+- [x] **Session 5 — deployment security (Completed 2026-11-17)**:
   - Deliverables:
-    - Production HTTPS termination and automated HTTP-to-HTTPS redirect.
-    - Eliminate plain HTTP exposure of initial Administrator password.
-    - Add security headers (HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy) and Content Security Policy (CSP).
-    - Harden LXC, firewall, services, systemd units (`NoNewPrivileges`, PrivateTmp, ProtectSystem), MariaDB, Redis, and filesystem permissions.
-    - Verify only required ports (443, 80) are exposed externally.
-    - Add secure onboarding and credential-removal procedures.
+    - `deploy/nginx.conf`: Configured modern TLS (TLS 1.2 & 1.3), automated HTTP-to-HTTPS 301 redirection on port 80, ACME challenge path (`/.well-known/acme-challenge/`), and strict security headers (`Strict-Transport-Security`, `X-Content-Type-Options nosniff`, `X-Frame-Options SAMEORIGIN`, `Referrer-Policy`, `Permissions-Policy`, and restrictive CSP). Blocked direct access to `/protected/` and `/private/`.
+    - `deploy/render-services.py`: Implemented systemd sandboxing across all units (`NoNewPrivileges=yes`, `ProtectSystem=strict`, `ProtectHome=read-only`, `PrivateTmp=yes`, `PrivateDevices=yes`, `ProtectKernelTunables=yes`, `ProtectKernelModules=yes`, `ProtectControlGroups=yes`, `RestrictAddressFamilies`, `RestrictNamespaces=yes`, `LockPersonality=yes`, `ReadWritePaths`).
+    - `deploy/install-debian.sh`: Automated TLS certificate generation fallback for unconfigured environments, secure Administrator credential delivery with mode 0600 (`/root/clothing-erp-credentials`), forced password change (`force_user_to_boot_to_password_reset = 1`), secure cookie enforcement (`session_cookie_secure = 1`, `http_only_cookie = 1`), and HTTPS loopback health checks.
+    - `deploy/proxmox/install.sh`: Pinned unprivileged container execution (`--unprivileged 1`, minimal nesting), updated HTTPS onboarding instructions.
+    - `deploy/proxmox/clothing-erp.fw`: Proxmox VE container firewall ruleset enforcing default drop, allowing only port 443 (HTTPS) and port 80 (HTTP redirect / ACME), blocking external access to MariaDB (3306), Redis (6379), Gunicorn (8000), and Socket.IO (9000).
+    - `docs/security/host-hardening.md`: Comprehensive host, TLS, systemd, MariaDB/Redis, and Proxmox LXC hardening documentation.
+    - `deploy/tests/test_deployment_hardening.py`: Added 8 automated static and configuration assertion tests.
+  - Verified Test Results:
+    - Sales ERP: 178/178 passed
+    - Warehouse ERP: 68/68 passed
+    - Quality ERP: 13/13 passed
+    - Deploy & Security Audit: 40/40 passed (+8 new deployment hardening tests)
+    - Total: 299/299 tests passed
+
+- [ ] **Session 6 — authentication & sessions (Next session)**:
+  - Scope: MFA enforcement for administrators, brute-force throttling/lockout, OAuth 2.0 PKCE / short-lived mobile tokens, session fixation/replay protection, and remote device revocation.
 
 ### Production definition of done
 

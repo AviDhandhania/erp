@@ -74,6 +74,6 @@ pct exec "$CTID" -- mkdir -p /opt/clothing-erp-source
 pct exec "$CTID" -- tar -xzf /root/clothing-erp-source.tar.gz -C /opt/clothing-erp-source
 pct exec "$CTID" -- bash /opt/clothing-erp-source/deploy/install-debian.sh
 CT_ADDRESS="$(pct exec "$CTID" -- hostname -I | awk '{print $1}')"
-printf '\nClothing ERP is ready: http://%s/\nContainer: %s\n' "$CT_ADDRESS" "$CTID"
+printf '\nClothing ERP is ready: https://%s/\nContainer: %s\n' "$CT_ADDRESS" "$CTID"
 printf 'Retrieve the generated Administrator password: pct exec %s -- cat /root/clothing-erp-credentials\n' "$CTID"
 echo 'Complete the standard ERPNext setup wizard after signing in.'

@@ -55,7 +55,21 @@ run_frappe bench set-config -g default_site clothing.local
 DB_PASSWORD="$(openssl rand -hex 32)"
 ADMIN_PASSWORD="$(openssl rand -hex 20)"
 SITE_ADDRESS="$(hostname -I | awk '{print $1}')"
-printf 'URL: http://%s/\nUser: Administrator\nPassword: %s\n' "$SITE_ADDRESS" "$ADMIN_PASSWORD" > /root/clothing-erp-credentials
+
+# Ensure TLS Certificate Directory and Baseline Certificate
+install -d -m 750 /etc/ssl/clothing-erp
+if [[ ! -f /etc/ssl/clothing-erp/cert.pem || ! -f /etc/ssl/clothing-erp/key.pem ]]; then
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout /etc/ssl/clothing-erp/key.pem \
+        -out /etc/ssl/clothing-erp/cert.pem \
+        -subj "/CN=${SITE_ADDRESS:-clothing.local}/O=Clothing ERP"
+    chmod 600 /etc/ssl/clothing-erp/key.pem
+    chmod 644 /etc/ssl/clothing-erp/cert.pem
+fi
+
+# Store Initial Administrator Credentials (Strict 0600 Permissions)
+printf 'URL: https://%s/\nUser: Administrator\nPassword: %s\n' "$SITE_ADDRESS" "$ADMIN_PASSWORD" > /root/clothing-erp-credentials
+chmod 600 /root/clothing-erp-credentials
 mariadb -uroot <<SQL
 CREATE USER 'clothing_installer'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
 GRANT ALL PRIVILEGES ON *.* TO 'clothing_installer'@'localhost' WITH GRANT OPTION;
@@ -72,11 +86,16 @@ run_frappe bench --site clothing.local install-app insights
 run_frappe bench --site clothing.local install-app sales_erp
 run_frappe bench --site clothing.local install-app warehouse_erp
 run_frappe bench --site clothing.local install-app quality_erp
-run_frappe bench --site clothing.local set-config host_name "http://$SITE_ADDRESS"
+run_frappe bench --site clothing.local set-config host_name "https://$SITE_ADDRESS"
+run_frappe bench --site clothing.local set-config session_cookie_secure 1
+run_frappe bench --site clothing.local set-config http_only_cookie 1
+run_frappe bench --site clothing.local set-config force_user_to_boot_to_password_reset 1
 run_frappe bench --site clothing.local execute sales_erp.install.configure_launcher
 run_frappe bench --site clothing.local enable-scheduler
 mv sites/clothing.local /home/frappe/shared/clothing.local
 runuser -u frappe -- ln -s /home/frappe/shared/clothing.local sites/clothing.local
+chmod 750 /home/frappe/shared/clothing.local/private || true
+chmod 750 /home/frappe/shared/clothing.local/private/files || true
 # Stable active symlink is the only path in nginx/systemd; each release owns its own code/env/assets.
 cp "$SOURCE/deploy/nginx.conf" /etc/nginx/sites-available/clothing-erp
 ln -s /etc/nginx/sites-available/clothing-erp /etc/nginx/sites-enabled/clothing-erp
@@ -91,9 +110,10 @@ systemctl enable nginx
 systemctl restart nginx
 for ((attempt=0; attempt<60; attempt++)); do
     if systemctl is-active --quiet clothing-erp-{web,socketio,worker,schedule}.service \
-        && curl -fsS http://127.0.0.1/api/method/ping | grep -q pong \
-        && curl -fsS http://127.0.0.1/assets/sales_erp/images/sales_erp_logo.svg >/dev/null \
-        && curl -fsS 'http://127.0.0.1/socket.io/?EIO=4&transport=polling' | grep -q sid; then
+        && curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/ | grep -qE "301|302" \
+        && curl -kfsS https://127.0.0.1/api/method/ping | grep -q pong \
+        && curl -kfsS https://127.0.0.1/assets/sales_erp/images/sales_erp_logo.svg >/dev/null \
+        && curl -kfsS 'https://127.0.0.1/socket.io/?EIO=4&transport=polling' | grep -q sid; then
         echo 'Ready. Updates: clothing-erp update. Password: /root/clothing-erp-credentials'
         exit 0
     fi

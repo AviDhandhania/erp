@@ -1,0 +1,23 @@
+# Proxmox VE Firewall Configuration for Clothing ERP Container
+# Install to: /etc/pve/firewall/<CTID>.fw on the Proxmox host
+# Enforces strict default-drop ingress, exposing only HTTPS (443) and HTTP (80)
+
+[OPTIONS]
+enable: 1
+policy_in: DROP
+policy_out: ACCEPT
+log_level_in: nolog
+log_level_out: nolog
+
+[RULES]
+# Allow inbound HTTPS web application and API traffic
+IN ACCEPT -p tcp -dport 443 -log nolog # HTTPS
+
+# Allow inbound HTTP for automated Let's Encrypt / ACME challenges and 301 HTTPS redirection
+IN ACCEPT -p tcp -dport 80 -log nolog # HTTP Redirect & ACME
+
+# Explicitly block external access to internal backend and database ports
+IN DROP -p tcp -dport 3306 -log info # Block External MariaDB
+IN DROP -p tcp -dport 6379 -log info # Block External Redis
+IN DROP -p tcp -dport 8000 -log info # Block Direct Gunicorn WSGI
+IN DROP -p tcp -dport 9000 -log info # Block Direct Socket.IO Port

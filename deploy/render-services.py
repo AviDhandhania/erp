@@ -40,6 +40,22 @@ Restart=on-failure
 RestartSec=5
 TimeoutStopSec=300
 UMask={"0007" if socket else "0027"}
+
+# Security Sandboxing & Privilege Restrictions
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=no
+ReadWritePaths=/home/frappe/shared /home/frappe/frappe-bench/sites /run/clothing-erp /var/log
+
 [Install]
 WantedBy=multi-user.target
 """)
