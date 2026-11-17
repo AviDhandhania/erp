@@ -104,12 +104,12 @@ class TestInstaller(unittest.TestCase):
             )
             return result, calls
 
-    def test_creates_new_unprivileged_container_with_http_address(self):
+    def test_creates_new_unprivileged_container_with_https_address(self):
         result, calls = self.run_installer()
         self.assertEqual(result.returncode, 0, result.stderr)
         create = next(call for call in calls if call[:2] == ["pct", "create"])
         self.assertEqual(create[create.index("--unprivileged") + 1], "1")
-        self.assertIn("http://10.0.0.50/", result.stdout)
+        self.assertIn("https://10.0.0.50/", result.stdout)
         self.assertTrue(any("install-debian.sh" in " ".join(call) for call in calls))
 
     def test_existing_id_is_rejected_before_create(self):

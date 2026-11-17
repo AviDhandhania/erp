@@ -48,6 +48,53 @@ def manifest(
 
 
 class TestReleaseContract(unittest.TestCase):
+    def test_private_repository_requests_use_optional_read_only_token(self):
+        url = "https://api.github.com/repos/AviDhandhania/erp/releases/latest"
+        with patch.dict("os.environ", {}, clear=True):
+            headers = common._request_headers(url)
+            self.assertNotIn("Authorization", headers)
+        with patch.dict(
+            "os.environ", {"CLOTHING_ERP_GITHUB_TOKEN": "TEST-ONLY-TOKEN"}
+        ):
+            headers = common._request_headers(url)
+            self.assertEqual(headers["Authorization"], "Bearer TEST-ONLY-TOKEN")
+            self.assertEqual(headers["X-GitHub-Api-Version"], "2022-11-28")
+            # Never forward the GitHub token to an unrelated host.
+            self.assertNotIn(
+                "Authorization",
+                common._request_headers("https://downloads.example.invalid/file"),
+            )
+
+    def test_private_release_uses_authenticated_asset_api_urls(self):
+        release = {
+            "draft": False,
+            "prerelease": False,
+            "tag_name": "v0.3.0",
+            "assets": [
+                {
+                    "name": name,
+                    "url": f"https://api.github.com/repos/AviDhandhania/erp/releases/assets/{index}",
+                    "browser_download_url": f"https://github.com/AviDhandhania/erp/releases/download/v0.3.0/{name}",
+                }
+                for index, name in enumerate(
+                    (
+                        "release.json",
+                        "SHA256SUMS",
+                        "clothing-erp-v0.3.0.tar.gz",
+                    ),
+                    start=1,
+                )
+            ],
+        }
+        with (
+            patch.object(common, "fetch_json", return_value=release),
+            patch.dict(
+                "os.environ", {"CLOTHING_ERP_GITHUB_TOKEN": "TEST-ONLY-TOKEN"}
+            ),
+        ):
+            _, assets = common.release_assets()
+            self.assertTrue(all(url.startswith(common.API) for url in assets.values()))
+
     def test_stable_contract_accepts_exact_pins(self):
         self.assertEqual(common.validate_manifest(manifest())["version"], "v0.3.0")
         with_insights = manifest(include_insights=True)

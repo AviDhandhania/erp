@@ -1,5 +1,18 @@
 # Releases without coordinating three repositories
 
+## Private repository authentication
+
+The Clothing ERP repository and its release assets are private. Maintainers use normal
+GitHub authentication. Installers and update clients accept a short-lived fine-grained token
+through `CLOTHING_ERP_GITHUB_TOKEN`; it requires only **Contents: Read-only** access to
+`AviDhandhania/erp`. The downloader sends it only to approved GitHub hosts, uses the
+authenticated release-asset API, and never persists it. Do not place the token in a remote
+URL, release artifact, site configuration, service unit or command log.
+
+Production operators should obtain the token through their organization's secret manager,
+inject it for the individual `clothing-erp check/update` process, and revoke/rotate it when
+access changes. GitHub Actions continues to use its scoped ephemeral `GITHUB_TOKEN`.
+
 For routine development, change only the Clothing ERP app, commit, and push.
 The `Verify app and installer` workflow runs app tests, release/update fault tests,
 ShellCheck, Python checks and a fresh database-backed native Frappe/ERPNext install.

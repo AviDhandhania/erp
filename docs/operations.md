@@ -2,6 +2,19 @@
 
 Run as root **inside the production LXC**:
 
+Because release assets are private, export or inject a fine-grained GitHub token with only
+**Contents: Read-only** permission immediately before `check` or `update`:
+
+```bash
+read -rsp 'GitHub read token: ' CLOTHING_ERP_GITHUB_TOKEN; echo
+export CLOTHING_ERP_GITHUB_TOKEN
+clothing-erp check
+clothing-erp update
+unset CLOTHING_ERP_GITHUB_TOKEN
+```
+
+Do not save the token in shell history, service units, site configuration or the LXC image.
+
 | Task | Command |
 | --- | --- |
 | Inspect installed components | `clothing-erp status` |
@@ -73,12 +86,13 @@ cat /var/log/clothing-erp-install.log
 cat /var/log/clothing-erp-backup.log
 ```
 
-nginx listens on port 80. MariaDB, Redis and gunicorn use loopback; realtime uses a
+nginx redirects port 80 to HTTPS on port 443. MariaDB, Redis and gunicorn use loopback; realtime uses a
 Unix socket behind nginx. Database passwords and encryption keys are never included
 in releases or command arguments. PostgreSQL, external DB servers, multi-site
 benches and external attachment storage are outside this native platform contract.
 
-For a public hostname, configure HTTPS and the site's host_name using standard
-nginx/Frappe administration. Debian OS updates and Proxmox host maintenance are
+Replace the installer's fallback certificate with a trusted operator-managed certificate
+or the documented ACME configuration and set the site's host name before real-data use.
+Debian OS updates and Proxmox host maintenance are
 separate operator responsibilities; application recovery points do not roll back
 OS package upgrades or the Proxmox host.

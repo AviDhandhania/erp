@@ -10,22 +10,34 @@ repositories remain unchanged. Everyone uses one IP, login and native app launch
 
 ## Install
 
-Run on a Proxmox VE amd64 host as root:
+The source and release repository is private. Create a fine-grained GitHub token that has
+**Contents: Read-only** access to `AviDhandhania/erp`. On the Proxmox VE amd64 host, clone
+the repository without embedding the token in the remote URL, then run the bootstrap as
+root while passing the token only through the process environment:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/AviDhandhania/erp/main/deploy/proxmox/bootstrap.sh)
+read -rsp 'GitHub read token: ' CLOTHING_ERP_GITHUB_TOKEN; echo
+export CLOTHING_ERP_GITHUB_TOKEN
+git -c credential.helper='!f() { test "$1" = get && printf "username=x-access-token\npassword=%s\n" "$CLOTHING_ERP_GITHUB_TOKEN"; }; f' \
+  clone --depth 1 https://github.com/AviDhandhania/erp.git
+sudo --preserve-env=CLOTHING_ERP_GITHUB_TOKEN bash erp/deploy/proxmox/bootstrap.sh
+unset CLOTHING_ERP_GITHUB_TOKEN
 ```
 
 The installer downloads the **latest published stable release**, checks its archive
-and manifest, and creates a new unprivileged Debian 13 LXC with the complete stack.
-It prints `http://<container-IP>/` and how to retrieve the generated Administrator
-password. Finish the standard ERPNext company setup after signing in.
+and manifest, independently verifies its declared provenance, and creates a new
+unprivileged Debian 13 LXC with the complete stack. The token is neither copied into the
+container nor stored by the installer. It prints `https://<container-IP>/` and how to
+retrieve the generated Administrator password. Replace the initial fallback certificate
+with an operator-managed certificate or the documented ACME configuration before entering
+real data, then finish the standard ERPNext company setup.
 
 Defaults: 4 CPU cores, 8 GiB RAM, 40 GiB disk, DHCP, `vmbr0`, `local-lvm` root storage
 and `local` template storage. Override only what differs on your host:
 
 ```bash
-STORAGE=local-zfs BRIDGE=vmbr1 CTID=210 bash <(curl -fsSL https://raw.githubusercontent.com/AviDhandhania/erp/main/deploy/proxmox/bootstrap.sh)
+STORAGE=local-zfs BRIDGE=vmbr1 CTID=210 \
+  sudo --preserve-env=CLOTHING_ERP_GITHUB_TOKEN bash erp/deploy/proxmox/bootstrap.sh
 ```
 
 To choose an older published release, set `CLOTHING_ERP_VERSION=v0.3.0`.
@@ -39,7 +51,9 @@ policy that permits access to the container's HTTP port.
 Inside the installed LXC, as root:
 
 ```bash
-clothing-erp update
+read -rsp 'GitHub read token: ' CLOTHING_ERP_GITHUB_TOKEN; echo
+CLOTHING_ERP_GITHUB_TOKEN="$CLOTHING_ERP_GITHUB_TOKEN" clothing-erp update
+unset CLOTHING_ERP_GITHUB_TOKEN
 ```
 
 That single command updates Clothing ERP **and the exact compatible ERPNext,
@@ -70,14 +84,14 @@ older data the live data. Copy backups off the CT for disaster recovery.
 From the Proxmox host, updates are equally simple:
 
 ```bash
-pct exec <CTID> -- clothing-erp update
+pct exec <CTID> -- env CLOTHING_ERP_GITHUB_TOKEN="$CLOTHING_ERP_GITHUB_TOKEN" clothing-erp update
 ```
 
 Containers made by the earlier installer can adopt the manager once:
 
 ```bash
-# Inside that existing production LXC as root
-bash <(curl -fsSL https://raw.githubusercontent.com/AviDhandhania/erp/main/deploy/upgrade-bootstrap.sh)
+# Inside that existing production LXC as root, from an authenticated repository clone
+CLOTHING_ERP_GITHUB_TOKEN="$CLOTHING_ERP_GITHUB_TOKEN" bash erp/deploy/upgrade-bootstrap.sh
 ```
 
 This manager is for the dedicated production LXC. It does not convert or downgrade
@@ -111,12 +125,13 @@ installable only when its verified assets exist. Details: [release guide](docs/r
 
 ## What is implemented
 
-The native launcher, three clothing workspaces, five clothing roles, read-only
-operational APIs, assignment restrictions, responsive native Item/Variant clothing
-catalogue, retailer application/approval/visit workflow, installer, release pipeline,
-and update/recovery tooling. Customer-aware pricing, draft garment ordering and the
-row-locked Pick List flow are implemented; later approval, delivery, returns and quality
-stages remain on the [roadmap](work.md).
+The suite now has three independently scoped Frappe applications and three Flutter mobile
+targets. The implemented server workflows include the complete ASM/RSM sales model,
+catalogue and native Sales Order lifecycle, warehouse picking/packing/dispatch, returns and
+refurbishment, the seven-stage supplier-quality cycle, private versioned photo evidence,
+barcode generation/scanning/labels, security hardening, authenticated encrypted backups,
+and signed release/update verification. Sessions 1–18 are implemented; full-system
+certification and stable release work remain in Sessions 19–20 of the [roadmap](work.md).
 
 The app-owned Sales Territory Assignment is the ASM/RSM scope authority and automatically
 maintains native Territory User Permissions so standard ERPNext queries enforce the same
@@ -139,22 +154,23 @@ an idempotent migration for legacy User roles, and an explicit, audited Territor
 assignment model (internally stored as `ASM Supervision`) with effective dates, row-locking
 concurrency, safe reassignment history, native User Permission synchronization and server-side
 supervisor verification on retailer application approval endpoints.
-Common ERPNext salespeople have no Clothing ERP access. SIS/Buy & Sell cadence, credit/exposure
-approvals and notifications remain planned, not claimed as implemented.
+Common ERPNext salespeople have no Clothing ERP access. SIS/Buy & Sell cadence,
+credit/exposure approval, notification inboxes, order review, delivery follow-up and
+collection worklists are implemented with server-side Territory enforcement and audit logs.
 
 The complete requirement hand-off, native ERPNext mapping, unresolved business questions
 and acceptance boundaries are in the
 [Field sales operating model](docs/field-sales-operating-model.md). In particular, the
-requested ceiling on stock already held at a shop plus incoming stock is not silently
-treated as ERPNext's normal receivables credit limit; stock ownership and valuation must
-be confirmed before that control is implemented.
+requested ceiling on stock already held at a shop plus incoming stock remains distinct
+from ERPNext's normal receivables credit limit. Native accounting and stock documents stay
+authoritative while the suite applies its audited exposure policy.
 
-### Confirmed target warehouse and quality model — implementation pending
+### Warehouse and quality model — implemented, certification pending
 
-Requirements captured on **2026-11-16** also replace the warehouse operator/manager split
-with a target in which only each Warehouse's manager operates the Clothing ERP warehouse
-area. Managers scan and fulfil approved orders, prepare the permitted billing step and
-record delivery handoff; the ASM then contacts the retailer for delivery follow-up.
+The legacy warehouse operator role is migrated to a manager-only access model. Managers
+are scoped by native Warehouse User Permissions and use protected APIs for scan/undo,
+shortages, Pick List completion, Packing Slips, packages, manifests, Delivery Notes,
+dispatch and carrier handoff. The responsible ASM receives the delivery follow-up.
 
 Returned products must be scanned into quarantine, pass a quality-department inspection,
 move through refining/refurbishment and only then return to saleable stock through native
@@ -163,10 +179,25 @@ refit sample, size set, Production Go Ahead, Inline visits, Mid-line visits and 
 Inspection. Every check has a report with appropriate photos. Administrators review the
 combined report set and approve at both Production Go Ahead and Final Inspection.
 
-These target workflows are documented but are not yet claimed as implemented. Details of
-billing authority, delivery handoff, return financial treatment, failed-quality
-disposition, quality checklists and stage cardinality remain intentionally open. See the
-[Warehouse and quality operating model](docs/warehouse-quality-operating-model.md).
+Returns are validated against the original native delivery, received into quarantine,
+quality-reviewed, refurbished and moved back through submitted native stock documents.
+Supplier production quality uses a Production Quality Cycle with versioned checklists,
+measurements, corrective actions, multiple private photographs and administrator gates at
+Production Go Ahead and Final Inspection. Open business-policy choices remain documented in
+the [Warehouse and quality operating model](docs/warehouse-quality-operating-model.md).
+
+### Barcode and mobile applications
+
+The barcode platform separates licensed GS1 identifiers from internal Code 128 identifiers,
+reuses ERPNext Item/Serial/Batch records, supports collision-safe generation, bounded bulk
+allocation, SVG previews, audited PDF/ZPL labels and permission-aware scan resolution. See
+[barcode architecture](docs/barcodes.md).
+
+The `mobile/` workspace contains separate Sales, Warehouse and Quality Flutter targets over
+a shared secure core. The targets implement role-scoped workflows, secure token storage,
+encrypted offline queues, barcode/camera integration and private evidence handling. They
+are development release candidates until Session 19 completes real-device, store-signing,
+cross-app, load, recovery and security certification.
 
 ## Development and operations
 
@@ -176,10 +207,15 @@ disposition, quality checklists and stage cardinality remain intentionally open.
 - [ERPNext settings compatibility](docs/erpnext-settings-compatibility.md)
 - [Release workflow and upstream upgrades](docs/releasing.md)
 - [Backups, recovery, layout and service commands](docs/operations.md)
+- [Current implementation and certification status](docs/current-status.md)
+- [Security threat model and controls](docs/security/threat-model.md)
+- [Barcode generation and scanning](docs/barcodes.md)
+- [Mobile framework decision](docs/adr/ADR-001-mobile-framework-selection.md)
+- [Antigravity session prompt pack](docs/antigravity-session-prompts.md)
 - [Deployment pins](deploy/versions.env)
 
 The existing `/home/avi/GitHub/erp` development workspace uses
-`./scripts/start_all.sh`. Open **http://localhost:8000** for current local testing.
+`./clothing_erp/deploy/local/start_all.sh`. Open **http://localhost:8000** for current local testing.
 This development path serves Frappe directly and does not use nginx, port 80 or a
 system service. It contains the fictional **TEST Clothing ERP Demo** company. Its
 pre-existing ERPNext develop checkout is not a release target and has not been
@@ -243,11 +279,10 @@ pinned-release compatibility gate before Stage 5 is complete.
    Rejection requires a reason.
    A reviewed application cannot be edited or reviewed again.
 
-ASMs, RSMs, warehouse operators and warehouse managers use the
-Clothing ERP launcher and do not see the full ERPNext app tile. Administrator, System
-Manager and Clothing Business Administrator users retain the ERPNext tile. This is
-navigation scoping; document permissions and server-side assignment checks remain the
-security boundary.
+ASMs, RSMs, Warehouse Managers and Quality users see only their authorized application.
+Administrator, System Manager and Clothing Business Administrator users retain appropriate
+administrative access. Navigation scoping is only usability; document permissions and
+server-side assignment checks remain the security boundary.
 
 Retailer-by-retailer salesperson reassignment is retired. Administrators manage
 **Clothing ERP → Sales Territory Assignments** instead: choose one leaf Territory, its ASM
@@ -266,10 +301,10 @@ ASMs. The workflow does not duplicate ERPNext customer, address, contact or clas
 masters.
 
 **Validation limits:** automated app/database/recovery tests run locally and in CI.
-Host-command tests simulate Proxmox. A complete install/update/reboot/restore on an
-actual Proxmox host remains a required deployment trial; it has not been claimed
-as completed. Initial HTTP access is intended for a LAN; configure HTTPS for a
-public hostname.
+Host-command tests simulate Proxmox. A complete install/update/reboot/restore on an actual
+Proxmox host remains a required Session 19 deployment trial and is not yet claimed as
+complete. Production installs are HTTPS-only; replace the fallback certificate with a
+trusted operator-managed or ACME certificate before real-data use.
 
 MIT license for this application. ERPNext, Frappe, Insights, and India Compliance
 retain their respective upstream licenses.

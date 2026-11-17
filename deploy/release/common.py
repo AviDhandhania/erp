@@ -2,10 +2,12 @@
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import tarfile
 import urllib.request
+from urllib.parse import urlparse
 
 REPOSITORY = "AviDhandhania/erp"
 API = f"https://api.github.com/repos/{REPOSITORY}"
@@ -19,6 +21,29 @@ REQUIRED_EXTENSION_PINS = {
         "India Compliance",
     ),
 }
+
+
+def _github_token():
+    """Return the optional read-only credential for the private release repository."""
+    return os.environ.get("CLOTHING_ERP_GITHUB_TOKEN", "").strip()
+
+
+def _request_headers(url, *, accept="application/vnd.github+json"):
+    headers = {
+        "Accept": accept,
+        "User-Agent": "clothing-erp-lifecycle",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    token = _github_token()
+    hostname = (urlparse(url).hostname or "").lower()
+    if token and hostname in {
+        "api.github.com",
+        "github.com",
+        "objects.githubusercontent.com",
+        "github-releases.githubusercontent.com",
+    }:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
 
 
 def version_tuple(value):
@@ -110,10 +135,7 @@ def verify_locks(source, manifest):
 def fetch_json(url):
     request = urllib.request.Request(
         url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": "clothing-erp-lifecycle",
-        },
+        headers=_request_headers(url),
     )
     with urllib.request.urlopen(request, timeout=60) as response:
         return json.load(response)
@@ -129,8 +151,12 @@ def release_assets(tag=None):
     version_tuple(release["tag_name"])
     if tag and release["tag_name"] != tag:
         raise ValueError("GitHub returned a different release")
+    authenticated = bool(_github_token())
     assets = {
-        asset["name"]: asset["browser_download_url"] for asset in release["assets"]
+        asset["name"]: (
+            asset["url"] if authenticated else asset["browser_download_url"]
+        )
+        for asset in release["assets"]
     }
     for name in (
         "release.json",
@@ -156,7 +182,8 @@ def download(url, destination):
     with (
         urllib.request.urlopen(
             urllib.request.Request(
-                url, headers={"User-Agent": "clothing-erp-lifecycle"}
+                url,
+                headers=_request_headers(url, accept="application/octet-stream"),
             ),
             timeout=120,
         ) as source,
