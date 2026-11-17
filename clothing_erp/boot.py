@@ -41,3 +41,19 @@ def restrict_erpnext_app_visibility(bootinfo):
                     desk_route="",
                     dock=[],
                 )
+
+
+def apply_runtime_patches():
+    """Apply runtime isolation patches across apps."""
+    try:
+        from sales_erp.boot import apply_runtime_patches as sales_apply
+        sales_apply()
+    except Exception:
+        pass
+
+
+def restrict_app_and_workspace_visibility(bootinfo):
+    """Enforce app and workspace visibility during boot."""
+    apply_runtime_patches()
+    return restrict_erpnext_app_visibility(bootinfo)
+
