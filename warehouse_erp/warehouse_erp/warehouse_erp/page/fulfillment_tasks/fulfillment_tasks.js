@@ -13,7 +13,9 @@ class FulfillmentTasks {
 	}
 
 	setup() {
-		this.page.set_secondary_action(__("Intake Return"), () => this.prompt_return_intake());
+		this.page.set_secondary_action(__("Intake Return"), () => {
+			this.prompt_return_intake();
+		});
 		this.page.main.html(`<div class="fulfillment-tasks"><section class="fulfillment-panel">
 			<div class="fulfillment-toolbar">
 				<input class="form-control fulfillment-search" type="search" placeholder="${__("Search task or retailer")}" aria-label="${__("Search task or retailer")}">
@@ -206,9 +208,10 @@ class FulfillmentTasks {
 		this.refresh();
 	}
 
-	async prompt_return_intake(delivery_note, default_item) {
-		const values = await new Promise((resolve) => {
-			frappe.prompt([
+	prompt_return_intake(delivery_note, default_item) {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Customer Return Intake"),
+			fields: [
 				{ fieldname: "delivery_note", fieldtype: "Link", options: "Delivery Note", label: __("Original Delivery Note"), default: delivery_note || "", reqd: 1 },
 				{ fieldname: "item_code", fieldtype: "Link", options: "Item", label: __("Item Code"), default: default_item || "", reqd: 1 },
 				{ fieldname: "quantity", fieldtype: "Float", label: __("Quantity"), default: 1, reqd: 1 },
@@ -217,20 +220,28 @@ class FulfillmentTasks {
 				{ fieldname: "serial_no", fieldtype: "Data", label: __("Serial No (if serialized)") },
 				{ fieldname: "batch_no", fieldtype: "Data", label: __("Batch No (if batched)") },
 				{ fieldname: "notes", fieldtype: "Small Text", label: __("Condition / Defect Notes") },
-			], resolve, __("Customer Return Intake"), __("Record Return Intake"));
+			],
+			primary_action_label: __("Record Return Intake"),
+			primary_action: async (values) => {
+				dialog.hide();
+				try {
+					const { message } = await frappe.call({
+						method: "warehouse_erp.returns.intake_customer_return",
+						type: "POST",
+						args: values,
+						freeze: true,
+						freeze_message: __("Recording return into quarantine…"),
+					});
+					frappe.show_alert({
+						message: __("Return {0} received into quarantine {1} ({2})", [message.return_delivery_note, message.quarantine_warehouse, message.return_quarantine]),
+						indicator: "green",
+					});
+					this.refresh();
+				} catch (err) {
+					// frappe handles error notification
+				}
+			},
 		});
-		if (!values) return;
-		const { message } = await frappe.call({
-			method: "warehouse_erp.returns.intake_customer_return",
-			type: "POST",
-			args: values,
-			freeze: true,
-			freeze_message: __("Recording return into quarantine…"),
-		});
-		frappe.show_alert({
-			message: __("Return {0} received into quarantine {1} ({2})", [message.return_delivery_note, message.quarantine_warehouse, message.return_quarantine]),
-			indicator: "green",
-		});
-		this.refresh();
+		dialog.show();
 	}
 }
