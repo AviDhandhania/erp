@@ -467,19 +467,19 @@ commit. Do not attempt this entire programme in one context window.
 
 - [x] **Session 1 — audit ledger (Completed 2026-11-17)**:
   - Deliverables:
-    - `docs/security/threat-model.md`: Full DFD (Mermaid), trust boundaries, and threat actor profiles.
-    - `docs/security/data-classification.md`: Comprehensive field inventory across all 11 suite DocTypes, sensitivity tiers, retention, export rules, and log masking policies.
+    - `docs/security/threat-model.md`: Full DFD (Mermaid), 7 trust boundaries (TB-1 to TB-7), 9 threat actor profiles (4.1 to 4.9), and risk summary matrix.
+    - `docs/security/data-classification.md`: Comprehensive field inventory across all 11 suite DocTypes, sensitivity tiers (Tiers 1-4), retention periods, export rules, log masking, and spreadsheet injection policies.
     - `docs/security/access-matrix.md`: Machine-reviewed CRUD/Submit/Export role matrix covering all DocTypes, pages, reports, and whitelisted APIs with default deny.
-    - `docs/security/endpoint-audit.md`: AST audit of 63 whitelisted endpoints, 55 `ignore_permissions` calls, 12 `frappe.db.set_value` calls, 7 `delete_doc` calls, and 82 raw SQL queries.
+    - `docs/security/endpoint-audit.md`: Exhaustive AST audit of 63 whitelisted endpoints, 55 `ignore_permissions` calls, 12 `frappe.db.set_value` calls, 7 `delete_doc` calls, 82 raw SQL queries, file upload/deletion/export inventory, schedulers/bulk operations inventory, release download/backup/recovery audit, and comprehensive security finding register (GAP-01 to GAP-08).
     - `deploy/tests/test_security_audit.py`: Automated static tests verifying mutating endpoints enforce POST, parameterization of SQL queries, and registration of privileged writes in the approved ledger.
     - `docs/architecture.md`: Reconciled architecture diagram, removing legacy launcher references.
     - `warehouse_erp/warehouse_erp/fulfillment.py`: Parameterized bundle row-locking query with `%s` placeholders.
   - Verified Test Results:
-    - Sales ERP: 153/153 passed
-    - Warehouse ERP: 65/65 passed
-    - Quality ERP: 9/9 passed
-    - Deploy & Security AST Tests: 32/32 passed (including 3 new static security assertion tests)
-    - Total: 259/259 tests passed
+    - Sales ERP: 178/178 passed (52 old-frappe + 126 unit/integration)
+    - Warehouse ERP: 68/68 passed (9 old-frappe + 59 unit/integration)
+    - Quality ERP: 13/13 passed
+    - Deploy & Security AST Tests: 32/32 passed (including static security assertion tests)
+    - Total: 291/291 tests passed
 
 - [x] **Session 2 — authorization (Completed 2026-11-17)**:
   - Deliverables:
