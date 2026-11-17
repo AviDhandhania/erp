@@ -517,10 +517,73 @@ Previously published v0.3.0 release evidence (before the India Compliance work):
 - Isolated native MariaDB schema/data/config/attachment recovery and queue RDB integrity checks passed.
 
 Current unreleased validation evidence:
-- All 165 app/site tests pass in clothing_erp, 18 tests in sales_erp, 7 tests in warehouse_erp,
-  and 8 tests in quality_erp on the real local site. Deploy tests passed 29 checks.
-- Retailer Visit supervisory review chain, 80-day RSM visit cadence/escalation tracking, and
-  Retailer Credit Limit Request workflow with administrator approval and immutable audit trail implemented and tested with strict territory and supervision validation.
+- All 10 audit findings resolved, tested, and verified across all four applications.
+- Double migration runs cleanly and idempotently on local site `clothing.local`.
+- Complete test suites passing across all 4 apps and deploy suite:
+  - `clothing_erp`: 53/53 tests pass (10 integration + 43 unit).
+  - `sales_erp`: 116/116 tests pass (23 integration + 93 unit).
+  - `warehouse_erp`: 34/34 tests pass (7 integration + 27 unit).
+  - `quality_erp`: 7/7 tests pass.
+  - `deploy`: 29/29 tests pass.
+- All JSON files valid, all Python compiles cleanly, all JavaScript passes syntax checks.
 - The next stable release must pass the fresh two-stage native compatibility gate
   before its installer is published; v0.3.0 does not retroactively contain this work.
 - Physical Proxmox guest creation, real systemd cutover, reboot and end-to-end guest rollback remain a deployment trial, not a completed claim.
+
+## Architecture, security, and release stabilization — implemented 2026-11-17
+
+Following comprehensive audit findings, the architecture, security boundaries, and release pipeline across the four-app suite were stabilized and verified:
+
+1. **Canonical App and DocType Ownership**:
+   - Resolved feature and schema duplication between `clothing_erp` and `sales_erp`.
+   - `sales_erp` canonically owns all Sales DocTypes: `ASM Supervision`, `Clothing Product Image`, `Retailer Application`, `Retailer Assignment History`, `Retailer Credit Limit Request`, `Retailer Visit`, and `RSM Visit Obligation`.
+   - `quality_erp` canonically owns `Supplier Quality Inspection` and `Return Quarantine`.
+   - `clothing_erp` serves as the suite launcher, Desk routing layer, workspace navigator, and gallery manager, with explicit compatibility forwarding for legacy module paths.
+   - All document hooks, scheduler events, and permission hooks are deduplicated and registered in exactly one authoritative app.
+
+2. **Full CI and Production Lifecycle Parity**:
+   - Updated `deploy/ci-integration.sh` and `.github/workflows/verify.yml` to install and test all 7 apps in production order: `erpnext`, `india_compliance`, `insights`, `clothing_erp`, `sales_erp`, `warehouse_erp`, and `quality_erp`.
+   - Updated `deploy/stage-release.sh` and `deploy/release/lifecycle.py` (`MANAGED_APPS` and `REQUIRED_SITE_EXTENSIONS`) to guarantee that staging, update, backup, rollback, and recovery retain and manage all four apps.
+   - Tested deployment update and recovery logic across 29 automated tests.
+
+3. **Authoritative Territory → ASM → RSM Enforcement Everywhere**:
+   - Replaced fragile dependencies on `assigned_documents("Territory")` and `assigned_documents("Customer")` in Sales APIs with `assigned_sales_territories()`.
+   - Order listing, detail, submission, and cancellation derive scope authoritatively from active `Sales Territory Assignment` (`ASM Supervision`) records.
+   - Verified that stale manual User Permissions grant zero sales access, ASMs see all retailers in their active territory, and ended/expired supervisions lose access immediately.
+
+4. **Harden Retailer Visit Workflows**:
+   - Evidence fields (`customer`, `salesperson`, `rsm`, `visit_date`, `visit_type`, `visitor_role`, `outcome`, `notes`, `follow_up_date`, `financial_assessment`, `customer_footfall`, `stock_condition`, `dealer_feedback`) are immutable once submitted.
+   - ASMs are blocked server-side from altering submitted reports.
+   - Modeled separate Administrator review of RSM visits (`Reviewed by Admin`), rejecting self-reviews by RSMs.
+   - Periodic reviews mandate and validate required fields: `financial_assessment`, `customer_footfall`, `stock_condition`, `dealer_feedback`.
+   - Row-locking (`FOR UPDATE`) on review transitions prevents race conditions.
+
+5. **Harden Retailer Credit Limit Requests**:
+   - Transition endpoints (`approve_credit_limit_request`, `reject_credit_limit_request`) enforce POST-only methods and database row-locking.
+   - Mandatory non-empty rejection reasons are required server-side.
+   - Dynamic currency resolution from ERPNext Company avoids hardcoded symbols.
+   - Detects live customer credit limit modifications occurring while the request was pending and blocks stale approval.
+   - Approved or rejected requests are immutable.
+
+6. **Structured Cadence Obligations**:
+   - Created DocType `RSM Visit Obligation` with deterministic `cycle_id` (`{customer}-{cycle_start}`).
+   - Replaced fragile text matching with structured obligation records tracking status, advance warnings, grace periods, and escalation state.
+
+7. **Manager-Only Warehouse Model**:
+   - Supported nested source warehouses cleanly by recursively traversing child and descendant warehouses.
+   - Row-locked Serial and Batch Bundles (`FOR UPDATE`) during Pick List completion to eliminate mutation races during native submission.
+   - Enacted audited migration path (`migrate_warehouse_operators_to_managers`) for legacy operator accounts to transition safely to `Clothing Warehouse Manager`.
+
+8. **Quality ERP Hardening**:
+   - All mutation endpoints are POST-only (`@frappe.whitelist(methods=["POST"])`) with write permission validation and database row-locking.
+   - Enforced strict 7-stage quality lifecycle ordering (Fit Sample → Refit Sample → Size Set → Production Go Ahead → Inline Visits → Mid-line Visits → Final Inspection). Completing later stages is blocked if prerequisite stages are unapproved.
+   - Added versioning and revision tracking for inspection reports (`revision`, `supersedes`, `revise_quality_inspection`).
+   - Modeled administrative review bundles (`get_quality_review_bundle`) assembling prior reports, photographs, and readiness gates for Production Go Ahead and Final Inspection.
+
+9. **Authorization and Correctness Gaps Resolved**:
+   - `get_territory_assignment` strictly enforces supervisory scope for non-administrators.
+   - `find_duplicates` detects collisions across all active application states (`Pending`, `Pending Info`, `Resubmitted`, `Approved`).
+   - Single maintained navigation and sidebar scoping.
+
+10. **Reconciled Documentation**:
+    - Aligned `README.md`, `work.md`, `AGENTS.md`, and `docs/architecture.md` with multi-app architecture and current verified state.

@@ -1,7 +1,11 @@
 # Clothing ERP
 
-Clothing ERP is a separate Frappe application alongside **ERPNext**, **India
-Compliance**, **Insights**, and **Framework**.
+Clothing ERP is an integrated application suite alongside **ERPNext**, **India
+Compliance**, **Insights**, and **Frappe Framework**:
+- **`clothing_erp`**: Central suite launcher, desk routing, workspace navigation, and gallery management.
+- **`sales_erp`**: Wholesale catalogue, Sales Territory Assignments, ASM/RSM supervision, retailer visits, credit limit approvals, and cadence obligations.
+- **`warehouse_erp`**: Warehouse fulfillment, Pick List scanning, shortage resolution, nested warehouse permissions, and serial/batch bundle row locking.
+- **`quality_erp`**: 7-stage supplier quality lifecycle, versioned inspection reports, critical gate review bundles, and return quarantine.
 It has its own source, version history and GitHub releases. Upstream ERPNext/Frappe
 repositories remain unchanged. Everyone uses one IP, login and native app launcher.
 

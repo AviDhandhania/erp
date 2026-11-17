@@ -10,15 +10,33 @@ flowchart LR
   E --> G[nginx: container IP on port 80]
   G --> H[Native login and app launcher]
   H --> I[ERPNext]
-  H --> J[Clothing ERP]
-  H --> K[Framework]
-  H --> L[India Compliance]
-  H --> M[Insights]
+  H --> J[Clothing ERP Suite Launcher]
+  H --> K[Sales ERP]
+  H --> L[Warehouse ERP]
+  H --> M[Quality ERP]
+  H --> N[India Compliance]
+  H --> O[Insights]
 ```
 
 “Separate” means separate applications/repositories and independent upstream pins.
 The apps share Frappe's authentication, database and standard business documents.
 A second fake ERP service or duplicated stock/accounting database is not involved.
+
+### Authoritative App and DocType Ownership
+
+1. **`clothing_erp` (Suite Launcher & Home)**:
+   - Canonical Desk entry point, workspace navigation, launcher tile scoping.
+   - Product gallery asset management and orphan cleanup.
+   - Compatibility forwarding for legacy endpoints.
+2. **`sales_erp` (Field Sales & Distribution)**:
+   - Authoritative Sales DocTypes: `ASM Supervision` (Sales Territory Assignment), `Retailer Application`, `Retailer Visit`, `RSM Visit Obligation`, `Retailer Credit Limit Request`, `Retailer Assignment History`, `Clothing Product Image`.
+   - Authoritative services: Territory-based order placement, catalogue matrices, credit limit approval workflow with live customer limit validation, 80-day RSM visit cadence & obligations.
+3. **`warehouse_erp` (Fulfilment & Warehouse Operations)**:
+   - Authoritative services: Scan verification, Pick List shortage resolution, Pick List completion, Delivery Note validation, nested warehouse tree scoping, and Serial and Batch Bundle row locking.
+   - Canonical roles: `Clothing Warehouse Manager` (mutation authority), `Clothing Business Administrator` (global oversight), with audited migration path for legacy operator accounts.
+4. **`quality_erp` (Supplier Quality & Returns Quarantine)**:
+   - Authoritative Quality DocTypes: `Supplier Quality Inspection`, `Return Quarantine`.
+   - Authoritative services: 7-stage sequential quality lifecycle enforcement (Fit Sample $\rightarrow$ Refit Sample $\rightarrow$ Size Set $\rightarrow$ Production Go Ahead $\rightarrow$ Inline Visits $\rightarrow$ Mid-line Visits $\rightarrow$ Final Inspection), versioned inspection reports, and administrative review bundle retrieval.
 
 Each published release contains an app source archive and `release.json` describing
 its exact Clothing ERP source commit, ERPNext/Frappe/Insights/India Compliance

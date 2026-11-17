@@ -30,6 +30,13 @@ This document defines the strict operating boundaries and development rules for 
 
 ## 2. Architecture & Design Principles
 
+- **Canonical Application and DocType Ownership**:
+  - `clothing_erp`: Minimal launcher, desk routing, workspace navigation, product gallery asset lifecycle, and legacy API forwarding.
+  - `sales_erp`: Exclusively owns Sales DocTypes (`ASM Supervision`, `Retailer Application`, `Retailer Visit`, `RSM Visit Obligation`, `Retailer Credit Limit Request`, `Retailer Assignment History`, `Clothing Product Image`) and Territory $\rightarrow$ ASM $\rightarrow$ RSM supervisory enforcement.
+  - `warehouse_erp`: Exclusively owns warehouse fulfillment, scan verification, Pick List shortage resolution, nested warehouse permissions, and serial/batch bundle locking.
+  - `quality_erp`: Exclusively owns `Supplier Quality Inspection`, `Return Quarantine`, the 7-stage quality lifecycle ordering, versioned inspection reports, and administrative review bundles.
+  - Never duplicate DocType schemas, hooks, or schedulers across apps.
+
 - **Leverage Native ERPNext DocTypes**:
   - Garment colourways $\rightarrow$ separate ERPNext `Item` templates/SKUs; variants use Size only.
   - Retailer Accounts $\rightarrow$ ERPNext `Customer` (Customer Group: Retailer/Boutique).
