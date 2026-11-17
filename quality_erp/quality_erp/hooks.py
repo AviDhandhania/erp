@@ -42,9 +42,11 @@ has_permission = {
 	"File": "quality_erp.file_security.has_file_permission",
 	"Supplier Quality Inspection": "quality_erp.security.quality_inspection_has_permission",
 	"Return Quarantine": "quality_erp.security.return_quarantine_has_permission",
+	"Production Quality Cycle": "quality_erp.security.production_quality_cycle_has_permission",
 }
 
 permission_query_conditions = {
 	"Supplier Quality Inspection": "quality_erp.security.get_quality_inspection_conditions",
 	"Return Quarantine": "quality_erp.security.get_return_quarantine_conditions",
+	"Production Quality Cycle": "quality_erp.security.get_production_quality_cycle_conditions",
 }

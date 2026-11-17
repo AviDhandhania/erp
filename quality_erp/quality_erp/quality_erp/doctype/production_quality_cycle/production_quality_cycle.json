@@ -1,0 +1,318 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-11-17 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "cycle_key",
+  "company",
+  "supplier",
+  "item_code",
+  "style_name",
+  "purchase_order",
+  "column_break_1",
+  "production_lot",
+  "season",
+  "approved_season",
+  "purchase_receipt",
+  "quality_inspection",
+  "status",
+  "current_stage",
+  "section_break_approval",
+  "go_ahead_status",
+  "go_ahead_approved_by",
+  "go_ahead_date",
+  "go_ahead_conditions",
+  "column_break_gates",
+  "final_inspection_status",
+  "final_inspection_approved_by",
+  "final_inspection_date",
+  "final_inspection_notes",
+  "section_break_variants",
+  "items",
+  "section_break_audit",
+  "total_stages_passed",
+  "total_inspections_count",
+  "last_inspection_date",
+  "notes"
+ ],
+ "fields": [
+  {
+   "default": "PQC-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "no_copy": 1,
+   "options": "PQC-.YYYY.-.#####",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "cycle_key",
+   "fieldtype": "Data",
+   "in_list_view": 0,
+   "label": "Cycle Business Key",
+   "no_copy": 1,
+   "read_only": 1,
+   "reqd": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Supplier",
+   "options": "Supplier",
+   "reqd": 1
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Style / Item Code",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "item_code.item_name",
+   "fieldname": "style_name",
+   "fieldtype": "Data",
+   "label": "Style Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "purchase_order",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Purchase Order",
+   "options": "Purchase Order"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "01",
+   "fieldname": "production_lot",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Production Lot"
+  },
+  {
+   "fieldname": "season",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Season"
+  },
+  {
+   "default": "0",
+   "fieldname": "approved_season",
+   "fieldtype": "Check",
+   "label": "Approved Season"
+  },
+  {
+   "fieldname": "purchase_receipt",
+   "fieldtype": "Link",
+   "label": "Purchase Receipt",
+   "options": "Purchase Receipt"
+  },
+  {
+   "fieldname": "quality_inspection",
+   "fieldtype": "Link",
+   "label": "Native Quality Inspection",
+   "options": "Quality Inspection"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Cycle Status",
+   "options": "Draft\nStage Report Due\nIn Progress\nAwaiting Production Go Ahead\nProduction Go Ahead Approved\nProduction in Progress\nAwaiting Final Inspection\nFinal Inspection Approved\nCompleted\nCancelled\nOn Hold"
+  },
+  {
+   "default": "1. First Submission",
+   "fieldname": "current_stage",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Current Stage",
+   "options": "1. First Submission\n2. Second Submission\n3. Size Set Submission\n4. Production Go Ahead\n5. Inline Visit\n6. Mid-line Visit\n7. Final Inspection\nCompleted"
+  },
+  {
+   "fieldname": "section_break_approval",
+   "fieldtype": "Section Break",
+   "label": "Gate Approvals"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "go_ahead_status",
+   "fieldtype": "Select",
+   "label": "Production Go Ahead Status",
+   "options": "Pending\nApproved\nRejected"
+  },
+  {
+   "fieldname": "go_ahead_approved_by",
+   "fieldtype": "Link",
+   "label": "Go Ahead Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "go_ahead_date",
+   "fieldtype": "Datetime",
+   "label": "Go Ahead Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "go_ahead_conditions",
+   "fieldtype": "Small Text",
+   "label": "Go Ahead Conditions / Notes"
+  },
+  {
+   "fieldname": "column_break_gates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "final_inspection_status",
+   "fieldtype": "Select",
+   "label": "Final Inspection Status",
+   "options": "Pending\nApproved\nRejected"
+  },
+  {
+   "fieldname": "final_inspection_approved_by",
+   "fieldtype": "Link",
+   "label": "Final Inspection Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "final_inspection_date",
+   "fieldtype": "Datetime",
+   "label": "Final Inspection Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "final_inspection_notes",
+   "fieldtype": "Small Text",
+   "label": "Final Inspection Notes"
+  },
+  {
+   "fieldname": "section_break_variants",
+   "fieldtype": "Section Break",
+   "label": "Colourways & Variants"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items / Colourways",
+   "options": "Production Quality Cycle Item"
+  },
+  {
+   "fieldname": "section_break_audit",
+   "fieldtype": "Section Break",
+   "label": "Metrics & Summary"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_stages_passed",
+   "fieldtype": "Int",
+   "label": "Stages Passed",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_inspections_count",
+   "fieldtype": "Int",
+   "label": "Total Inspections",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_inspection_date",
+   "fieldtype": "Date",
+   "label": "Last Inspection Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Quality ERP",
+ "name": "Production Quality Cycle",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Quality Inspector",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Quality Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Business Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

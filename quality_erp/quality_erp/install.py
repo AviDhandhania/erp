@@ -84,6 +84,11 @@ def after_install():
                 name,
                 ["read", "write", "create", "delete", "export", "report"],
             )
+            _ensure_custom_docperm(
+                "Production Quality Cycle",
+                name,
+                ["read", "write", "create", "delete", "export", "report"],
+            )
         else:
             _ensure_custom_docperm(
                 "Supplier Quality Inspection",
@@ -92,6 +97,11 @@ def after_install():
             )
             _ensure_custom_docperm(
                 "Return Quarantine",
+                name,
+                ["read", "write", "create", "report"],
+            )
+            _ensure_custom_docperm(
+                "Production Quality Cycle",
                 name,
                 ["read", "write", "create", "report"],
             )
@@ -104,3 +114,8 @@ def after_install():
 def after_migrate():
     after_install()
     ensure_quality_erp_sidebar()
+    try:
+        from quality_erp.cycle import migrate_supplier_inspections_to_cycles
+        migrate_supplier_inspections_to_cycles()
+    except Exception:
+        pass

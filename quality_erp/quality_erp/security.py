@@ -104,3 +104,65 @@ def get_return_quarantine_conditions(user=None):
     if not is_quality_inspector(user):
         return "1=0"
     return ""
+
+
+def production_quality_cycle_has_permission(doc, ptype="read", user=None):
+    user = get_current_user(user)
+    if is_quality_admin(user):
+        return True
+    if not is_quality_inspector(user):
+        return False
+
+    # Check multi-company isolation
+    if doc and hasattr(doc, "company") and doc.company:
+        allowed_companies = frappe.get_all(
+            "User Permission",
+            filters={"user": user, "allow": "Company"},
+            pluck="for_value",
+        )
+        if allowed_companies and doc.company not in allowed_companies:
+            return False
+
+    # Check supplier isolation
+    if doc and hasattr(doc, "supplier") and doc.supplier:
+        allowed_suppliers = frappe.get_all(
+            "User Permission",
+            filters={"user": user, "allow": "Supplier"},
+            pluck="for_value",
+        )
+        if allowed_suppliers and doc.supplier not in allowed_suppliers:
+            return False
+
+    if ptype in ("write", "create"):
+        return True
+    if ptype in ("submit", "cancel", "delete"):
+        return is_quality_admin(user)
+    return True
+
+
+def get_production_quality_cycle_conditions(user=None):
+    user = get_current_user(user)
+    if not is_quality_inspector(user):
+        return "1=0"
+
+    conditions = []
+    allowed_companies = frappe.get_all(
+        "User Permission",
+        filters={"user": user, "allow": "Company"},
+        pluck="for_value",
+    )
+    if allowed_companies:
+        formatted = ", ".join(frappe.db.escape(c) for c in allowed_companies)
+        conditions.append(f"`tabProduction Quality Cycle`.company IN ({formatted})")
+
+    allowed_suppliers = frappe.get_all(
+        "User Permission",
+        filters={"user": user, "allow": "Supplier"},
+        pluck="for_value",
+    )
+    if allowed_suppliers:
+        formatted = ", ".join(frappe.db.escape(s) for s in allowed_suppliers)
+        conditions.append(f"`tabProduction Quality Cycle`.supplier IN ({formatted})")
+
+    return " AND ".join(conditions) if conditions else ""
+

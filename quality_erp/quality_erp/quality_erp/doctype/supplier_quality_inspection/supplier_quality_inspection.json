@@ -7,11 +7,15 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "company",
   "supplier",
   "item_code",
   "purchase_order",
+  "production_quality_cycle",
   "column_break_1",
   "stage",
+  "production_lot",
+  "season",
   "status",
   "inspector",
   "inspection_date",
@@ -164,6 +168,31 @@
    "fieldname": "comments",
    "fieldtype": "Text",
    "label": "Inspector Notes / Rejection Reason"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "production_quality_cycle",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Production Quality Cycle",
+   "options": "Production Quality Cycle"
+  },
+  {
+   "fieldname": "production_lot",
+   "fieldtype": "Data",
+   "label": "Production Lot"
+  },
+  {
+   "fieldname": "season",
+   "fieldtype": "Data",
+   "label": "Season"
   }
  ],
  "links": [],

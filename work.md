@@ -240,9 +240,9 @@ documented residual risk and a release block for every unresolved critical/high 
 
 ### Production feature completion — Quality ERP
 
-- [ ] Create a real Production Quality Cycle with a confirmed unique business key and links
+- [x] Create a real Production Quality Cycle with a confirmed unique business key and links
   to Supplier, Purchase Order, relevant Items/styles/colourways, production lot/season and
-  applicable Purchase Receipt/native Quality Inspection. Do not duplicate purchasing/stock.
+  applicable Purchase Receipt/native Quality Inspection. Do not duplicate purchasing/stock (quality_erp/cycle.py, quality_erp/doctype/production_quality_cycle, quality_erp/tests/test_production_quality_cycle.py).
 - [ ] Replace the single broad inspection record model with explicit cycle/stage/report
   relationships supporting multiple Inline and Mid-line visits and immutable revisions.
 - [ ] Add versioned checklist templates by item group/product/category; historical reports
@@ -1521,3 +1521,46 @@ Session 10 completed customer return intake against original delivery notes, row
    - Deploy & Hardening: **54/54** tests passed.
    - Supply Chain Runner: **0** findings across secrets, SAST, dependencies, and licenses.
    - Total Suite Tests: **367/367** tests passing cleanly across all apps.
+
+## Session 11: Production Quality Cycle and Native Links — verified 2026-11-17
+
+Session 11 established the core Production Quality Cycle entity, native document linkage without ledger duplication, safe idempotent migration, and strict isolation controls:
+
+1. **Production Quality Cycle Entity & Child Table (`quality_erp/doctype/production_quality_cycle`)**:
+   - Implemented `Production Quality Cycle`:
+     - Tracks `naming_series` (`PQC-.YYYY.-.#####`), `company`, `supplier`, `item_code`, `style_name`, `purchase_order`, `production_lot`, `season`, `approved_season`, `purchase_receipt`, `quality_inspection`, `status`, `current_stage`, `notes`, `last_inspection_date`, `total_inspections_count`, and `total_stages_passed`.
+     - Gate approval tracking: `go_ahead_status`, `go_ahead_approved_by`, `go_ahead_date`, `final_inspection_status`, `final_inspection_approved_by`, `final_inspection_date`.
+   - Implemented child DocType `Production Quality Cycle Item`:
+     - Tracks items, colourways, size variants, planned quantities, sample sizes, and variant-specific notes.
+
+2. **Deterministic Composite Unique Business Key (`quality_erp/cycle.py`)**:
+   - `generate_cycle_key`: Deterministic composite key formatted as `{company}::{supplier}::{purchase_order or season or 'DEV'}::{item_code}::{production_lot or '01'}`.
+   - Database-level unique constraint on `cycle_key` prevents duplicate cycles for the same lot while allowing distinct cycles for split lots, distinct purchase orders, or distinct developmental samples.
+
+3. **Reviewed Native Document Links (Zero Ledger Duplication)**:
+   - `link_native_purchase_receipt`: Links ERPNext native `Purchase Receipt` with company and supplier matching validation.
+   - `link_native_quality_inspection`: Links native ERPNext `Quality Inspection`.
+   - **Invariant Strictly Preserved**: Cycle and native links are orchestration records only. Never creates parallel entries or modifies `tabBin`, `tabStock Ledger Entry`, `tabGL Entry`, or duplicate inspection ledgers.
+
+4. **Safe, Idempotent Migration from Existing Inspections (`migrate_supplier_inspections_to_cycles`)**:
+   - Queries existing `Supplier Quality Inspection` records, auto-resolves company, generates deterministic cycle keys, and creates parent `Production Quality Cycle` records.
+   - Sets foreign key `production_quality_cycle`, `company`, and `production_lot` on `tabSupplier Quality Inspection`.
+   - Synchronizes cycle stage progress, approved stage counts, and last inspection dates.
+   - Atomic execution under database savepoint `pqc_migration_sp` with rollback on failure or `dry_run=True`.
+   - **Migration-Twice Safe**: Re-running migration detects already linked records and creates 0 duplicate cycles and updates 0 records.
+
+5. **Server-Side Authorization & Multi-Company / Supplier Isolation**:
+   - `assert_can_approve_quality_gate`: Critical gates (Production Go Ahead and Final Inspection) strictly require `Administrator` / `System Manager` / Quality Admin authorization; inspector role cannot approve gates.
+   - `get_production_quality_cycle_conditions`: Query conditions filter cycles by allowed `Company` and `Supplier` User Permissions for inspectors.
+   - `production_quality_cycle_has_permission`: Document-level permission handler enforces company and supplier isolation boundaries.
+
+6. **Boundary Enforcement**:
+   - Stopped cleanly before versioned checklist templates and stage inspection report forms as instructed by Session 11 boundary.
+
+7. **Test Suite Verification**:
+   - Quality ERP: **31/31** tests passed (+18 comprehensive Session 11 tests in `test_production_quality_cycle.py` covering key generation, duplicate rejection, colourway variant child rows, native PR and QI linkage, company mismatch validation, migration linking, dry-run rollback, failure rollback, migration-twice idempotency, company isolation, supplier isolation, query conditions, permission denial, gate approval authorization, real DB cycle creation/uniqueness, and real DB migration-twice).
+   - Warehouse ERP: **105/105** tests passed.
+   - Sales ERP: **195/195** tests passed.
+   - Deploy & Hardening: **54/54** tests passed.
+   - Supply Chain Runner: **0** findings across secrets, SAST, dependencies, and licenses.
+   - Total Suite Tests: **385/385** tests passing cleanly across all apps.
