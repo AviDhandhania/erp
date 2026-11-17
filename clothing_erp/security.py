@@ -205,6 +205,49 @@ def retailer_visit_conditions(user=None):
     return "1=0"
 
 
+def retailer_credit_limit_request_conditions(user=None):
+    if is_clothing_admin(user):
+        return ""
+    roles = get_user_roles(user)
+    if roles & {ROLE_SALES_MANAGER, ROLE_SALESPERSON}:
+        territories = assigned_sales_territories(user)
+        if not territories:
+            return "1=0"
+        allowed = ", ".join(frappe.db.escape(name) for name in territories)
+        return (
+            "`tabRetailer Credit Limit Request`.`customer` in "
+            f"(select name from `tabCustomer` where territory in ({allowed}))"
+        )
+    return "1=0"
+
+
+def retailer_credit_limit_request_has_permission(doc, user=None, ptype=None, **kwargs):
+    user = get_current_user(user)
+    if is_clothing_admin(user):
+        return True
+    roles = get_user_roles(user)
+
+    if ptype == "create":
+        if ROLE_SALES_MANAGER not in roles:
+            return False
+        customer = getattr(doc, "customer", None)
+        return not customer or has_retailer_access(customer, user)
+
+    customer = getattr(doc, "customer", None)
+    if not customer or not has_retailer_access(customer, user):
+        return False
+
+    if ptype in ("write", "delete"):
+        status = getattr(doc, "status", None)
+        if status in ("Approved", "Rejected"):
+            return False
+        if ptype == "write":
+            return getattr(doc, "proposer", None) == user
+        return False
+
+    return True
+
+
 def asm_supervision_conditions(user=None):
     if is_clothing_admin(user):
         return ""

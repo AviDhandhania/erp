@@ -1,6 +1,6 @@
 import frappe
 from frappe.model.document import Document
-from frappe.utils import getdate, now_datetime, nowdate
+from frappe.utils import flt, getdate, now_datetime, nowdate
 
 from sales_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
 from sales_erp.security import (
@@ -77,6 +77,30 @@ class RetailerVisit(Document):
                 close_rsm_visit_obligation(self.customer, self.salesperson or self.rsm)
             except Exception:
                 pass
+
+            # If the RSM recommended a credit limit change, record a pending credit limit request
+            if flt(self.recommended_credit_limit) > 0:
+                from sales_erp.sales_erp.doctype.retailer_credit_limit_request.retailer_credit_limit_request import (
+                    get_customer_current_credit_limit,
+                )
+                current_limit = get_customer_current_credit_limit(self.customer)
+                if flt(self.recommended_credit_limit) != flt(current_limit):
+                    if not frappe.db.exists(
+                        "Retailer Credit Limit Request",
+                        {"source_visit": self.name, "status": "Pending Approval"},
+                    ):
+                        req = frappe.get_doc(
+                            {
+                                "doctype": "Retailer Credit Limit Request",
+                                "customer": self.customer,
+                                "proposed_credit_limit": flt(self.recommended_credit_limit),
+                                "source_visit": self.name,
+                                "reason": f"Recommended in RSM visit {self.name}: {self.dealer_feedback or self.notes or 'Periodic review assessment'}",
+                                "proposer": self.salesperson or self.rsm,
+                            }
+                        )
+                        req.flags.ignore_permissions = True
+                        req.insert()
 
 
 @frappe.whitelist(methods=["POST"])

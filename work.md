@@ -38,7 +38,7 @@ Confirmed requirements now governing the next stages:
 - [ ] Enforce the approved shop-stock exposure rule against stock already held plus new
   incoming stock. Keep this distinct from native receivables credit until ownership,
   valuation and document flow are confirmed.
-- [ ] Require administrator approval before a proposed credit/exposure-limit change is
+- [x] Require administrator approval before a proposed credit/exposure-limit change is
   applied, with immutable before/after/proposer/approver/reason audit data.
 - [ ] Preserve all application, visit, order, limit and escalation state transitions with
   server-side role/Territory checks, concurrency protection and audit history.
@@ -517,9 +517,10 @@ Previously published v0.3.0 release evidence (before the India Compliance work):
 - Isolated native MariaDB schema/data/config/attachment recovery and queue RDB integrity checks passed.
 
 Current unreleased validation evidence:
-- All 152 app/site tests pass in clothing_erp, 15 tests in sales_erp, 7 tests in warehouse_erp,
-  and 8 tests in quality_erp on the real local site. Deploy tests passed 36 checks.
-- Retailer Visit supervisory review chain and 80-day RSM visit cadence/escalation tracking implemented and tested with strict territory and supervision validation.
+- All 165 app/site tests pass in clothing_erp, 18 tests in sales_erp, 7 tests in warehouse_erp,
+  and 8 tests in quality_erp on the real local site. Deploy tests passed 29 checks.
+- Retailer Visit supervisory review chain, 80-day RSM visit cadence/escalation tracking, and
+  Retailer Credit Limit Request workflow with administrator approval and immutable audit trail implemented and tested with strict territory and supervision validation.
 - The next stable release must pass the fresh two-stage native compatibility gate
   before its installer is published; v0.3.0 does not retroactively contain this work.
 - Physical Proxmox guest creation, real systemd cutover, reboot and end-to-end guest rollback remain a deployment trial, not a completed claim.
