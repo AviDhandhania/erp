@@ -2,7 +2,7 @@ import re
 
 import frappe
 from frappe.model.document import Document
-from frappe.utils import flt, now_datetime
+from frappe.utils import cint, flt, now_datetime
 
 from sales_erp.retailer_defaults import validate_retailer_type
 from sales_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
@@ -227,6 +227,25 @@ class RetailerApplication(Document):
         validate_retailer_type(self.customer_group)
         _validate_salesperson(self.salesperson)
         _validate_salesperson_territory(self.salesperson, self.territory)
+
+        # Protect RSM-owned commercial review fields from ASM modification
+        user = get_current_user()
+        if ROLE_SALESPERSON in get_user_roles(user) and not is_sales_manager(user) and not is_clothing_admin(user):
+            for field in (
+                "estimated_monthly_turnover",
+                "expected_footfall",
+                "shop_square_footage",
+                "proposed_payment_terms",
+                "security_deposit_reference",
+                "commercial_review_notes",
+                "initial_exposure_limit",
+            ):
+                if self.get(field):
+                    frappe.throw(
+                        frappe._("Only Regional Sales Managers or Administrators can set commercial review field '{0}'.").format(field),
+                        frappe.PermissionError,
+                    )
+
         if self.is_new() and find_duplicates(self):
             frappe.throw(
                 frappe._(
@@ -530,3 +549,139 @@ def reject(name, reason):
         {"rejection_reason": reason},
     )
     return {"application": application.name, "status": "Rejected"}
+
+
+@frappe.whitelist(methods=["POST"])
+def update_commercial_fields(
+    name,
+    estimated_monthly_turnover=None,
+    expected_footfall=None,
+    shop_square_footage=None,
+    proposed_payment_terms=None,
+    security_deposit_reference=None,
+    commercial_review_notes=None,
+    initial_exposure_limit=None,
+):
+    """RSM or Administrator sets commercial assessment fields on a pending retailer application."""
+    check_rate_limit("update_commercial_fields", limit=60, window_seconds=60)
+    require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+    name = validate_string(name, "Application Name", max_len=140, required=True)
+    application = _lock_application(name)
+    application.check_permission("write")
+    if application.status in ("Approved", "Rejected"):
+        frappe.throw(frappe._("Reviewed applications cannot be modified."))
+    user = get_current_user()
+    if not is_clothing_admin(user):
+        assert_rsm_supervises_asm(
+            rsm=user,
+            asm=application.salesperson,
+            territory=application.territory,
+        )
+
+    updates = {}
+    if estimated_monthly_turnover is not None:
+        updates["estimated_monthly_turnover"] = validate_float(estimated_monthly_turnover, "Estimated Turnover", min_val=0.0)
+    if expected_footfall is not None:
+        updates["expected_footfall"] = cint(expected_footfall)
+    if shop_square_footage is not None:
+        updates["shop_square_footage"] = validate_float(shop_square_footage, "Square Footage", min_val=0.0)
+    if proposed_payment_terms is not None:
+        updates["proposed_payment_terms"] = validate_string(proposed_payment_terms, "Payment Terms", max_len=140)
+    if security_deposit_reference is not None:
+        updates["security_deposit_reference"] = validate_string(security_deposit_reference, "Deposit Ref", max_len=140)
+    if commercial_review_notes is not None:
+        updates["commercial_review_notes"] = validate_string(commercial_review_notes, "Review Notes", max_len=1000)
+    if initial_exposure_limit is not None:
+        updates["initial_exposure_limit"] = validate_float(initial_exposure_limit, "Initial Exposure Limit", min_val=0.0)
+
+    if updates:
+        application.db_set(updates)
+        record_security_audit_event(
+            "Retailer Application Commercial Review",
+            "Retailer Application",
+            application.name,
+            updates,
+        )
+
+    return {"application": application.name, "status": application.status, "updated": updates}
+
+
+@frappe.whitelist(methods=["GET"])
+def get_retailer_application_queue(queue_type="pending", limit=50, start=0, territory=None):
+    """Retrieve permission-scoped application queues for ASMs, RSMs and Administrators."""
+    require_role({ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+    user = get_current_user()
+    admin = is_clothing_admin(user)
+    rsm_role = is_sales_manager(user)
+    limit = min(cint(limit) or 50, 100)
+    start = max(cint(start) or 0, 0)
+
+    conditions = []
+    params = {}
+
+    if not admin:
+        user_territories = assigned_sales_territories(user)
+        if not user_territories:
+            return {"applications": [], "total_count": 0, "queue_type": queue_type}
+
+        if territory:
+            if territory not in user_territories:
+                frappe.throw(frappe._("Not authorized for territory {0}.").format(territory), frappe.PermissionError)
+            conditions.append("territory = %(territory)s")
+            params["territory"] = territory
+        else:
+            conditions.append("territory IN %(territories)s")
+            params["territories"] = tuple(user_territories)
+
+        if not rsm_role:
+            conditions.append("salesperson = %(user)s")
+            params["user"] = user
+    else:
+        if territory:
+            conditions.append("territory = %(territory)s")
+            params["territory"] = territory
+
+    q_type = (queue_type or "pending").lower()
+    if q_type == "pending":
+        conditions.append("status IN ('Pending', 'Resubmitted')")
+    elif q_type in ("rfi", "more_info"):
+        conditions.append("status = 'More Information Requested'")
+    elif q_type == "approved":
+        conditions.append("status = 'Approved'")
+    elif q_type == "rejected":
+        conditions.append("status = 'Rejected'")
+    elif q_type != "all":
+        conditions.append("status IN ('Pending', 'Resubmitted')")
+
+    where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
+
+    count_res = frappe.db.sql(
+        f"SELECT COUNT(*) as cnt FROM `tabRetailer Application` {where_clause}",
+        params,
+        as_dict=True,
+    )
+    total_count = count_res[0].cnt if count_res else 0
+
+    apps = frappe.db.sql(
+        f"""
+        SELECT name, shop_name, contact_person, phone, email, territory, customer_group,
+               salesperson, rsm, status, initial_credit_limit, initial_exposure_limit,
+               estimated_monthly_turnover, expected_footfall, shop_square_footage,
+               creation, modified
+        FROM `tabRetailer Application`
+        {where_clause}
+        ORDER BY modified DESC
+        LIMIT %(limit)s OFFSET %(start)s
+        """,
+        {**params, "limit": limit, "start": start},
+        as_dict=True,
+    )
+
+    return {
+        "applications": apps,
+        "total_count": total_count,
+        "queue_type": queue_type,
+        "limit": limit,
+        "start": start,
+    }
+

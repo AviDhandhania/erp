@@ -560,6 +560,10 @@ def create_draft_sales_order(customer, items, request_id, delivery_date=None):
     check_rate_limit("create_draft_sales_order", limit=60, window_seconds=60)
     require_role(ORDER_ROLES)
     customer = _validate_customer(customer)
+    from sales_erp.cadence import is_retailer_order_blocked_by_collection
+    blocked, block_reason = is_retailer_order_blocked_by_collection(customer)
+    if blocked:
+        frappe.throw(block_reason, frappe.ValidationError)
     request_id = _request_id(request_id)
     if existing := _existing_order(request_id, customer):
         return _result(existing, replay=True)

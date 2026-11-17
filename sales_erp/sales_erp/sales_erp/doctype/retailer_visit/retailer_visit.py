@@ -34,6 +34,14 @@ EVIDENCE_FIELDS = (
     "customer_footfall",
     "stock_condition",
     "dealer_feedback",
+    "checkin_latitude",
+    "checkin_longitude",
+    "checkin_accuracy_meters",
+    "checkin_timestamp",
+    "checkin_status",
+    "checkin_consent",
+    "evidence_photo",
+    "evidence_caption",
 )
 
 
@@ -283,3 +291,92 @@ def review_visit(name, status, notes=None):
         "reviewed_on": doc.reviewed_on,
         "review_notes": doc.review_notes,
     }
+
+
+def _haversine_distance(lat1, lon1, lat2, lon2):
+    import math
+    R = 6371000  # Earth radius in meters
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    a = (
+        math.sin(delta_phi / 2.0) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2.0) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
+
+@frappe.whitelist(methods=["POST"])
+def record_visit_checkin(
+    visit_name,
+    latitude,
+    longitude,
+    accuracy_meters=None,
+    timestamp=None,
+    consent=True,
+    device_id=None,
+):
+    """Record GPS check-in verification for a retailer visit."""
+    from sales_erp.api_security import check_rate_limit, record_security_audit_event, validate_float, validate_string
+    check_rate_limit("record_visit_checkin", limit=60, window_seconds=60)
+    visit_name = validate_string(visit_name, "Visit Name", max_len=140, required=True)
+    lat = validate_float(latitude, "Latitude", min_val=-90.0, max_val=90.0)
+    lon = validate_float(longitude, "Longitude", min_val=-180.0, max_val=180.0)
+    accuracy = validate_float(accuracy_meters, "Accuracy", min_val=0.0) if accuracy_meters is not None else None
+    device_ref = validate_string(device_id, "Device ID", max_len=140) if device_id else None
+
+    visit = frappe.get_doc("Retailer Visit", visit_name)
+    visit.check_permission("write")
+
+    user = get_current_user()
+    if visit.salesperson != user and not is_clothing_admin(user) and not is_sales_manager(user):
+        frappe.throw(_("Only the visiting sales manager can record check-in."), frappe.PermissionError)
+
+    from sales_erp.settings import get_sales_settings
+    cfg = get_sales_settings()
+    tolerance = cfg.get("geolocation_tolerance_meters", 500)
+
+    now = now_datetime()
+    if timestamp:
+        from frappe.utils import time_diff_in_seconds
+        diff = time_diff_in_seconds(str(now), str(timestamp))
+        if diff < -300:
+            frappe.throw(_("Check-in timestamp cannot be in the future."), frappe.ValidationError)
+        if diff > 86400:
+            frappe.throw(_("Check-in timestamp has expired (older than 24 hours)."), frappe.ValidationError)
+
+    checkin_status = "Verified"
+    # Check customer coordinates if available
+    cust_coords = frappe.db.get_value("Customer", visit.customer, ["latitude", "longitude"], as_dict=True) if frappe.db.has_column("Customer", "latitude") else None
+    if cust_coords and cust_coords.latitude and cust_coords.longitude:
+        dist = _haversine_distance(lat, lon, flt(cust_coords.latitude), flt(cust_coords.longitude))
+        if dist > tolerance:
+            checkin_status = "Out of Radius"
+
+    visit.flags.in_review_service = True
+    visit.db_set({
+        "checkin_latitude": lat,
+        "checkin_longitude": lon,
+        "checkin_accuracy_meters": accuracy or 0.0,
+        "checkin_timestamp": timestamp or now,
+        "checkin_status": checkin_status,
+        "checkin_consent": 1 if consent else 0,
+        "checkin_device_id": device_ref,
+    })
+
+    record_security_audit_event(
+        "Visit Check-in Verified",
+        "Retailer Visit",
+        visit.name,
+        {"latitude": lat, "longitude": lon, "status": checkin_status},
+    )
+
+    return {
+        "visit": visit.name,
+        "checkin_status": checkin_status,
+        "latitude": lat,
+        "longitude": lon,
+    }
+

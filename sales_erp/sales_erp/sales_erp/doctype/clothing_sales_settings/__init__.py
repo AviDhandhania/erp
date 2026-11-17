@@ -1,0 +1,1 @@
+# Clothing Sales Settings module

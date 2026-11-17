@@ -30,6 +30,7 @@ from sales_erp.supervision import (
     get_supervised_asms,
     get_territory_supervision,
 )
+from sales_erp.settings import get_sales_settings
 
 RSM_VISIT_CYCLE_DAYS = 80
 RSM_ADVANCE_WARNING_DAYS = 70
@@ -107,16 +108,21 @@ def get_customer_rsm_visit_status(customer: str, target_date: str | None = None)
         last_visit_type = None
         last_visitor = None
 
-    days_elapsed = max(0, (target_dt - base_date).days)
-    days_remaining = RSM_VISIT_CYCLE_DAYS - days_elapsed
-    due_date = add_days(base_date, RSM_VISIT_CYCLE_DAYS)
-    grace_end_date = add_days(base_date, RSM_ESCALATION_THRESHOLD_DAYS)
+    cfg = get_sales_settings()
+    cycle_days = cfg.get("rsm_cycle_days", RSM_VISIT_CYCLE_DAYS)
+    warning_days = cfg.get("rsm_warning_days", RSM_ADVANCE_WARNING_DAYS)
+    escalation_days = cfg.get("rsm_escalation_days", RSM_ESCALATION_THRESHOLD_DAYS)
 
-    if days_elapsed <= RSM_ADVANCE_WARNING_DAYS:
+    days_elapsed = max(0, (target_dt - base_date).days)
+    days_remaining = cycle_days - days_elapsed
+    due_date = add_days(base_date, cycle_days)
+    grace_end_date = add_days(base_date, escalation_days)
+
+    if days_elapsed <= warning_days:
         status = STATUS_COMPLIANT
-    elif days_elapsed <= RSM_VISIT_CYCLE_DAYS:
+    elif days_elapsed <= cycle_days:
         status = STATUS_APPROACHING
-    elif days_elapsed <= RSM_ESCALATION_THRESHOLD_DAYS:
+    elif days_elapsed <= escalation_days:
         status = STATUS_GRACE
     else:
         status = STATUS_OVERDUE
@@ -528,7 +534,7 @@ def get_rsm_visit_cadence_report(
 
 
 def get_customer_asm_visit_status(customer: str, target_date: str | None = None) -> list[dict]:
-    """Calculate the ASM cadence obligations (SIS quarterly/monthly, Buy & Sell monthly & collections) for a customer."""
+    """Calculate the ASM cadence obligations (SIS quarterly/monthly, Buy & Sell monthly & collections, EBOC) for a customer."""
     target_dt = getdate(target_date or nowdate())
     customer_doc = frappe.db.get_value(
         "Customer",
@@ -538,6 +544,22 @@ def get_customer_asm_visit_status(customer: str, target_date: str | None = None)
     )
     if not customer_doc:
         frappe.throw(_("Customer {0} does not exist.").format(customer), frappe.DoesNotExistError)
+
+    cfg = get_sales_settings()
+    sis_stock_cycle = cfg.get("sis_stock_review_cycle_days", SIS_STOCK_REVIEW_CYCLE_DAYS)
+    sis_stock_warn = cfg.get("sis_stock_review_warning_days", SIS_STOCK_REVIEW_WARNING_DAYS)
+    sis_stock_esc = cfg.get("sis_stock_review_escalation_days", SIS_STOCK_REVIEW_ESCALATION_DAYS)
+
+    sis_gen_cycle = cfg.get("sis_general_visit_cycle_days", SIS_GENERAL_VISIT_CYCLE_DAYS)
+    sis_gen_warn = cfg.get("sis_general_visit_warning_days", SIS_GENERAL_VISIT_WARNING_DAYS)
+    sis_gen_esc = cfg.get("sis_general_visit_grace_days", SIS_GENERAL_VISIT_GRACE_DAYS) + sis_gen_cycle
+
+    bs_cycle = cfg.get("buy_sell_visit_cycle_days", BUY_SELL_VISIT_CYCLE_DAYS)
+    bs_warn = cfg.get("buy_sell_visit_warning_days", BUY_SELL_VISIT_WARNING_DAYS)
+    bs_esc = cfg.get("buy_sell_visit_grace_days", BUY_SELL_VISIT_GRACE_DAYS) + bs_cycle
+
+    col_start = cfg.get("collection_window_start_days", COLLECTION_WINDOW_START_DAYS)
+    col_esc = cfg.get("collection_window_escalation_days", COLLECTION_WINDOW_ESCALATION_DAYS)
 
     territory = customer_doc.territory
     supervision = get_territory_supervision(territory, on_date=target_dt) if territory else None
@@ -566,16 +588,16 @@ def get_customer_asm_visit_status(customer: str, target_date: str | None = None)
         )
         base_stock_date = getdate(last_stock_review[0].visit_date) if last_stock_review else (getdate(customer_doc.creation) if customer_doc.creation else target_dt)
         elapsed_stock = max(0, (target_dt - base_stock_date).days)
-        due_stock = add_days(base_stock_date, SIS_STOCK_REVIEW_CYCLE_DAYS)
-        grace_stock = add_days(base_stock_date, SIS_STOCK_REVIEW_ESCALATION_DAYS)
+        due_stock = add_days(base_stock_date, sis_stock_cycle)
+        grace_stock = add_days(base_stock_date, sis_stock_esc)
 
-        if elapsed_stock <= SIS_STOCK_REVIEW_WARNING_DAYS:
+        if elapsed_stock <= sis_stock_warn:
             stk_status = STATUS_COMPLIANT
             stk_esc = "None"
-        elif elapsed_stock <= SIS_STOCK_REVIEW_CYCLE_DAYS:
+        elif elapsed_stock <= sis_stock_cycle:
             stk_status = STATUS_APPROACHING
             stk_esc = "Approaching"
-        elif elapsed_stock <= SIS_STOCK_REVIEW_ESCALATION_DAYS:
+        elif elapsed_stock <= sis_stock_esc:
             stk_status = STATUS_GRACE
             stk_esc = "Grace"
         else:
@@ -617,16 +639,16 @@ def get_customer_asm_visit_status(customer: str, target_date: str | None = None)
         )
         base_gen_date = getdate(last_gen_visit[0].visit_date) if last_gen_visit else (getdate(customer_doc.creation) if customer_doc.creation else target_dt)
         elapsed_gen = max(0, (target_dt - base_gen_date).days)
-        due_gen = add_days(base_gen_date, SIS_GENERAL_VISIT_CYCLE_DAYS)
-        grace_gen = add_days(base_gen_date, SIS_GENERAL_VISIT_ESCALATION_DAYS)
+        due_gen = add_days(base_gen_date, sis_gen_cycle)
+        grace_gen = add_days(base_gen_date, sis_gen_esc)
 
-        if elapsed_gen <= SIS_GENERAL_VISIT_WARNING_DAYS:
+        if elapsed_gen <= sis_gen_warn:
             gen_status = STATUS_COMPLIANT
             gen_esc = "None"
-        elif elapsed_gen <= SIS_GENERAL_VISIT_CYCLE_DAYS:
+        elif elapsed_gen <= sis_gen_cycle:
             gen_status = STATUS_APPROACHING
             gen_esc = "Approaching"
-        elif elapsed_gen <= SIS_GENERAL_VISIT_ESCALATION_DAYS:
+        elif elapsed_gen <= sis_gen_esc:
             gen_status = STATUS_GRACE
             gen_esc = "Grace"
         else:
@@ -651,8 +673,8 @@ def get_customer_asm_visit_status(customer: str, target_date: str | None = None)
             "escalation_state": gen_esc,
         })
 
-    # 2. Buy & Sell Retailer Cadence
-    elif retailer_type in ("Buy & Sell", "Buy & Sell - Stock Correction"):
+    # 2. Buy & Sell and EBOC Retailer Cadence
+    elif retailer_type in ("Buy & Sell", "Buy & Sell - Stock Correction", "EBOC"):
         # A. Monthly Sample & Order Visit (30 days)
         last_so_visit = frappe.db.sql(
             """
@@ -660,7 +682,7 @@ def get_customer_asm_visit_status(customer: str, target_date: str | None = None)
             FROM `tabRetailer Visit`
             WHERE customer = %s
               AND docstatus != 2
-              AND visit_type IN ('Sample & Order Taking', 'General Visit')
+              AND visit_type IN ('Sample & Order Taking', 'General Visit', 'Stock Review')
               AND DATE(visit_date) <= %s
             ORDER BY visit_date DESC, creation DESC
             LIMIT 1
@@ -670,25 +692,26 @@ def get_customer_asm_visit_status(customer: str, target_date: str | None = None)
         )
         base_so_date = getdate(last_so_visit[0].visit_date) if last_so_visit else (getdate(customer_doc.creation) if customer_doc.creation else target_dt)
         elapsed_so = max(0, (target_dt - base_so_date).days)
-        due_so = add_days(base_so_date, BUY_SELL_VISIT_CYCLE_DAYS)
-        grace_so = add_days(base_so_date, BUY_SELL_VISIT_ESCALATION_DAYS)
+        due_so = add_days(base_so_date, bs_cycle)
+        grace_so = add_days(base_so_date, bs_esc)
 
-        if elapsed_so <= BUY_SELL_VISIT_WARNING_DAYS:
+        if elapsed_so <= bs_warn:
             so_status = STATUS_COMPLIANT
             so_esc = "None"
-        elif elapsed_so <= BUY_SELL_VISIT_CYCLE_DAYS:
+        elif elapsed_so <= bs_cycle:
             so_status = STATUS_APPROACHING
             so_esc = "Approaching"
-        elif elapsed_so <= BUY_SELL_VISIT_ESCALATION_DAYS:
+        elif elapsed_so <= bs_esc:
             so_status = STATUS_GRACE
             so_esc = "Grace"
         else:
             so_status = STATUS_OVERDUE
             so_esc = "Escalated"
 
+        obligation_label = "Monthly Stock Review" if retailer_type == "EBOC" else "Monthly Sample & Order"
         items.append({
-            "obligation_type": "Monthly Sample & Order",
-            "cycle_id": f"{customer}-Monthly Sample & Order-{base_so_date}",
+            "obligation_type": obligation_label,
+            "cycle_id": f"{customer}-{obligation_label}-{base_so_date}",
             "customer": customer_doc.name,
             "customer_name": customer_doc.customer_name or customer_doc.name,
             "retailer_type": retailer_type,
@@ -704,52 +727,53 @@ def get_customer_asm_visit_status(customer: str, target_date: str | None = None)
             "escalation_state": so_esc,
         })
 
-        # B. Outstanding Collections in 90-120 days from Delivery Date / Invoice Posting
-        unpaid_invoices = frappe.db.sql(
-            """
-            SELECT name, posting_date, outstanding_amount, grand_total
-            FROM `tabSales Invoice`
-            WHERE customer = %s
-              AND docstatus = 1
-              AND outstanding_amount > 0
-              AND DATE(posting_date) <= %s
-            ORDER BY posting_date ASC
-            """,
-            (customer, target_dt),
-            as_dict=True,
-        )
-        for inv in unpaid_invoices:
-            inv_date = getdate(inv.posting_date)
-            elapsed_inv = max(0, (target_dt - inv_date).days)
-            if elapsed_inv >= COLLECTION_WINDOW_START_DAYS:
-                due_col = add_days(inv_date, COLLECTION_WINDOW_START_DAYS)
-                grace_col = add_days(inv_date, COLLECTION_WINDOW_ESCALATION_DAYS)
-                if elapsed_inv <= COLLECTION_WINDOW_ESCALATION_DAYS:
-                    col_status = STATUS_GRACE
-                    col_esc = "Grace"
-                else:
-                    col_status = STATUS_OVERDUE
-                    col_esc = "Escalated"
+        # B. Outstanding Collections in 90-120 days from Delivery Date / Invoice Posting (Buy & Sell only)
+        if retailer_type in ("Buy & Sell", "Buy & Sell - Stock Correction"):
+            unpaid_invoices = frappe.db.sql(
+                """
+                SELECT name, posting_date, outstanding_amount, grand_total
+                FROM `tabSales Invoice`
+                WHERE customer = %s
+                  AND docstatus = 1
+                  AND outstanding_amount > 0
+                  AND DATE(posting_date) <= %s
+                ORDER BY posting_date ASC
+                """,
+                (customer, target_dt),
+                as_dict=True,
+            )
+            for inv in unpaid_invoices:
+                inv_date = getdate(inv.posting_date)
+                elapsed_inv = max(0, (target_dt - inv_date).days)
+                if elapsed_inv >= col_start:
+                    due_col = add_days(inv_date, col_start)
+                    grace_col = add_days(inv_date, col_esc)
+                    if elapsed_inv <= col_esc:
+                        col_status = STATUS_GRACE
+                        col_esc = "Grace"
+                    else:
+                        col_status = STATUS_OVERDUE
+                        col_esc = "Escalated"
 
-                items.append({
-                    "obligation_type": "Payment Collection Follow-up",
-                    "cycle_id": f"{customer}-Payment Collection Follow-up-{inv.name}",
-                    "customer": customer_doc.name,
-                    "customer_name": customer_doc.customer_name or customer_doc.name,
-                    "retailer_type": retailer_type,
-                    "territory": territory,
-                    "asm": asm,
-                    "rsm": rsm,
-                    "base_date": str(inv_date),
-                    "invoice_no": inv.name,
-                    "outstanding_amount": float(inv.outstanding_amount),
-                    "days_elapsed": elapsed_inv,
-                    "due_date": str(due_col),
-                    "grace_end_date": str(grace_col),
-                    "status": col_status,
-                    "escalation_state": col_esc,
-                    "notes": f"Invoice {inv.name} has outstanding balance of {inv.outstanding_amount} ({elapsed_inv} days since invoice).",
-                })
+                    items.append({
+                        "obligation_type": "Payment Collection Follow-up",
+                        "cycle_id": f"{customer}-Payment Collection Follow-up-{inv.name}",
+                        "customer": customer_doc.name,
+                        "customer_name": customer_doc.customer_name or customer_doc.name,
+                        "retailer_type": retailer_type,
+                        "territory": territory,
+                        "asm": asm,
+                        "rsm": rsm,
+                        "base_date": str(inv_date),
+                        "invoice_no": inv.name,
+                        "outstanding_amount": float(inv.outstanding_amount),
+                        "days_elapsed": elapsed_inv,
+                        "due_date": str(due_col),
+                        "grace_end_date": str(grace_col),
+                        "status": col_status,
+                        "escalation_state": col_esc,
+                        "notes": f"Invoice {inv.name} has outstanding balance of {inv.outstanding_amount} ({elapsed_inv} days since invoice).",
+                    })
 
     return items
 
@@ -987,4 +1011,79 @@ def get_collection_obligations(customer=None, target_date=None, page=1, page_siz
         "collections": rows[:page_size],
         "pagination": {"page": page, "page_size": page_size, "has_more": has_more},
     }
+
+
+def is_retailer_order_blocked_by_collection(customer: str, target_date: str | None = None) -> tuple[bool, str | None]:
+    """Check if retailer has overdue invoices exceeding 120 days causing an order block."""
+    cfg = get_sales_settings()
+    if not cfg.get("enforce_collection_hard_block"):
+        return False, None
+
+    target_dt = getdate(target_date or nowdate())
+    col_esc_days = cfg.get("collection_window_escalation_days", 120)
+
+    overdue_invoices = frappe.db.sql(
+        """
+        SELECT name, posting_date, outstanding_amount, grand_total
+        FROM `tabSales Invoice`
+        WHERE customer = %s
+          AND docstatus = 1
+          AND outstanding_amount > 0
+          AND DATE(posting_date) <= %s
+        ORDER BY posting_date ASC
+        """,
+        (customer, target_dt),
+        as_dict=True,
+    )
+    for inv in overdue_invoices:
+        inv_date = getdate(inv.posting_date)
+        elapsed = max(0, (target_dt - inv_date).days)
+        if elapsed >= col_esc_days:
+            return (
+                True,
+                _("Retailer {0} has unpaid invoice {1} overdue by {2} days (threshold: {3} days). New orders are blocked until payment is collected.").format(
+                    customer, inv.name, elapsed, col_esc_days
+                ),
+            )
+
+    return False, None
+
+
+@frappe.whitelist(methods=["GET"])
+def get_seasonal_calendar_status(target_date: str | None = None) -> dict:
+    """Calculate the active seasonal window (Spring/Summer vs Autumn/Winter) and pre-booking status."""
+    require_role({ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+    cfg = get_sales_settings()
+    target_dt = getdate(target_date or nowdate())
+    month = target_dt.month
+    year = target_dt.year
+
+    ss_start = cfg.get("spring_summer_start_month", 2)
+    aw_start = cfg.get("autumn_winter_start_month", 8)
+
+    if ss_start <= month < aw_start:
+        current_season = "Spring/Summer"
+        season_year = year
+        next_season = "Autumn/Winter"
+        next_season_start = f"{year}-{aw_start:02d}-01"
+    else:
+        current_season = "Autumn/Winter"
+        season_year = year if month >= aw_start else year - 1
+        next_season = "Spring/Summer"
+        next_year = year + 1 if month >= aw_start else year
+        next_season_start = f"{next_year}-{ss_start:02d}-01"
+
+    prebooking_days = cfg.get("seasonal_prebooking_days", 60)
+    days_to_next = (getdate(next_season_start) - target_dt).days
+    prebooking_active = 0 <= days_to_next <= prebooking_days
+
+    return {
+        "current_season": current_season,
+        "season_year": season_year,
+        "next_season": next_season,
+        "next_season_start": next_season_start,
+        "days_to_next_season": days_to_next,
+        "prebooking_active": prebooking_active,
+    }
+
 

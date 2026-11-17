@@ -669,3 +669,64 @@ def sales_role_user_query(doctype, txt, searchfield, start, page_len, filters):
         },
         as_list=True,
     )
+
+
+def check_rsm_capacity(rsm: str, on_date: str | None = None) -> dict:
+    """Check supervised ASM count and retailer capacity against administrator guidance settings."""
+    from sales_erp.settings import get_sales_settings
+    cfg = get_sales_settings()
+    max_asms = cfg.get("rsm_max_supervised_asms", 4)
+    max_retailers = cfg.get("rsm_max_retailer_capacity", 250)
+    mode = cfg.get("capacity_warning_mode", "Warn")
+
+    on_dt = getdate(on_date or nowdate())
+
+    supervised_asms = get_supervised_asms(rsm, on_date=on_dt)
+    asm_count = len(supervised_asms)
+
+    from sales_erp.security import assigned_sales_territories
+    rsm_territories = assigned_sales_territories(rsm)
+    retailer_count = 0
+    if rsm_territories:
+        cust_cnt = frappe.db.sql(
+            """
+            SELECT COUNT(*) as cnt
+            FROM `tabCustomer`
+            WHERE territory IN %(territories)s
+              AND (disabled IS NULL OR disabled = 0)
+            """,
+            {"territories": tuple(rsm_territories)},
+            as_dict=True,
+        )
+        retailer_count = cust_cnt[0].cnt if cust_cnt else 0
+
+    warnings = []
+    if asm_count > max_asms:
+        warnings.append(
+            frappe._("RSM {0} supervises {1} ASMs, exceeding capacity guidance of {2}.").format(
+                rsm, asm_count, max_asms
+            )
+        )
+    if retailer_count > max_retailers:
+        warnings.append(
+            frappe._("RSM {0} covers {1} retailers, exceeding capacity guidance of {2}.").format(
+                rsm, retailer_count, max_retailers
+            )
+        )
+
+    if warnings and mode == "Block":
+        frappe.throw(" ".join(str(w) for w in warnings), frappe.ValidationError)
+    elif warnings and mode == "Warn":
+        for w in warnings:
+            frappe.msgprint(str(w), indicator="orange")
+
+    return {
+        "rsm": rsm,
+        "supervised_asms": asm_count,
+        "max_asms": max_asms,
+        "retailer_count": retailer_count,
+        "max_retailers": max_retailers,
+        "warnings": [str(w) for w in warnings],
+        "mode": mode,
+    }
+

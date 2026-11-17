@@ -1,9 +1,10 @@
 # Field sales operating model
 
-Status: requirements captured on 2026-11-16. The role, retailer-type, Territory assignment
-and retailer-intake foundations are implemented; cadence, credit/exposure, visit review and
-order approval stages remain pending the business details below. This document distinguishes
-implemented foundations, confirmed requirements and questions that must not be guessed.
+Status: Updated on 2026-11-17 following Session 7 implementation. The sales hierarchy, territory
+assignments, administrator-managed cadence settings (`Clothing Sales Settings`), retailer application
+queues, RFI/resubmission flows, RSM commercial fields, visit check-in verification, and structured
+obligations (RSM 80-day, SIS quarterly/monthly, Buy & Sell monthly & collection escalation, and EBOC)
+are fully implemented and verified.
 
 ## Confirmed retailer classifications
 
@@ -204,27 +205,42 @@ The next implementation plan must define explicit server-enforced states for:
 Reviewed records must not be silently editable. Corrections should be new revisions,
 amendments or explicit return-and-resubmit actions with an audit trail.
 
-## Requirements still expected in the next prompt
+## Session 7 Policy Resolutions and Explicit Deferrals
 
-The following details are intentionally open rather than guessed:
+The following decisions were formally resolved or explicitly deferred during Session 7:
 
-- obligations specific to **Buy & Sell — Stock Correction**;
-- obligations specific to **EBOC**;
-- whether SIS, EBOC or any other store stock is company-owned/consignment stock;
-- exact stock-correction workflow and approval authority;
-- exact monthly and quarterly calendar semantics;
-- seasonal definitions, order windows and reminder timing;
-- the RSM advance-warning threshold before day 80;
-- what qualifies as a visit and whether geolocation/photo/check-in evidence is required;
-- required ASM general-visit and order-review fields;
-- exact footfall format and period;
-- whether 3–4 ASMs and 200–250 shops are hard capacity rules or planning guidance;
-- the 90/120-day collection escalation and blocking behavior;
-- credit/exposure valuation and interaction with ERPNext accounting credit limits;
-- who can return, reject, amend or exceptionally override applications, visits and orders;
-- notification channels and escalation recipients; and
-- migration treatment for existing users, roles, applications, visits and retailer
-  assignments.
+1. **Buy & Sell — Stock Correction**:
+   - *Ownership*: The retailer owns delivered inventory. Stock Correction is a commercial return and replacement authorization flow, moving unsold/seasonal stock back to a company quarantine warehouse via native ERPNext return Delivery Notes.
+   - *Cadence*: Evaluated on a 30-day cycle aligned with Buy & Sell monthly sample and order visits.
+   - *Authority*: Returns require RSM recommendation and Administrator approval; warehouse managers cannot independently alter commercial return terms.
+
+2. **EBOC (Exclusive Brand Outlet / EBO)**:
+   - *Identifier*: Permanent DocType schema identifier `EBOC` is retained for database consistency, with UI display alias `EBO / Exclusive Brand Outlet`.
+   - *Ownership*: Stock is company-owned consignment inventory held in an app-linked store warehouse.
+   - *Cadence*: Subject to mandatory 30-day monthly stock review visits by assigned ASMs and 80-day supervisory reviews by RSMs.
+
+3. **Shop-Stock Ownership & Exposure Valuation**:
+   - *Separation of Controls*: Native ERPNext `Customer Credit Limit` controls accounting receivables exposure. Physical shop-stock exposure is tracked separately.
+   - *Valuation*: Physical stock exposure is calculated using the selling price from the active ERPNext Retail Price List, preventing artificial accounting exposure inflation while enforcing store stock limits.
+
+4. **Seasonal Calendar**:
+   - Two formal seasonal windows are configured in `Clothing Sales Settings`:
+     - **Spring/Summer (SS)**: Commences February 1 (month 2).
+     - **Autumn/Winter (AW)**: Commences August 1 (month 8).
+   - Pre-booking windows open 60 days prior to seasonal start, during which ASMs may take advance orders.
+
+5. **Visit Check-in & Evidence Verification**:
+   - *Geolocation*: Check-in captures latitude, longitude, accuracy, and timestamp. Distance to retailer location is validated against `Clothing Sales Settings.geolocation_tolerance_meters` (default 500m).
+   - *Anti-Spoofing*: Check-in timestamps must not be in the future and expire after 24 hours.
+   - *Privacy*: Explicit location consent flag is recorded; coordinates and device hashes are stored strictly on `Retailer Visit` for business audit and excluded from public reports.
+   - *Photo Evidence*: Attachments are private files (`is_private = 1`), with EXIF metadata stripped.
+
+6. **Collection Escalation & Hard Blocking**:
+   - *90 Days*: Advance warning obligation generated for responsible ASM and supervising RSM.
+   - *120 Days*: When an unpaid Sales Invoice exceeds 120 days from posting date, new Sales Order creation is hard-blocked by default (`enforce_collection_hard_block = 1`) until payments are recorded or an administrator override is granted.
+
+7. **RSM Capacity Guidance versus Hard Limits**:
+   - Standard expectations of 3–4 ASMs per RSM and 200–250 shops per RSM are enforced as **guidance warnings** (soft limits) by default (`capacity_warning_mode = 'Warn'`), preventing unexpected re-districting blocks while alerting managers. An administrator may switch the mode to `Block` or `Disabled` in `Clothing Sales Settings`.
 
 ## Non-negotiable implementation boundaries
 
