@@ -2,6 +2,481 @@
 
 This is the canonical roadmap. The workspace-level work.md points here.
 
+## Production security, mobile applications and barcode programme — OPEN 2026-11-17
+
+This programme supersedes percentage claims based only on old checklist counts. A checked
+feature is not production-ready until its authorization, confidentiality, integrity,
+availability, audit, recovery, mobile and operational consequences have been tested. No
+software can honestly promise a mathematically zero probability of a data leak; the release
+standard is **zero known data exposure**, least privilege, defence in depth, tested recovery,
+documented residual risk and a release block for every unresolved critical/high finding.
+
+### Verified baseline at programme start
+
+- [x] The custom repository was clean at `3c8119e` and was 68 commits ahead of `origin/main`.
+- [x] The local site contains only the intended apps: Frappe, ERPNext, Insights,
+  India Compliance, Sales ERP, Warehouse ERP and Quality ERP. `clothing_erp` is absent.
+- [x] Real-site test run on 2026-11-17: Sales ERP 153/153, Warehouse ERP 65/65 and
+  Quality ERP 9/9 passed.
+- [x] Deployment unit/recovery tests 36/36 passed; Python compilation, JSON parsing,
+  shell syntax and JavaScript syntax passed.
+- [ ] Run the full fresh-install integration gate from the current commit in an isolated
+  environment. Local-site tests do not replace a clean database/install/migrate/build test.
+- [ ] Push the reviewed commits and obtain a green protected-branch CI run. Local commits
+  ahead of GitHub are not a published or independently verified release.
+- [ ] Correct stale documentation that still describes the removed Clothing ERP launcher,
+  old pending stages or previous app/test counts.
+
+### Truthful completion and release rules
+
+- [ ] Remove checklist-derived global percentages from release decisions. Maintain separate
+  feature, security, test, migration, mobile and deployment readiness scores with evidence.
+- [ ] A task may be checked only when implementation, negative authorization tests,
+  concurrency tests, migration/rollback and user documentation are complete where relevant.
+- [ ] Every Antigravity session must begin with `git status`, read `AGENTS.md` and this
+  section, inspect overlapping user changes, and select a bounded group of unchecked tasks.
+- [ ] Every session must end by updating this section with files changed, exact tests and
+  results, known limitations and the next safe task. Never rewrite or discard user changes.
+- [ ] Every Antigravity-authored commit must include `[antigravity]` in its subject and an
+  `Agent: Antigravity` trailer/body marker. Use small, reviewable commits.
+- [ ] Never modify Frappe, ERPNext, Insights or India Compliance source. Verify their Git
+  status before and after every session and report any pre-existing dirt separately.
+- [ ] Do not use real people, customers, financial records, credentials, phone numbers or
+  addresses in development, fixtures, screenshots, logs, analytics or tests.
+
+### P0 security and privacy release blockers
+
+#### Threat model, data inventory and access matrix
+
+- [ ] Write `docs/security/threat-model.md` covering internet/LAN attackers, malicious or
+  compromised ASM/RSM/warehouse/quality accounts, lost phones, stolen session tokens,
+  malicious uploads, dependency compromise, compromised release assets, backup theft,
+  database compromise, insider misuse, privilege escalation and denial of service.
+- [ ] Write a data-flow diagram from mobile/browser clients through nginx, Frappe, workers,
+  MariaDB, Redis, private/public files, backups, Insights and outbound notifications.
+- [ ] Inventory every personal, commercial, financial, stock, location, photograph,
+  credential, token and audit field. Assign purpose, owner, sensitivity, retention,
+  export rules, deletion rules and masking/logging policy.
+- [ ] Create a machine-reviewed role/operation matrix for Administrator, System Manager,
+  Clothing Business Administrator, ASM, RSM, Warehouse Manager, Quality Inspector and
+  Quality Manager. Include every DocType, report, page, API, export, attachment and bulk
+  action. Default to deny and explicitly document cross-app boundaries.
+- [ ] Resolve the current manager-only contradiction: migrate and remove active
+  `Clothing Warehouse Operator` authorization from server checks, seed users, page/workspace
+  roles, boot filtering and cross-app compatibility code. Keep only an audited migration
+  path for old sites; a legacy constant must not continue to grant access.
+- [ ] Prove that disabled users, ended supervision, removed Warehouse permissions and role
+  changes revoke API, list, report, attachment and cached access immediately.
+
+#### Endpoint and privileged-write audit
+
+- [ ] Inventory every `@frappe.whitelist` endpoint with method, roles, object scope, input
+  schema, maximum size, rate limit, idempotency, transaction boundary and audit event.
+- [ ] Require POST for every mutation. GET endpoints must be side-effect free, permission
+  scoped, bounded and resistant to identifier enumeration.
+- [ ] Review every `ignore_permissions=True`, `flags.ignore_permissions`, direct
+  `frappe.db.set_value`, raw SQL mutation and `delete_doc`. Each occurrence must have a
+  preceding server-side authority/scope/state check and a focused negative test, or be
+  replaced with a permission-aware native controller call.
+- [ ] Review every raw SQL query for parameterization, permission equivalence, bounded
+  results, company isolation and row-lock correctness. Add a static test that rejects
+  unreviewed interpolated SQL and records approved exceptional locations.
+- [ ] Validate all API inputs with explicit types, length/range limits, normalized names,
+  allowed enums and maximum collection sizes. Reject unknown fields where the endpoint
+  accepts structured payloads.
+- [ ] Add rate limits and abuse tests for login, search, catalogue, scanning, bulk actions,
+  file upload, reports, exports and mobile synchronization.
+- [ ] Add idempotency keys with user/scope/payload binding and expiry for order creation,
+  visits, scans, returns, dispatch, quality decisions, mobile queued writes and bulk jobs.
+- [ ] Verify transaction rollback for partial failures and add deadlock/retry tests for all
+  row-locked transitions. Never catch an error and silently commit partial business state.
+- [ ] Add explicit, immutable security audit events for permission/role changes, territory
+  and warehouse reassignment, credit changes, order approval/cancellation, stock handoff,
+  returns, quality gates, exports, failed authorization and administrative overrides.
+
+#### Authentication, sessions and mobile credentials
+
+- [ ] Select and document a supported mobile authentication design. Prefer OAuth 2.0
+  Authorization Code with PKCE if the pinned Frappe release can support it safely; otherwise
+  use a reviewed short-lived token exchange. Never store a password or long-lived API secret
+  in a mobile bundle, source repository, ordinary preferences, logs or analytics.
+- [ ] Store refresh/session material only in iOS Keychain/Android Keystore-backed secure
+  storage; rotate refresh tokens, detect reuse where possible and support remote revocation.
+- [ ] Define short access-token/session lifetime, inactivity timeout, absolute lifetime,
+  device logout, all-device logout, administrator revocation and lost-device response.
+- [ ] Enforce CSRF protection for cookie sessions, strict origin/host validation and secure
+  cookie attributes. Test fixation, replay and cross-origin requests.
+- [ ] Require MFA for Administrator/System Manager and strongly recommend/enforce it for
+  business approvers. Add recovery-code and account-recovery procedures that do not bypass
+  identity verification.
+- [ ] Add brute-force throttling, alerting and safe lockout behavior without exposing whether
+  an email/user exists.
+
+#### Network, TLS and host hardening
+
+- [ ] Replace the production HTTP-only installer outcome with HTTPS before any real data is
+  entered. Support an operator-supplied certificate and a documented ACME/domain mode;
+  redirect HTTP to HTTPS and set the correct site URL.
+- [ ] Configure modern TLS, HSTS after HTTPS is proven, secure headers, clickjacking
+  protection, MIME sniffing protection, a tested Content Security Policy and a restrictive
+  referrer/permissions policy without breaking Frappe assets.
+- [ ] Do not display or transmit the initial Administrator password over plaintext HTTP.
+  Force password change, protect the root credential file with mode 0600, document deletion
+  after onboarding and ensure it never appears in process lists or logs.
+- [ ] Harden the unprivileged LXC: no nesting unless proven necessary, minimal capabilities,
+  firewall defaults, restricted management access, time synchronization, security updates,
+  log rotation and resource limits. Document Proxmox host responsibilities separately.
+- [ ] Harden systemd services with the maximum compatible `NoNewPrivileges`, private temp,
+  filesystem protection, kernel/control-group restrictions, capability removal and explicit
+  read/write paths. Test web, workers, scheduler and socket service functionality afterward.
+- [ ] Bind MariaDB and Redis only to trusted local interfaces/sockets, require authentication
+  where supported, restrict filesystem permissions and prove neither is reachable externally.
+- [ ] Run services as dedicated unprivileged identities and audit all suite/site/private-file
+  permissions. World-readable site configs, private files or backups are release blockers.
+
+#### Files, photographs, exports and privacy
+
+- [ ] Make retailer, visit, return and quality evidence private by default. Verify a user
+  cannot retrieve a private File URL without both File permission and permission to its
+  referenced business document.
+- [ ] Enforce upload size, count, MIME signature, extension and decompression/image dimension
+  limits. Rename server-side, strip unsafe metadata where policy permits, reject executable
+  or polyglot content and integrate a documented malware-scanning/quarantine path.
+- [ ] Replace single quality `Attach Image` fields with permission-aware multi-photo child
+  evidence containing private File, caption, evidence type, display order, uploader and
+  immutable timestamp. Preserve rejected/superseded evidence according to retention policy.
+- [ ] Make deletion reference-safe across all documents and mobile upload retries. Add tests
+  for shared references, deleted rows, failed uploads, orphan cleanup and backup/restore.
+- [ ] Permission-scope and audit every CSV/PDF/print/export. Add spreadsheet-injection
+  protection, watermarks/revision markers where needed, bounded exports and no hidden-field
+  leakage.
+- [ ] Ensure application errors, web logs, worker logs, mobile logs, crash reports and
+  Insights datasets redact passwords, tokens, cookies, GSTIN/phone/email/address where not
+  operationally required, SQL parameters and private file URLs.
+
+#### Secrets, supply chain and release integrity
+
+- [ ] Add automated secret scanning for current files and Git history, dependency/license
+  scanning, Python/JavaScript/mobile SCA, static analysis and a reviewed vulnerability policy.
+- [ ] Pin third-party GitHub Actions to immutable commit SHAs, not mutable major tags, and
+  minimize workflow permissions. Protect release environments/tags and require reviewed CI.
+- [ ] Verify Sigstore/GitHub provenance or another independent publisher signature in the
+  customer installer/update client, not only SHA256 files downloaded from the same release.
+  Reject unexpected repositories, redirects, subjects, identities, versions and manifests.
+- [ ] Generate an SBOM for server and each mobile app, attach it to releases and retain exact
+  source/runtime/mobile dependency locks.
+- [ ] Prohibit unreviewed runtime downloads and post-install scripts. Check hashes/signatures
+  before execution and test mirror/network failure without falling back to untrusted input.
+- [ ] Add security contact, supported-version policy, vulnerability disclosure procedure,
+  emergency release/revocation process and compromised-signing/repository response runbook.
+
+#### Encryption, backups, retention and disaster recovery
+
+- [ ] Decide and document database/file/backup encryption at rest, key ownership, rotation,
+  recovery and separation from encrypted data. Never place backup keys beside backups.
+- [ ] Implement encrypted, integrity-authenticated off-host backups with retention tiers and
+  least-privilege destination credentials. Local snapshots alone are not disaster recovery.
+- [ ] Back up MariaDB, site config, public/private files, encryption keys required by Frappe,
+  queue state where necessary and release metadata consistently.
+- [ ] Automate restore verification into an isolated environment and prove record counts,
+  private files, attachments, permissions, mobile token revocation and application health.
+- [ ] Define RPO/RTO, backup monitoring, failure alerts, restore authorization, legal/business
+  retention and secure deletion. Test ransomware/operator-error scenarios.
+- [ ] Run a real Proxmox install, update, reboot, backup, restore and rollback drill before
+  release. Capture commands, versions, timings and evidence without secrets.
+
+### Production feature completion — Sales ERP
+
+- [ ] Reconcile `docs/field-sales-operating-model.md` with implemented behavior and remove
+  stale “pending” statements only after tests prove them.
+- [ ] Obtain business decisions and implement configurable, audited rules for Buy & Sell —
+  Stock Correction and EBOC; do not invent cadence or ownership semantics.
+- [ ] Define physical shop-stock ownership and valuation by retailer type. Separate physical
+  exposure from ERPNext accounting credit, tax and receivable controls; test delivery,
+  return, cancellation, damage, correction and concurrent-order effects.
+- [ ] Add administrator-managed settings for cadence, warning/grace intervals, seasonal
+  windows, collection escalation and capacity warnings, with validation and change history.
+- [ ] Complete retailer application queues, missing-information exchange, document/photo
+  requirements, RSM-owned commercial fields and immutable approval evidence.
+- [ ] Complete ASM/RSM visit check-in policy: optional/required location, timestamp, evidence,
+  consent/privacy, spoofing limitations, offline behavior and review trail.
+- [ ] Complete order return/reject/resubmit/amend flows through native ERPNext Workflow.
+  Preserve prices, taxes, discounts, commissions, reservations, credit and audit semantics.
+- [ ] Add notification inboxes and idempotent reminders/escalations without leaking one
+  territory's retailer/order information to another.
+- [ ] Add permission-scoped operational dashboards for applications, visits, overdue cadence,
+  orders, exposure, collections and delivery issues; verify aggregate queries cannot leak
+  out-of-scope counts.
+- [ ] Test multi-company, multi-currency, tax templates, India Compliance/GST, Pricing Rules,
+  Sales Team commission, partial delivery, returns, cancellation and disabled master data.
+- [ ] Add high-volume tests for 250+ shops per RSM, catalogue pagination, scheduling,
+  concurrent approvals and duplicate mobile submissions.
+
+### Production feature completion — Warehouse ERP
+
+- [ ] Finish the manager-only migration described in the P0 access section and verify old
+  operator users lose all list, read, print, scan, dispatch, return and attachment access.
+- [ ] Formalize the native document sequence and authority for Pick List, Packing Slip,
+  Delivery Note, draft/submitted Sales Invoice and India Compliance/e-Waybill. Warehouse
+  managers must never alter protected accounting or commercial fields.
+- [ ] Add server-generated wave/route work queues, bounded bulk preflight, per-document
+  failure reporting, safe retries, cancellation and job progress for large operations.
+- [ ] Complete package identity, count, weight, dimensions, carrier, vehicle, LR/tracking,
+  handler acceptance, timestamps and proof of handoff with immutable audit history.
+- [ ] Implement printable labels/manifests with permission checks, deterministic templates,
+  printer-safe PDF and optional reviewed ZPL, reprint audit and no sensitive excess fields.
+- [ ] Complete partial fulfilment/backorder, mixed tracking, stock reservation, wrong-location,
+  expiry, rejected batch, serial ownership and concurrent scanner scenarios using native
+  ERPNext controllers.
+- [ ] Complete return financial-policy hooks without assuming refund/credit/replacement;
+  keep physical receipt quarantined until authorized commercial and quality decisions.
+- [ ] Add quarantine, awaiting-quality, refurbishment and restock SLA queues, assignment,
+  reason codes, evidence, labels and permission-scoped dashboards.
+- [ ] Add refurbishment operations, assignee, consumed material/cost references, timings,
+  before/after evidence and mandatory post-refurbishment reinspection if approved by business.
+- [ ] Load-test large Pick Lists, multiple devices scanning the same row, bulk operations,
+  printer failure and network interruption. Prove no over-pick, duplicate return or silent skip.
+
+### Production feature completion — Quality ERP
+
+- [ ] Create a real Production Quality Cycle with a confirmed unique business key and links
+  to Supplier, Purchase Order, relevant Items/styles/colourways, production lot/season and
+  applicable Purchase Receipt/native Quality Inspection. Do not duplicate purchasing/stock.
+- [ ] Replace the single broad inspection record model with explicit cycle/stage/report
+  relationships supporting multiple Inline and Mid-line visits and immutable revisions.
+- [ ] Add versioned checklist templates by item group/product/category; historical reports
+  retain the exact checklist version reviewed.
+- [ ] Capture measurements/readings, sampling plan, sampled/passed/failed quantities,
+  defect code/severity, result, recommendation, corrective action, owner and due date.
+- [ ] Implement multi-photo private evidence, captions/types/order, side-by-side revision
+  comparison and missing-evidence gates as defined in the security section.
+- [ ] Implement correction requested, resubmitted, conditional approval, rejection,
+  supersession and exceptional override policies with immutable reasons and exact revisions.
+- [ ] Build a single Production Go Ahead review screen showing all prerequisites, evidence,
+  corrections and exact revisions; only authorized administrators may decide the gate.
+- [ ] Build a complete Final Inspection review screen showing all seven stages, repeated
+  visits, evidence, corrections and both gate decisions; define what native event approval
+  authorizes instead of changing stock/payables implicitly.
+- [ ] Add generated controlled PDF/report bundles with permission checks, watermark,
+  revision hash/identifier and export audit.
+- [ ] Complete failed-return dispositions, supplier claims, scrap/seconds/on-hold decisions,
+  post-refurbishment reinspection and costing only after business approval.
+- [ ] Expand Quality tests from the current nine real-site cases to negative permissions,
+  cross-supplier/company isolation, multiple visit reports, evidence privacy, revisions,
+  corrections, concurrency, gate races, Purchase Receipt integration and recovery.
+
+### Barcode, QR and label system — server, web and mobile
+
+The barcode is an identifier, never authorization. Every scan must resolve and revalidate
+the current user, company, Territory/Warehouse, document state, quantity, serial/batch,
+remaining work and concurrency on the server.
+
+- [ ] Write `docs/barcodes.md` defining identifier namespaces and symbologies before coding:
+  Item/EAN/UPC/GTIN where supplied, internal Item Code128, Serial No, Batch No, package,
+  Pick List, Delivery Note, return/quarantine, quality-cycle/report and location labels.
+- [ ] Reuse ERPNext Item Barcode, Serial No, Batch No and Serial and Batch Bundle wherever
+  they are authoritative. Do not generate a second competing product/serial registry.
+- [ ] Add administrator-controlled internal barcode generation with collision-safe server
+  allocation, check digit where applicable, immutable assignment/audit, preview and explicit
+  rules for manufacturer barcodes. Never silently replace a used identifier.
+- [ ] Support Code 128 for internal identifiers and standards-compliant EAN-13/UPC/GTIN/GS1
+  only when input ownership, length, check digit and licensing/business rules are satisfied.
+  Use QR only for opaque non-secret record/label identifiers or URLs requiring login.
+- [ ] Add single and bounded bulk label generation for products/size variants, bins/locations,
+  packages, returns and quality records. Provide configurable label size, human-readable text,
+  company/brand, SKU, colour, size, price only when authorized, batch/serial and print count.
+- [ ] Produce deterministic PDF and optional reviewed ZPL without shell interpolation or
+  remote resources. Permission-check generation and download; record who printed/reprinted.
+- [ ] Create one server-side scan resolver that accepts normalized scan text plus operation
+  context and returns a minimal typed result. Prevent cross-company/warehouse/territory
+  enumeration and ambiguous collisions across barcode types.
+- [ ] Support hardware keyboard-wedge scanners and mobile camera scanning with debounce,
+  duplicate suppression, continuous scan mode, torch, sound/haptic/color feedback and an
+  accessible manual entry fallback.
+- [ ] Add explicit scan operations for catalogue lookup, picking, undo-before-submit,
+  packing, dispatch, returns, quarantine, refurbishment, stock/location and quality evidence.
+- [ ] Require idempotency and row locks for scan mutations; add replay, rapid double scan,
+  two-device race, wrong item, wrong variant, wrong batch, wrong serial, expired batch,
+  over-pick, over-return, offline replay and revoked-access tests.
+- [ ] Never embed credentials, customer PII, prices, private file URLs or business approval
+  in a barcode. Treat printed identifiers as observable and potentially forged.
+
+### Mobile programme — three production applications
+
+Build three separately branded apps sharing a reviewed core library:
+
+1. **Clothing Sales Mobile** for ASM/RSM.
+2. **Clothing Warehouse Mobile** for warehouse managers.
+3. **Clothing Quality Mobile** for quality inspectors/managers and authorized approvers.
+
+Use one cross-platform codebase with separate application targets/bundle identifiers and
+strict role-aware navigation. Flutter is the preferred starting candidate for Android/iOS,
+camera/barcode, secure storage and controlled offline data; record an ADR comparing it with
+Capacitor/PWA and native development before committing. A web wrapper alone is not accepted
+as a production mobile app unless security, offline, camera and lifecycle requirements pass.
+
+#### Mobile foundation shared by all three apps
+
+- [ ] Add `mobile/` as an independent workspace with shared API/auth/design/offline/scanner
+  packages and three thin app targets. Do not package ERPNext server source into clients.
+- [ ] Create an OpenAPI-like, versioned mobile contract with typed requests/responses,
+  pagination, stable error codes, minimum-supported version and deprecation policy.
+- [ ] Implement secure authentication, token storage/revocation and device/session management
+  from the P0 authentication section. No embedded administrator/API credentials.
+- [ ] Enforce TLS with hostname validation. Do not add a “trust all certificates” mode.
+  If certificate pinning is selected, include safe rotation and recovery design.
+- [ ] Minimize offline data per role. Encrypt the local database with a hardware-backed key,
+  exclude it from insecure backups, redact notifications/app-switcher previews and wipe on
+  logout, revocation, account disable or excessive failed unlock attempts as policy defines.
+- [ ] Offline writes must be a visible encrypted queue with UUID idempotency key, original
+  user/device/time, payload version, retry state and conflict UI. Server permissions/state
+  are always revalidated; offline state never authorizes a transaction.
+- [ ] Never cache unnecessary cross-territory/cross-warehouse/customer financial/private
+  evidence. Define per-entity TTL, purge, attachment download and screenshot policy.
+- [ ] Add database/API migrations, crash-safe queue processing, clock-skew handling, timezone
+  tests, background/resume behavior, low-storage behavior and interrupted upload recovery.
+- [ ] Add accessibility, localization architecture, responsive phone/tablet layouts,
+  dark/light contrast, large scan targets and clear offline/sync/security status.
+- [ ] Make telemetry opt-in/configured, self-hosted or privacy-reviewed; never send document
+  content, identifiers, tokens, photos or personal data to third-party analytics/crash tools.
+- [ ] Add signed reproducible Android/iOS CI builds, protected signing credentials,
+  dependency/SBOM scans, release channels, forced/minimum version handling and store/internal
+  distribution documentation. Never expose signing keys to pull-request jobs.
+- [ ] Test supported Android/iOS versions, low-end devices, camera permissions, hardware
+  scanners, airplane mode, intermittent networks, token expiry, revoked role and lost device.
+
+#### Clothing Sales Mobile features
+
+- [ ] ASM/RSM home with only authorized Territory metrics, due visits, escalations,
+  applications, orders, collections and delivery follow-ups.
+- [ ] Permission-scoped retailer directory/detail, contacts and navigation handoff without
+  exposing other Territories or unnecessary financial/private fields.
+- [ ] Retailer application draft, private evidence upload, save/resume, submit, RSM queue,
+  request-more-information, resubmit, approve/reject and audited initial limit proposal.
+- [ ] Monthly/SIS/seasonal/RSM visit queues, check-in policy, notes, footfall, financial/dealer
+  review, stock review, evidence, follow-up and supervisor/admin review states.
+- [ ] Offline-capable catalogue subset with images, size matrix and server-revalidated native
+  price/stock. Clearly mark stale data and never allow cached price to become authoritative.
+- [ ] Cart/draft order with idempotent sync, exposure preview, server repricing, RSM approval,
+  returned corrections, submission/cancellation status and native validation messages.
+- [ ] Scoped 90–120-day collection worklist using native outstanding data; record visit/contact
+  outcome but never create a duplicate receivables ledger or collect/store payment secrets.
+- [ ] Delivery follow-up confirmation/issues with escalation and optional barcode lookup.
+- [ ] RSM supervision view for assigned ASMs only, with no user-management privilege.
+
+#### Clothing Warehouse Mobile features
+
+- [ ] Assigned warehouse work queues for picking, packing, dispatch, exceptions, returns,
+  quarantine handoff and refurbishment with bounded search/pagination.
+- [ ] Camera and hardware-scanner workflow using the server barcode contract: permanent scan
+  focus, quantity/remaining display, serial/batch detail, undo unsubmitted scan and explicit
+  error feedback.
+- [ ] Offline scan queue only where the risk policy permits; require server reconciliation
+  before completion/submission and visibly block stock transitions while offline.
+- [ ] Partial pick/shortage split, backorder/reallocation, packing, package measurements,
+  label/manifest printing and carrier handoff with native Pick List/Delivery Note controllers.
+- [ ] Bulk operations with preflight and per-document results; never hide partial failure.
+- [ ] Return scan against original delivery, remaining returnable quantity, reason/condition,
+  private photos and idempotent quarantine receipt.
+- [ ] Refurbishment queue, operations/evidence and authorized native movement back to stock
+  only after required quality clearance.
+- [ ] Bluetooth/network printer support only through reviewed platform APIs; validate printer
+  payloads and never send credentials or unrelated order/customer fields.
+
+#### Clothing Quality Mobile features
+
+- [ ] Assigned production cycles, stage-due queue, returns awaiting inspection, corrections,
+  ageing and gate-review status with strict Supplier/company scope.
+- [ ] Versioned stage checklist completion, measurements, sample counts, defects/severity,
+  recommendation, corrective action, due date and multiple captioned private photos.
+- [ ] Camera capture must remove unsafe metadata according to policy, preserve required
+  evidence metadata, compress safely, checksum uploads and resume without duplicates.
+- [ ] Support multiple Inline/Mid-line reports, revision comparison, requested corrections
+  and immutable resubmission trail.
+- [ ] Return quarantine decision and post-refurbishment reinspection without bypassing native
+  stock movement or Warehouse authorization.
+- [ ] Administrator gate review may be mobile-enabled only after strong authentication and
+  an exact immutable review bundle; high-risk approval should require online reauthentication.
+- [ ] Controlled PDF/report viewing/downloading with expiry, device storage policy and remote
+  revocation; do not expose permanent private File URLs.
+
+### Test and production certification matrix
+
+- [ ] Unit tests: validation, state machines, calculations, barcode normalization/check
+  digits, serializers and mobile conflict logic.
+- [ ] Real-site integration tests: every role, positive and negative object scope, native
+  controller/settings combinations, private files, scheduled jobs, concurrency and rollback.
+- [ ] API contract tests shared with mobile clients, including backward/forward compatibility,
+  malformed/oversized inputs, pagination, rate limits, idempotency and stable error codes.
+- [ ] Browser E2E tests for Administrator, ASM, RSM, Warehouse Manager, Quality Inspector and
+  Quality Manager, including direct URL/API attempts to forbidden areas.
+- [ ] Mobile unit/widget/integration/E2E tests on real Android and iOS devices plus hardware
+  barcode scanners and supported printers.
+- [ ] Security tests: SAST, SCA, secret/history scan, authorization matrix, IDOR/BOLA, CSRF,
+  XSS, SQL injection, upload/polyglot/decompression abuse, SSRF, path/archive traversal,
+  token replay, session revocation, brute force and rate limiting.
+- [ ] Concurrency/fuzz/property tests for order exposure, approvals, scans, bulk processing,
+  return quantities, serial/batch identity, quality gates and schedulers.
+- [ ] Load/soak tests using synthetic data for expected and peak users, 250+ shops/RSM,
+  large catalogues/Pick Lists, scheduled cadence, uploads, reports and mobile synchronization.
+- [ ] Migration tests from v0.3.0/legacy Clothing ERP and representative intermediate states;
+  run migrate twice, verify data/files/permissions and prove rollback from injected failures.
+- [ ] Backup/restore, update/rollback, power loss, disk full, Redis/MariaDB restart, worker
+  crash and network-partition drills with documented expected recovery.
+- [ ] Independent manual security review and remediation of all critical/high findings before
+  production. Record accepted lower risks with owner, reason and review date.
+- [ ] Release candidate user acceptance with synthetic data and signed approval from Sales,
+  Warehouse, Quality and operations owners.
+
+### Suggested Antigravity multi-session order
+
+Each session should complete a coherent slice, update this roadmap and stop with a clean
+commit. Do not attempt this entire programme in one context window.
+
+1. **Session 1 — audit ledger:** endpoint/privileged-write/SQL/file/access inventory,
+   threat model, data classification and truthful documentation reconciliation.
+2. **Session 2 — authorization:** role-operation matrix, manager-only warehouse migration,
+   cache revocation and cross-role/cross-scope negative tests.
+3. **Session 3 — API security:** input schemas, POST-only mutations, bounds, idempotency,
+   rate limits, transactions and audit events.
+4. **Session 4 — file/privacy security:** private evidence, multi-photo model, validation,
+   malware path, deletion/retention, export protection and log redaction.
+5. **Session 5 — deployment security:** HTTPS, headers, LXC/systemd/database/Redis/file
+   hardening, secrets, credentials and network tests.
+6. **Session 6 — supply chain/recovery:** immutable actions, provenance verification, SBOM,
+   encrypted off-host backup, automated restore and incident runbooks.
+7. **Sessions 7–8 — Sales production closure:** unresolved retailer-type rules, settings,
+   exposure/native settings matrix, workflow/reports/scale and mobile API contract.
+8. **Sessions 9–10 — Warehouse production closure:** manager-only cleanup, waves/packages,
+   labels/manifests, returns/refurbishment, concurrency/load and mobile API contract.
+9. **Sessions 11–13 — Quality production closure:** cycle/report schema, checklists,
+   multi-photo evidence, corrections/gates/PDF, native links and expanded tests.
+10. **Session 14 — barcode platform:** namespaces, generation, resolver, labels, printing,
+    web scanner and race/security tests.
+11. **Session 15 — mobile foundation:** ADR, workspace, secure auth/storage, API client,
+    encrypted offline queue, scanner and signed CI skeletons for three app targets.
+12. **Sessions 16–18 — mobile products:** Sales, Warehouse and Quality apps respectively,
+    each with device/E2E/security tests and no cross-role data leakage.
+13. **Session 19 — full certification:** fresh install, migrations, security/load/E2E,
+    Android/iOS release candidates, real Proxmox drill and evidence pack.
+14. **Session 20 — release:** remediate findings, final independent review, publish signed
+    stable artifacts and document operations/rollback/support.
+
+### Production definition of done
+
+- [ ] No unresolved critical/high security issue; no known cross-role, cross-Territory,
+  cross-Warehouse, cross-Supplier/company or private-file data leak.
+- [ ] All server, browser, mobile, security, concurrency, migration, recovery and performance
+  gates pass from a clean release artifact, with exact evidence recorded.
+- [ ] HTTPS, secure secrets, signed/provenance-verified updates, encrypted tested backups,
+  monitoring, alerts and incident response are operational.
+- [ ] Sales, Warehouse and Quality owners accept their workflows using synthetic data.
+- [ ] Three signed mobile applications meet authentication, secure storage, offline, barcode,
+  privacy, accessibility and supported-device requirements.
+- [ ] A real Proxmox installation/update/reboot/restore/rollback succeeds and is documented.
+- [ ] README, architecture, operating models, security, mobile, barcode, deployment and
+  operations documents exactly match the shipped release; no stale completion claims remain.
+
 ## Requirements intake — 2026-11-16
 
 The field-sales operating model has changed materially and is documented in full at

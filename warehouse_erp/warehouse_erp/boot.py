@@ -34,8 +34,27 @@ def get_user_operational_permitted_apps(user=None):
     return permitted if permitted else None
 
 
+def ensure_module_app_mapped():
+    """Ensure sales_erp, warehouse_erp, and quality_erp are always mapped in local.module_app."""
+    module_app = getattr(frappe.local, "module_app", None)
+    if module_app is None:
+        frappe.setup_module_map()
+        module_app = getattr(frappe.local, "module_app", None) or {}
+
+    missing = any(mod not in module_app for mod in ("sales_erp", "warehouse_erp", "quality_erp"))
+    if missing:
+        frappe.cache.delete_value("app_modules")
+        frappe.client_cache.delete_value("installed_app_modules")
+        frappe.setup_module_map(include_all_apps=True)
+        if hasattr(frappe.local, "module_app") and frappe.local.module_app is not None:
+            frappe.local.module_app["sales_erp"] = "sales_erp"
+            frappe.local.module_app["warehouse_erp"] = "warehouse_erp"
+            frappe.local.module_app["quality_erp"] = "quality_erp"
+
+
 def apply_runtime_patches():
     """Patch get_apps and get_workspaces to guarantee strict operational app isolation."""
+    ensure_module_app_mapped()
     try:
         import frappe.apps
         if not getattr(frappe.apps, "_isolation_patched", False):
@@ -84,6 +103,10 @@ def restrict_warehouse_app_visibility(bootinfo):
        (Sales ERP, Quality ERP) are hidden from operational warehouse users.
     """
     apply_runtime_patches()
+    if bootinfo.get("module_app"):
+        bootinfo["module_app"]["sales_erp"] = "sales_erp"
+        bootinfo["module_app"]["warehouse_erp"] = "warehouse_erp"
+        bootinfo["module_app"]["quality_erp"] = "quality_erp"
     user = get_current_user()
     roles = get_user_roles(user)
     wh_roles = {row["role_name"] for row in ALL_ROLES if row["role_name"] != ROLE_BUSINESS_ADMIN}
