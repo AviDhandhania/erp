@@ -109,3 +109,14 @@ flowchart TD
    - OEM broadcast intent binding for rugged warehouse handhelds (Zebra DataWedge, Honeywell Mobility Edge).
    - Camera barcode scanner with torch/flashlight control and multi-sensory feedback (synth audio, haptic vibration, visual status colors).
    - Safe photo intake with client-side EXIF/GPS stripping, 2MB size bounding, and SHA-256 cryptographic hashing.
+
+5. **Clothing Sales Mobile Implementation (`com.clothingerp.sales`)**:
+   - ASM/RSM territory-scoped dashboard with zero cross-territory data exposure.
+   - Retailer directory & detail with navigation handoff, exposure metrics, and 120-day collection hard block indicators.
+   - Retailer onboarding with draft save/resume, multi-photo private evidence (`SafePhotoManager`), and RSM commercial review workflows.
+   - Visit obligations and geolocation check-in verification with anti-spoofing and storefront photo evidence.
+   - Offline-capable catalogue subset with visible stale data indicators; prices and stock are strictly non-authoritative.
+   - Shopping cart with server-side repricing preflight, exposure verification, UUID v4 idempotency, and offline queueing.
+   - 90–120 day collection worklist derived from native ERPNext Accounts Receivable with zero payment secrets.
+   - Delivery follow-up confirmation with carton barcode verification.
+   - RSM supervision view with ASM capacity guidance (~3-4 ASMs, ~200-250 shops) and zero user-management authority.

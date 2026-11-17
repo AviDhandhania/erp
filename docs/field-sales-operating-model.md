@@ -242,6 +242,43 @@ The following decisions were formally resolved or explicitly deferred during Ses
 7. **RSM Capacity Guidance versus Hard Limits**:
    - Standard expectations of 3–4 ASMs per RSM and 200–250 shops per RSM are enforced as **guidance warnings** (soft limits) by default (`capacity_warning_mode = 'Warn'`), preventing unexpected re-districting blocks while alerting managers. An administrator may switch the mode to `Block` or `Disabled` in `Clothing Sales Settings`.
 
+## Clothing Sales Mobile Architecture (Session 16)
+
+The dedicated mobile client for field operations (`mobile/apps/sales_app`, bundle ID `com.clothingerp.sales`)
+realizes the operational model on Android (SDK 28+) and iOS (15.0+):
+
+1. **Role Gating & Scoping**:
+   - Boot handshake verifies operational role (`Clothing Area Sales Manager` vs `Clothing Regional Sales Manager`).
+   - Unauthorized users or revoked roles trigger immediate session wipe (`wipeAllCaches()`) and cryptographic database destruction.
+   - Zero cross-territory data leakage: queries and cached subsets are strictly restricted to assigned territories.
+
+2. **Server Revalidation Doctrine**:
+   - Cached prices, discounts, taxes, and stock levels are explicitly marked `isStale = true` and advisory.
+   - Before draft order placement, the client calls `SalesOrderManager.refreshRepricingAndExposure()` to fetch authoritative server repricing and verify live stock exposure.
+
+3. **Offline Mutation Queue with UUID Idempotency**:
+   - Offline order drafts, visits, and onboarding applications are queued in SQLCipher 256-bit AES encrypted storage.
+   - Every mutation carries a client-generated UUID v4 idempotency key (`X-Idempotency-Key` and payload binding).
+   - Business rejections (e.g. exposure limit exceeded on server) transition items to `ConflictModel` for explicit user review and resolution.
+
+4. **Retailer Onboarding & Private Multi-Photo Evidence**:
+   - ASMs draft prospective retailer applications and capture multi-photo evidence (storefront, interior, tax documents) through `SafePhotoManager`, which strips EXIF/GPS, caps file size at 2MB, and computes SHA-256 checksums.
+   - RSMs review submissions in `RsmApplicationReviewScreen`, update commercial review fields (turnover, footfall, square footage), propose initial exposure limits, or request more information (RFI).
+
+5. **90–120 Day Collection Worklist**:
+   - Surfaces overdue invoices derived strictly from native ERPNext Accounts Receivable.
+   - Logs visit/contact outcomes (`Payment Promised`, `Cheque Collected`, `Dispute / Reconciliation Needed`, `Retailer Unavailable`, `Escalated to RSM`).
+   - Zero payment secrets (CVVs, PINs, card numbers) are collected or stored; zero parallel accounting ledgers.
+
+6. **Post-Dispatch Delivery Follow-Up**:
+   - Displays delivery obligations linked to native Delivery Notes.
+   - Optional carton barcode verification using the unified scanner abstraction (`MobileScannerController`).
+   - Records arrival confirmation, shortages, or damages with automatic issue escalation.
+
+7. **RSM Supervision View**:
+   - RSMs monitor supervised ASMs, active territory retailer counts, and capacity guidance (~3–4 ASMs, ~200–250 shops).
+   - Reviews pending retailer applications and draft orders without possessing user-management privileges.
+
 ## Non-negotiable implementation boundaries
 
 - Do not modify ERPNext, Frappe, India Compliance or Insights source.

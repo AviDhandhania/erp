@@ -227,6 +227,23 @@ class TestSalesOrdersReportsScale(FrappeTestCase):
         frappe.set_user("Administrator")
         so_doc = frappe.get_doc("Sales Order", order_res["name"])
         rate = so_doc.items[0].rate
+        wh = so_doc.items[0].warehouse
+
+        # Ensure sufficient warehouse stock before delivery
+        se = frappe.get_doc({
+            "doctype": "Stock Entry",
+            "stock_entry_type": "Material Receipt",
+            "company": so_doc.company,
+            "items": [{
+                "item_code": self.item_code,
+                "t_warehouse": wh,
+                "qty": 20,
+                "basic_rate": 200,
+            }],
+        })
+        se.flags.ignore_permissions = True
+        se.insert()
+        se.submit()
 
         dn = frappe.get_doc({
             "doctype": "Delivery Note",

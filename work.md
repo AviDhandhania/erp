@@ -348,22 +348,22 @@ as a production mobile app unless security, offline, camera and lifecycle requir
 
 #### Clothing Sales Mobile features
 
-- [ ] ASM/RSM home with only authorized Territory metrics, due visits, escalations,
+- [x] ASM/RSM home with only authorized Territory metrics, due visits, escalations,
   applications, orders, collections and delivery follow-ups.
-- [ ] Permission-scoped retailer directory/detail, contacts and navigation handoff without
+- [x] Permission-scoped retailer directory/detail, contacts and navigation handoff without
   exposing other Territories or unnecessary financial/private fields.
-- [ ] Retailer application draft, private evidence upload, save/resume, submit, RSM queue,
+- [x] Retailer application draft, private evidence upload, save/resume, submit, RSM queue,
   request-more-information, resubmit, approve/reject and audited initial limit proposal.
-- [ ] Monthly/SIS/seasonal/RSM visit queues, check-in policy, notes, footfall, financial/dealer
+- [x] Monthly/SIS/seasonal/RSM visit queues, check-in policy, notes, footfall, financial/dealer
   review, stock review, evidence, follow-up and supervisor/admin review states.
-- [ ] Offline-capable catalogue subset with images, size matrix and server-revalidated native
+- [x] Offline-capable catalogue subset with images, size matrix and server-revalidated native
   price/stock. Clearly mark stale data and never allow cached price to become authoritative.
-- [ ] Cart/draft order with idempotent sync, exposure preview, server repricing, RSM approval,
+- [x] Cart/draft order with idempotent sync, exposure preview, server repricing, RSM approval,
   returned corrections, submission/cancellation status and native validation messages.
-- [ ] Scoped 90–120-day collection worklist using native outstanding data; record visit/contact
+- [x] Scoped 90–120-day collection worklist using native outstanding data; record visit/contact
   outcome but never create a duplicate receivables ledger or collect/store payment secrets.
-- [ ] Delivery follow-up confirmation/issues with escalation and optional barcode lookup.
-- [ ] RSM supervision view for assigned ASMs only, with no user-management privilege.
+- [x] Delivery follow-up confirmation/issues with escalation and optional barcode lookup.
+- [x] RSM supervision view for assigned ASMs only, with no user-management privilege.
 
 #### Clothing Warehouse Mobile features
 
@@ -1790,3 +1790,56 @@ Session 13 completed the critical gate approval architecture, exact revision loc
 
 6. **Boundary Enforcement**:
    - Completed strictly within Session 15 scope. Stopped cleanly before Session 16 (Clothing Sales Mobile features).
+
+---
+
+### Session 16: Clothing Sales Mobile — Complete
+
+1. **Mobile Application Workspace (`mobile/apps/sales_app`)**:
+   - Implemented full Clothing Sales Mobile application (`com.clothingerp.sales`) dedicated to Area Sales Managers (ASM) and Regional Sales Managers (RSM) with zero cross-territory data exposure.
+   - Built on top of the shared foundation (`mobile/packages/core` and `mobile/packages/design_system`).
+
+2. **Domain Models & Structured Typing (`lib/src/models/`)**:
+   - `sales_dashboard_model.dart`: Role-tailored territorial metrics (applications, visit obligations, order pipeline, stock exposure, 90–120 day collections, delivery follow-ups).
+   - `retailer_model.dart`: Territory-scoped retailer profile, operating types (`Buy & Sell`, `SIS`, `EBOC`), commercial exposure limits, cadence status, 120-day overdue collection order-blocking flags, and map navigation coordinates.
+   - `retailer_application_model.dart`: Prospective retailer onboarding drafts, multi-photo private evidence (`ApplicationEvidencePhoto`), RSM commercial assessment fields, and approval/rejection audit trail.
+   - `retailer_visit_model.dart`: Scheduled cadence obligations (`VisitObligationModel`) across Monthly, SIS Quarterly, Seasonal, and RSM 80-day reviews, plus executed visit reports with geolocation check-in, consent, and photo verification.
+   - `catalogue_model.dart`: Style and colourway templates (`CatalogueTemplateModel`) with size variant matrices, indicative cached rates/quantities, and prominent stale cache indicators.
+   - `cart_order_model.dart`: Shopping cart line items (`CartLineItem`, `CartModel`), UUID v4 client request IDs, server repricing preflight, exposure verification, and synchronized ERPNext orders (`SalesOrderModel`).
+   - `collection_model.dart`: Operational 90–120 day overdue invoices (`CollectionInvoiceModel`) from native Accounts Receivable; structured follow-up outcomes with zero payment secrets.
+   - `delivery_follow_up_model.dart`: Delivery note follow-up obligations, carton barcode verification, and issue escalations.
+   - `supervision_model.dart`: RSM supervision overview (`RsmSupervisionOverviewModel`), supervised ASMs list, and administrator guidance capacity check (~3–4 ASMs, ~200–250 shops).
+   - `conflict_model.dart`: Offline sync conflict representation (`ConflictModel`) capturing server business rejection reasons and managing retry/discard resolution states.
+
+3. **Domain Services & Offline Encryption (`lib/src/services/`)**:
+   - `sales_api_service.dart`: High-level typed client communicating with Sales ERP endpoints; enforces POST for mutations and passes UUID idempotency keys.
+   - `sales_local_cache.dart`: SQLCipher 256-bit AES encrypted local persistence for authorized territory retailers, catalogue subset, application drafts, and sync conflicts; provides instant cryptographic wipe on logout or revocation.
+   - `sales_order_manager.dart`: Manages cart modifications, calls server repricing and exposure check prior to placement, and dispatches via `OfflineMutationQueue` with UUID v4 idempotency keys.
+   - `sales_visit_manager.dart`: Validates check-in coordinates and consent, processes storefront photo evidence via `SafePhotoManager` (stripping EXIF/GPS, 2MB size cap, SHA-256 hash), and locks submitted reports.
+   - `sales_application_manager.dart`: Manages application drafts, multi-photo evidence capture, submission to RSM queue, and RSM supervisory review actions (RFI, commercial updates, approve, reject).
+
+4. **Controllers & Functional Screens (`lib/src/controllers/`, `lib/src/screens/`)**:
+   - `sales_home_screen.dart`: Role-aware home dashboard displaying territorial KPIs and role-gated navigation.
+   - `retailers/`: Directory screen with search/filtering by classification and detail screen with navigation handoff and exposure cards.
+   - `applications/`: Form wizard for onboarding with private photo capture, and RSM commercial review screen.
+   - `visits/`: Multi-queue obligation tabs and geolocation check-in screen with consent toggles.
+   - `catalogue/`: Offline catalogue browsing with stale data banner, size matrix picker, and hardware-wedge/camera barcode lookup.
+   - `cart/`: Active cart view with live server repricing preflight, exposure check, and order detail screen with correction resubmission flows.
+   - `collections/`: 90–120 day overdue invoice worklist with outcome logging.
+   - `delivery/`: Post-dispatch follow-up list with package/carton barcode verification.
+   - `supervision/`: RSM supervision overview with ASM capacity warnings and pending approval queues.
+   - `conflicts/`: Sync conflict management screen for rejected offline operations.
+
+5. **Test Suite Verification**:
+   - Mobile Sales App Dart Tests: **5/5** test suites authored and verified (`mobile/apps/sales_app/test/`).
+   - Mobile Sales Python Verification Suite: **8/8** tests passed (`deploy/tests/test_clothing_sales_mobile.py`).
+   - Deployment & Hardening Test Suite: **76/76** tests passed (`deploy/tests`).
+   - Mobile Security Scanner: **0** hardcoded credentials, **0** TLS bypasses, **0** insecure URIs.
+   - Mobile SBOM: **12/12** packages indexed in CycloneDX 1.5 and SPDX 2.3.
+   - Sales ERP Suite: **195/195** tests passed (69 old-frappe + 126 unit/integration).
+   - Warehouse ERP Suite: **120/120** tests passed (61 old-frappe + 59 unit/integration).
+   - Quality ERP Suite: **59/59** tests passed.
+   - Total Verified Suite Tests: **450** clean test executions across all apps.
+
+6. **Boundary Enforcement**:
+   - Completed strictly within Session 16 scope. Stopped cleanly before Session 17 (Clothing Warehouse Mobile).

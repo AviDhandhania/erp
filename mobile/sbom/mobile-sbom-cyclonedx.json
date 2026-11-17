@@ -1,10 +1,10 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:clothing-erp-mobile-sbom-20261117175548",
+  "serialNumber": "urn:uuid:clothing-erp-mobile-sbom-20261117182432",
   "version": 1,
   "metadata": {
-    "timestamp": "2026-11-17T17:55:48.650408+00:00",
+    "timestamp": "2026-11-17T18:24:32.162516+00:00",
     "tools": [
       {
         "vendor": "Clothing ERP Platform",
