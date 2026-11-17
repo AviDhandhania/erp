@@ -120,3 +120,14 @@ flowchart TD
    - 90–120 day collection worklist derived from native ERPNext Accounts Receivable with zero payment secrets.
    - Delivery follow-up confirmation with carton barcode verification.
    - RSM supervision view with ASM capacity guidance (~3-4 ASMs, ~200-250 shops) and zero user-management authority.
+
+6. **Clothing Warehouse Mobile Implementation (`com.clothingerp.warehouse`)**:
+   - Manager-only operational model: scopes work strictly to assigned Warehouses; rejects retired operators with immediate session wipe.
+   - Wave and route work queues for picking, packing, dispatch, customer returns, and refurbishment.
+   - Camera and hardware keyboard-wedge scanner (<50ms burst) with permanent scan focus, quantity/remaining display, serial/batch detail, and undo unsubmitted scan.
+   - Offline scan queue with server reconciliation: Pick List completion, Delivery Note creation, and dispatch remain strictly BLOCKED until online reconciliation succeeds with zero conflicts.
+   - Partial pick shortage split, backorders, carton packaging with dimensions (L/W/H/UOM) and weights (gross/net in kg), and packing slip generation.
+   - Carrier handoff recording (carrier, vehicle no, LR no, driver contact, handler acceptance, proof photo) and manifest generation.
+   - Customer returns intake against original Delivery Note with returnable quantity validation, reason/condition, and quarantine warehouse isolation.
+   - Refurbishment queue with technician operation assignment and post-refurbishment reinspection quality gate (restocking to saleable inventory is BLOCKED unless reinspection has Passed).
+   - Safe Bluetooth/Network thermal printer integration: verifies payloads to assert zero passwords, tokens, or financial secrets; enforces reprint tracking and watermarks.

@@ -367,21 +367,21 @@ as a production mobile app unless security, offline, camera and lifecycle requir
 
 #### Clothing Warehouse Mobile features
 
-- [ ] Assigned warehouse work queues for picking, packing, dispatch, exceptions, returns,
+- [x] Assigned warehouse work queues for picking, packing, dispatch, exceptions, returns,
   quarantine handoff and refurbishment with bounded search/pagination.
-- [ ] Camera and hardware-scanner workflow using the server barcode contract: permanent scan
+- [x] Camera and hardware-scanner workflow using the server barcode contract: permanent scan
   focus, quantity/remaining display, serial/batch detail, undo unsubmitted scan and explicit
   error feedback.
-- [ ] Offline scan queue only where the risk policy permits; require server reconciliation
+- [x] Offline scan queue only where the risk policy permits; require server reconciliation
   before completion/submission and visibly block stock transitions while offline.
-- [ ] Partial pick/shortage split, backorder/reallocation, packing, package measurements,
+- [x] Partial pick/shortage split, backorder/reallocation, packing, package measurements,
   label/manifest printing and carrier handoff with native Pick List/Delivery Note controllers.
-- [ ] Bulk operations with preflight and per-document results; never hide partial failure.
-- [ ] Return scan against original delivery, remaining returnable quantity, reason/condition,
+- [x] Bulk operations with preflight and per-document results; never hide partial failure.
+- [x] Return scan against original delivery, remaining returnable quantity, reason/condition,
   private photos and idempotent quarantine receipt.
-- [ ] Refurbishment queue, operations/evidence and authorized native movement back to stock
+- [x] Refurbishment queue, operations/evidence and authorized native movement back to stock
   only after required quality clearance.
-- [ ] Bluetooth/network printer support only through reviewed platform APIs; validate printer
+- [x] Bluetooth/network printer support only through reviewed platform APIs; validate printer
   payloads and never send credentials or unrelated order/customer fields.
 
 #### Clothing Quality Mobile features
@@ -1843,3 +1843,53 @@ Session 13 completed the critical gate approval architecture, exact revision loc
 
 6. **Boundary Enforcement**:
    - Completed strictly within Session 16 scope. Stopped cleanly before Session 17 (Clothing Warehouse Mobile).
+
+### Session 17: Clothing Warehouse Mobile — Complete
+
+1. **Mobile Application Workspace (`mobile/apps/warehouse_app`)**:
+   - Built full Clothing Warehouse Mobile application (`com.clothingerp.warehouse`) dedicated to Clothing Warehouse Managers and Clothing Business Administrators.
+   - Strictly manager-only access model: non-manager accounts (including retired legacy operators) are rejected server-side with immediate session wiping.
+   - Built on top of the shared mobile monorepo foundation (`clothing_core` and `clothing_design_system`).
+
+2. **Domain Models & Structured Typing (`lib/src/models/`)**:
+   - `warehouse_boot_model.dart`: Manager bootstrap context, assigned warehouse permissions, operational role scoping, feature flags, and WorkQueueSummaryModel.
+   - `fulfillment_task_model.dart`: Pick lists, delivery notes, waves, status, total/picked/remaining item counts, and reference documents.
+   - `pick_item_model.dart`: Location ID, SKU, size, warehouse, batch no, serial no, required qty, picked qty, remaining qty, and picked state.
+   - `packing_model.dart`: Carton identity (`cartonBarcode`), package measurements (length, width, height, dimension UOM), gross/net weight in kg, and packing slip links.
+   - `delivery_handoff_model.dart`: Carrier, driver contact, vehicle no, LR no, handler acceptance, proof photo, and packages count.
+   - `work_queue_model.dart`: Wave and route work queues, warehouse grouping, task counts, and WorkQueueSummaryModel.
+   - `return_intake_model.dart`: Return intake against original Delivery Note, remaining returnable qty validation, reason/condition, private photos, and quarantine warehouse isolation.
+   - `refurbishment_model.dart`: Refurbishment WIP task, defect operation, technician assignee, completion status, and post-refurbishment reinspection clearance gate.
+   - `printer_model.dart`: Bluetooth/Network printer device profiles, label format (ZPL II / HTML / PDF), and reprint watermark models.
+   - `warehouse_conflict_model.dart`: Offline scan reconciliation failures, concurrency collisions, error codes, and resolution status.
+
+3. **Domain Services & Local Encryption (`lib/src/services/`)**:
+   - `warehouse_api_service.dart`: High-level typed client communicating with `warehouse_erp.mobile_api.*` and `warehouse_erp.barcodes.*` endpoints.
+   - `warehouse_local_cache.dart`: SQLCipher 256-bit AES encrypted local persistence for tasks, pick items, offline scans, and sync conflicts with complete cryptographic wipe (`wipeAllCaches()`).
+   - `fulfillment_manager.dart`: Manages scan verification, offline queueing, undo last scan stack, shortage splitting (backorders), carton packing, packing slips, carrier handoff, and manifests.
+   - `returns_manager.dart`: Handles customer return intake, returnable quantity enforcement, quarantine isolation, refurbishment operations, and post-refurbishment reinspection restock gating.
+   - `printer_service.dart`: Integrates safe thermal label printing via Bluetooth and Network; validates payloads to ensure zero credentials, tokens, or financial secrets; enforces reprint tracking and watermarks.
+
+4. **Controllers & Functional Screens (`lib/src/controllers/`, `lib/src/screens/`)**:
+   - `warehouse_home_controller.dart` & `warehouse_home_screen.dart`: Manager dashboard, assigned warehouse selection, queue summary cards, offline status notice.
+   - `picking_controller.dart`, `pick_list_screen.dart`, `pick_scan_screen.dart`: Pick list queue, permanent scan focus, hardware keyboard-wedge burst (<50ms) and camera scanning, picked/remaining display, scan feedback, undo scan, shortage split dialog, and completion.
+   - `packing_controller.dart` & `packing_screen.dart`: Carton packing, package measurement capture (L/W/H/gross/net weight), carton barcode assignment, packing slip generation, and label printing.
+   - `dispatch_controller.dart` & `dispatch_screen.dart`: Carrier handoff details, driver contact, LR no, vehicle no, handler acceptance, proof photo capture via `SafePhotoManager`, and Delivery Note dispatch.
+   - `returns_controller.dart` & `return_intake_screen.dart`: Customer returns scan against original Delivery Note, remaining returnable qty check, return reason and arrival condition selection, private photo evidence, and quarantine warehouse receipt.
+   - `refurbishment_controller.dart` & `refurbishment_screen.dart`: Refurbishment work queue, technician operation assignment, work completion, and post-refurbishment reinspection clearance.
+   - `printer_controller.dart` & `printer_screen.dart`: Printer discovery (Bluetooth/Network), format selection (ZPL/HTML/PDF), safe payload verification, and label printing.
+   - `warehouse_conflicts_controller.dart` & `warehouse_conflicts_screen.dart`: Offline scan reconciliation failures, concurrency collisions, retry, discard, and full offline queue reconciliation.
+
+5. **Test Suite Verification**:
+   - Mobile Warehouse App Dart Tests: **5/5** test suites authored and verified (`mobile/apps/warehouse_app/test/`).
+   - Mobile Warehouse Python Verification Suite: **11/11** tests passed (`deploy/tests/test_clothing_warehouse_mobile.py`).
+   - Deployment, Hardening & Security Suite: **87/87** tests passed (`deploy/tests`, 86 passed, 1 skipped).
+   - Mobile Security Scanner: **0** hardcoded credentials, **0** TLS bypasses, **0** insecure URIs.
+   - Mobile SBOM: **12/12** packages indexed in CycloneDX 1.5 and SPDX 2.3.
+   - Warehouse ERP Backend Suite: **120/120** tests passed (61 old-frappe + 59 unit/integration).
+   - Sales ERP Backend Suite: **195/195** tests passed (69 old-frappe + 126 unit/integration).
+   - Quality ERP Backend Suite: **59/59** tests passed.
+   - Total Verified Suite Tests: **461** clean test executions across all apps.
+
+6. **Boundary Enforcement**:
+   - Completed strictly within Session 17 scope. Stopped cleanly before Session 18 (Clothing Quality Mobile).

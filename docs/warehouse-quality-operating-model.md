@@ -304,3 +304,13 @@ The following details are intentionally open rather than guessed:
 - Test cross-Warehouse access, bulk partial failures, duplicate scans, returns exceeding
   delivered quantity, serial/batch identity and both administrator approval gates.
 
+## Clothing Warehouse Mobile Application Architecture
+
+The mobile application for warehouse management (`com.clothingerp.warehouse`) is implemented in `mobile/apps/warehouse_app` adhering to these operating rules:
+
+1. **Manager-Only Role Model**: Access is granted exclusively to `Clothing Warehouse Manager` and `Clothing Business Administrator`. Legacy operator accounts are rejected server-side with immediate session wiping.
+2. **Offline Scan Queue & Native Stock Transition Blocking**: Peripheral hardware-wedge and camera scans may be queued in local SQLCipher 256-bit AES storage during transient disconnection. However, native document submissions (Pick List completion, Delivery Note creation, Carrier Dispatch) remain strictly BLOCKED until the device reconnects and all offline scans reconcile with zero conflicts.
+3. **Safe Peripheral Printing**: Bluetooth and Network thermal printer integrations validate all label and manifest payloads to assert that zero credentials, passwords, or customer financial secrets are transmitted. Tamper-evident reprint counters and visible watermarks are enforced.
+4. **Quarantine Isolation & Reinspection Gate**: Customer returns route strictly to quarantine warehouses. After refurbishment, garments cannot be restocked into saleable inventory unless post-refurbishment quality reinspection has passed.
+
+

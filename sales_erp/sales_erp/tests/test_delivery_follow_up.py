@@ -238,18 +238,18 @@ class TestDeliveryFollowUp(FrappeTestCase):
 
         # North ASM sees it
         frappe.set_user(self.asm_north)
-        res_north = get_delivery_follow_up_obligations()
+        res_north = get_delivery_follow_up_obligations(page_size=100)
         names_north = [o["name"] for o in res_north["obligations"]]
         self.assertIn(obligation.name, names_north)
 
         # South ASM does NOT see it
         frappe.set_user(self.asm_south)
-        res_south = get_delivery_follow_up_obligations()
+        res_south = get_delivery_follow_up_obligations(page_size=100)
         names_south = [o["name"] for o in res_south["obligations"]]
         self.assertNotIn(obligation.name, names_south)
 
         # Admin sees it
         frappe.set_user(self.admin)
-        res_admin = get_delivery_follow_up_obligations()
+        res_admin = get_delivery_follow_up_obligations(page_size=100)
         names_admin = [o["name"] for o in res_admin["obligations"]]
         self.assertIn(obligation.name, names_admin)
