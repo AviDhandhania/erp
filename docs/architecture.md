@@ -131,3 +131,14 @@ flowchart TD
    - Customer returns intake against original Delivery Note with returnable quantity validation, reason/condition, and quarantine warehouse isolation.
    - Refurbishment queue with technician operation assignment and post-refurbishment reinspection quality gate (restocking to saleable inventory is BLOCKED unless reinspection has Passed).
    - Safe Bluetooth/Network thermal printer integration: verifies payloads to assert zero passwords, tokens, or financial secrets; enforces reprint tracking and watermarks.
+
+7. **Clothing Quality Mobile Implementation (`com.clothingerp.quality`)**:
+   - Quality Inspector, Quality Manager, and Administrator role scoping with Supplier and Company isolation.
+   - Sequential 7-stage quality lifecycle enforcement (Fit Sample $\rightarrow$ Refit Sample $\rightarrow$ Size Set $\rightarrow$ Production Go Ahead $\rightarrow$ Inline Visits $\rightarrow$ Mid-line Visits $\rightarrow$ Final Inspection).
+   - Multiple Inline (stage 5) and Mid-line (stage 6) visits support with incremented visit numbers.
+   - Versioned checklist completion, measurement tolerance variances against spec targets, and defect severity classification.
+   - Captioned private photographs via SafePhotoManager (EXIF stripping, 2MB size cap, SHA-256 checksums).
+   - Side-by-side revision comparison diffs, correction requests, and resubmission trails.
+   - Return quarantine decisions, disposition recommendations (`Scrap`, `Seconds Sale`, `Supplier Claim`, `On Hold`), and post-refurbishment reinspection clearance.
+   - High-risk Administrator gate review on mobile: strictly BLOCKED while offline, requires exact immutable review bundle with bundle SHA-256 hash, and requires strong reauthentication.
+   - Controlled report viewing: ephemeral device storage, HMAC token expiry (15m), viewer watermarking, zero permanent private URLs, and automatic cache wiping.

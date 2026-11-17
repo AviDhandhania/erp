@@ -313,4 +313,18 @@ The mobile application for warehouse management (`com.clothingerp.warehouse`) is
 3. **Safe Peripheral Printing**: Bluetooth and Network thermal printer integrations validate all label and manifest payloads to assert that zero credentials, passwords, or customer financial secrets are transmitted. Tamper-evident reprint counters and visible watermarks are enforced.
 4. **Quarantine Isolation & Reinspection Gate**: Customer returns route strictly to quarantine warehouses. After refurbishment, garments cannot be restocked into saleable inventory unless post-refurbishment quality reinspection has passed.
 
+## Clothing Quality Mobile Application Architecture
+
+The mobile application for manufacturing and return quality inspections (`com.clothingerp.quality`) is implemented in `mobile/apps/quality_app` adhering to these operating rules:
+
+1. **Role Model & Scoping**: Access is granted to `Clothing Quality Inspector` (field inspections, checklists, measurements, defects, evidence photos), `Clothing Quality Manager` (templates, correction requests, gate reviews), and `Clothing Business Administrator` (critical gate reviews). Scoped strictly to permitted Suppliers and Company.
+2. **Sequential 7-Stage Progression & Multiple Visits**: Enforces strict ordering across the 7 stages (Fit Sample $\rightarrow$ Refit Sample $\rightarrow$ Size Set $\rightarrow$ Production Go Ahead $\rightarrow$ Inline Visits $\rightarrow$ Mid-line Visits $\rightarrow$ Final Inspection). Supports multiple visit sequences for Inline and Mid-line stages.
+3. **Checklists, Tolerances, and Defect Severity**: Evaluates versioned checklists, measurement variances (+/-) against specification targets with In/Out of Spec classification, and defect counts across Critical, Major, and Minor severities under AQL sampling plans.
+4. **Safe Photo Evidence**: Captures multiple captioned private photographs using `SafePhotoManager`, stripping unsafe EXIF/GPS metadata, bounding payloads to 2MB, and computing SHA-256 digests for duplicate-free resumable uploads.
+5. **Revisions & Corrections**: Generates immutable revisions with side-by-side comparison diffs; allows managers to request corrections and inspectors to resubmit with full resolution trails.
+6. **Return Quarantine Dispositions**: Enforces two-step disposition governance (Inspector recommends `Scrap`, `Seconds Sale`, `Supplier Claim`, `On Hold`; Administrator approves). Restocking to saleable stock is strictly blocked until post-refurbishment reinspection has passed.
+7. **High-Risk Gate Reviews**: Administrator gate decisions on mobile strictly require online connectivity (offline approval is BLOCKED), exact immutable review bundles with bundle SHA-256 hash validation, and strong reauthentication before committing.
+8. **Controlled PDF/Report Viewing**: Report bundles use short-lived HMAC access tokens (15-minute expiry), viewer watermarking, ephemeral local device storage, zero permanent private URLs, and automatic cache wiping.
+
+
 

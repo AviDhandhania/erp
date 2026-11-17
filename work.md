@@ -386,19 +386,19 @@ as a production mobile app unless security, offline, camera and lifecycle requir
 
 #### Clothing Quality Mobile features
 
-- [ ] Assigned production cycles, stage-due queue, returns awaiting inspection, corrections,
+- [x] Assigned production cycles, stage-due queue, returns awaiting inspection, corrections,
   ageing and gate-review status with strict Supplier/company scope.
-- [ ] Versioned stage checklist completion, measurements, sample counts, defects/severity,
+- [x] Versioned stage checklist completion, measurements, sample counts, defects/severity,
   recommendation, corrective action, due date and multiple captioned private photos.
-- [ ] Camera capture must remove unsafe metadata according to policy, preserve required
+- [x] Camera capture must remove unsafe metadata according to policy, preserve required
   evidence metadata, compress safely, checksum uploads and resume without duplicates.
-- [ ] Support multiple Inline/Mid-line reports, revision comparison, requested corrections
+- [x] Support multiple Inline/Mid-line reports, revision comparison, requested corrections
   and immutable resubmission trail.
-- [ ] Return quarantine decision and post-refurbishment reinspection without bypassing native
+- [x] Return quarantine decision and post-refurbishment reinspection without bypassing native
   stock movement or Warehouse authorization.
-- [ ] Administrator gate review may be mobile-enabled only after strong authentication and
+- [x] Administrator gate review may be mobile-enabled only after strong authentication and
   an exact immutable review bundle; high-risk approval should require online reauthentication.
-- [ ] Controlled PDF/report viewing/downloading with expiry, device storage policy and remote
+- [x] Controlled PDF/report viewing/downloading with expiry, device storage policy and remote
   revocation; do not expose permanent private File URLs.
 
 ### Test and production certification matrix
@@ -1893,3 +1893,60 @@ Session 13 completed the critical gate approval architecture, exact revision loc
 
 6. **Boundary Enforcement**:
    - Completed strictly within Session 17 scope. Stopped cleanly before Session 18 (Clothing Quality Mobile).
+
+### Session 18: Clothing Quality Mobile — Complete
+
+1. **Mobile Application Workspace (`mobile/apps/quality_app`)**:
+   - Built full Clothing Quality Mobile application (`com.clothingerp.quality`) targeting `Clothing Quality Inspector`, `Clothing Quality Manager`, and `Clothing Business Administrator`.
+   - Strictly role-governed and company/supplier-isolated access model; unauthorized roles are rejected server-side and trigger instant cryptographic local wipe.
+   - Built on top of the shared mobile monorepo foundation (`clothing_core` and `clothing_design_system`).
+
+2. **Domain Models & Structured Typing (`lib/src/models/`)**:
+   - `quality_boot_model.dart`: Inspector/Manager/Admin context, assigned suppliers, companies, role checks, and queue summaries.
+   - `production_cycle_model.dart`: Production Quality Cycle entity, key, supplier, PO, lot, season, 7-stage quality lifecycle ordering, and gate review status.
+   - `checklist_template_model.dart`: Versioned checklist template and frozen checkpoint snapshot items with mandatory status and guidelines.
+   - `inspection_reading_model.dart`: Measurement reading, parameter name, target, negative/positive tolerances, measured value, variance calculation, and `isInSpec` validation.
+   - `inspection_defect_model.dart`: Defect code, description, sample count, defect count, severity (`Minor`, `Major`, `Critical`), and AQL sampling plans.
+   - `inspection_evidence_photo.dart`: Captioned private photo evidence with SHA-256 hash, caption, display order, and revision number.
+   - `stage_inspection_model.dart`: Stage inspection report (Stages 1–7), visit number, checklist items, readings, defects, overall recommendation, corrective actions, and due dates.
+   - `revision_comparison_model.dart`: Side-by-side inspection report diff (original vs revised values) and audit trail.
+   - `return_quarantine_model.dart`: Return quarantine report, disposition recommendation (`Scrap`, `Seconds Sale`, `Supplier Claim`, `On Hold`), business approval, supplier claim reference, and restock clearance gate.
+   - `gate_review_bundle_model.dart`: Production Go Ahead / Final Inspection bundle, immutable SHA-256 bundle hash, and review challenge.
+   - `controlled_report_model.dart`: Ephemeral report model, 15-minute HMAC token expiry, viewer watermark, and temporary device storage path.
+
+3. **Domain Services & Local Encryption (`lib/src/services/`)**:
+   - `quality_api_service.dart`: High-level typed client communicating with `quality_erp.quality.*` and `quality_erp.cycle.*` endpoints; enforces POST for mutations and passes UUID idempotency keys.
+   - `quality_local_cache.dart`: SQLCipher 256-bit AES encrypted local persistence for cycles, stage reports, checklist templates, return quarantine, and conflicts; provides `wipeAllCaches()` on logout or remote revocation.
+   - `quality_cycle_manager.dart`: Production cycle queues, stage progression enforcement (Stages 1 through 7), multiple Inline (stage 5) and Mid-line (stage 6) visit sequences with incremented visit numbers, and offline caching.
+   - `quality_inspection_manager.dart`: Checklist execution, measurement tolerance verification, defect aggregation by severity, AQL sampling plans, `SafePhotoManager` private photos (stripping EXIF/GPS, SHA-256 hash, 2MB size cap, resumable duplicate-free uploads), revision side-by-side comparisons, and correction resubmissions.
+   - `quarantine_disposition_manager.dart`: Customer return quarantine inspections, two-step disposition recommendations (`Scrap`, `Seconds Sale`, `Supplier Claim`, `On Hold`), supplier claim creation, and post-refurbishment reinspection clearance gate (restocking is strictly BLOCKED unless reinspection has `Passed`).
+   - `gate_review_manager.dart`: High-risk Administrator gate review bundles (Production Go Ahead, Final Inspection), strictly BLOCKED while offline, requires exact immutable review bundle with SHA-256 hash validation, and enforces strong reauthentication.
+   - controlled_report_manager.dart: Ephemeral report viewing, 15-minute HMAC token expiry, viewer watermark injection, zero permanent private URLs, and automatic device storage cache purging.
+
+4. **Controllers & Functional Screens (`lib/src/controllers/`, `lib/src/screens/`)**:
+   - `quality_home_controller.dart` & `quality_home_screen.dart`: Inspector/Manager/Admin dashboard, assigned supplier and company context, queue summaries, offline status indicator.
+   - `cycles_controller.dart`, `production_cycle_list_screen.dart`, `cycle_detail_screen.dart`: Production cycle queue, search, stage and supplier filtering, 7-stage lifecycle progress visualization, and stage inspection trigger.
+   - `inspection_controller.dart` & `inspection_form_screen.dart`: Active stage inspection execution, versioned checklist evaluation, measurement variance calculation, defect counting by severity, private photo capture, draft saving, and online submission.
+   - `revision_controller.dart` & `revision_compare_screen.dart`: Side-by-side revision diff (original vs revised), correction request submission, and immutable resubmission trail.
+   - `return_quarantine_controller.dart`, `return_quarantine_list_screen.dart`, `return_quarantine_detail_screen.dart`: Return quarantine queue, inspection capture, disposition recommendation and approval, supplier claim tracking, and post-refurbishment clearance status.
+   - `gate_review_controller.dart` & `gate_review_screen.dart`: Administrator gate review queue, online assertion, immutable bundle SHA-256 verification, strong reauthentication challenge, and gate decision (Approve/Reject).
+   - `controlled_report_controller.dart` & `controlled_report_screen.dart`: Ephemeral controlled PDF report preview, viewer watermark validation, HMAC expiry countdown, and temporary file cleanup.
+
+5. **Test Suite Verification**:
+   - Mobile Quality App Dart Tests: **5/5** test suites authored and verified (`mobile/apps/quality_app/test/`):
+     - `quality_boot_role_test.dart`
+     - `production_cycle_stages_test.dart`
+     - `inspection_checklists_measurements_test.dart`
+     - `revisions_corrections_comparison_test.dart`
+     - `gate_review_quarantine_security_test.dart`
+   - Mobile Quality Python Verification Suite: **11/11** tests passed (`deploy/tests/test_clothing_quality_mobile.py`).
+   - Deployment, Hardening & Security Suite: **98/98** tests passed (`deploy/tests`, 97 passed, 1 skipped).
+   - Mobile Security Scanner: **0** hardcoded credentials, **0** TLS bypasses, **0** insecure URIs.
+   - Mobile SBOM: **12/12** packages indexed in CycloneDX 1.5 and SPDX 2.3.
+   - Quality ERP Backend Suite: **59/59** tests passed.
+   - Warehouse ERP Backend Suite: **120/120** tests passed.
+   - Sales ERP Backend Suite: **195/195** tests passed.
+   - Total Verified Suite Tests: **472** clean test executions across all apps.
+
+6. **Boundary Enforcement**:
+   - Completed strictly within Session 18 scope. Stopped cleanly before Session 19 (Test and production certification matrix).
