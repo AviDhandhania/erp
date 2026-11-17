@@ -23,13 +23,17 @@ jobs:
           git clone --depth 1 --branch "$FRAPPE_REF" https://github.com/frappe/frappe.git /tmp/frappe
           git clone --depth 1 --branch "$INSIGHTS_REF" https://github.com/frappe/insights.git /tmp/insights
           git clone --depth 1 --branch "$INDIA_COMPLIANCE_REF" https://github.com/resilient-tech/india-compliance.git /tmp/india_compliance
-          uv pip install -e /tmp/frappe -e /tmp/insights -e /tmp/india_compliance -e .
+          uv pip install -e /tmp/frappe -e /tmp/insights -e /tmp/india_compliance -e . -e sales_erp -e warehouse_erp -e quality_erp
       - run: uv run python -m unittest discover -s clothing_erp/tests -v
+      - run: uv run python -m unittest discover -s sales_erp/sales_erp/tests -v
+      - run: uv run python -m unittest discover -s warehouse_erp/warehouse_erp/tests -v
+      - run: uv run python -m unittest discover -s quality_erp/quality_erp/tests -v
       - run: uv run python -m unittest discover -s deploy/tests -v
       - run: |
           find deploy -name '*.sh' -print0 | xargs -0 -n1 bash -n
           shellcheck -x deploy/*.sh deploy/proxmox/*.sh deploy/local/*.sh
-          uvx ruff check --select E9,F63,F7,F82 clothing_erp deploy
+          find clothing_erp sales_erp warehouse_erp quality_erp -name '*.json' -print0 | xargs -0 -n1 python3 -m json.tool > /dev/null
+          uvx ruff check --select E9,F63,F7,F82 clothing_erp deploy sales_erp warehouse_erp quality_erp
   integration:
     runs-on: ubuntu-24.04
     permissions:

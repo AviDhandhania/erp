@@ -296,9 +296,10 @@ class TestUpdateRecovery(unittest.TestCase):
         m.update(self.next, self.source)
         self.assertLess(m.events.index("stage"), m.events.index("stop"))
         self.assertLess(m.events.index("backup"), m.events.index("migrate"))
-        self.assertLess(
-            m.events.index("install-india_compliance"), m.events.index("migrate")
-        )
+        for app in ("india_compliance", "sales_erp", "warehouse_erp", "quality_erp"):
+            self.assertLess(
+                m.events.index(f"install-{app}"), m.events.index("migrate")
+            )
         self.assertLess(m.events.index("health"), m.events.index("manager"))
         self.assertEqual(m.state["current"]["manifest"]["version"], "v0.3.1")
         self.assertTrue(Path(m.state["previous"]["backup"]).is_dir())

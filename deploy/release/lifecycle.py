@@ -32,9 +32,25 @@ SERVICES = [
     f"clothing-erp-{name}.service" for name in ("schedule", "worker", "socketio", "web")
 ]
 HERE = Path(__file__).resolve().parent
-MANAGED_APPS = ("frappe", "erpnext", "insights", "india_compliance", "clothing_erp")
+MANAGED_APPS = (
+    "frappe",
+    "erpnext",
+    "insights",
+    "india_compliance",
+    "clothing_erp",
+    "sales_erp",
+    "warehouse_erp",
+    "quality_erp",
+)
 OPTIONAL_LEGACY_APPS = ("insights", "india_compliance")
-REQUIRED_SITE_EXTENSIONS = ("insights", "india_compliance", "clothing_erp")
+REQUIRED_SITE_EXTENSIONS = (
+    "insights",
+    "india_compliance",
+    "clothing_erp",
+    "sales_erp",
+    "warehouse_erp",
+    "quality_erp",
+)
 
 
 def atomic_json(path, value):

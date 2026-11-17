@@ -46,7 +46,14 @@ bench --site test.local install-app erpnext
 bench --site test.local install-app india_compliance
 bench --site test.local install-app insights
 bench --site test.local install-app clothing_erp
+bench --site test.local install-app sales_erp
+bench --site test.local install-app warehouse_erp
+bench --site test.local install-app quality_erp
 bench --site test.local set-config -p allow_tests True
 bench --site test.local migrate
+bench --site test.local migrate
 bench --site test.local run-tests --app clothing_erp --test-category all
+bench --site test.local run-tests --app sales_erp --test-category all
+bench --site test.local run-tests --app warehouse_erp --test-category all
+bench --site test.local run-tests --app quality_erp --test-category all
 MYSQL_PWD=test-only-ephemeral-password /tmp/staged-release/.runtime/tools/bin/python "$SOURCE/deploy/tests/native_recovery.py" --socket /tmp/clothing-mariadb-socket/mysqld.sock
