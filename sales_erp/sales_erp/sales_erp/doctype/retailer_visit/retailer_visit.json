@@ -44,7 +44,7 @@
   {"fieldname": "recommended_credit_limit", "fieldtype": "Currency", "label": "Recommended Credit / Exposure Limit (₹)"},
   {"fieldname": "dealer_feedback", "fieldtype": "Small Text", "label": "Dealer Feedback & Notes"},
   {"fieldname": "review_section", "fieldtype": "Section Break", "label": "Supervisory Review"},
-  {"fieldname": "review_status", "fieldtype": "Select", "label": "Review Status", "options": "Submitted\nReviewed by RSM\nAction Required", "default": "Submitted", "read_only": 1, "in_list_view": 1},
+  {"fieldname": "review_status", "fieldtype": "Select", "label": "Review Status", "options": "Submitted\nReviewed by RSM\nReviewed by Admin\nAction Required", "default": "Submitted", "read_only": 1, "in_list_view": 1},
   {"fieldname": "reviewed_by", "fieldtype": "Link", "label": "Reviewed By", "options": "User", "read_only": 1},
   {"fieldname": "reviewed_on", "fieldtype": "Datetime", "label": "Reviewed On", "read_only": 1},
   {"fieldname": "review_notes", "fieldtype": "Small Text", "label": "Review Notes", "read_only": 1}

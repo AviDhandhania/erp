@@ -9,7 +9,7 @@ from frappe.utils import cint, getdate, nowdate
 
 from sales_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
 from sales_erp.security import (
-    assigned_documents,
+    assigned_sales_territories,
     get_current_user,
     get_user_roles,
     has_retailer_access,
@@ -181,16 +181,14 @@ def _order_customer_scope():
     """Return explicit retailer names, or None for a trusted clothing administrator."""
     if is_clothing_admin():
         return None
-    if ROLE_SALES_MANAGER in get_user_roles():
-        territories = assigned_documents("Territory")
-        if not territories:
-            return []
-        return frappe.get_all(
-            "Customer",
-            filters={"disabled": 0, "territory": ["in", territories]},
-            pluck="name",
-        )
-    return assigned_documents("Customer")
+    territories = assigned_sales_territories()
+    if not territories:
+        return []
+    return frappe.get_all(
+        "Customer",
+        filters={"disabled": 0, "territory": ["in", territories]},
+        pluck="name",
+    )
 
 
 def _order_scope_filters(customers):

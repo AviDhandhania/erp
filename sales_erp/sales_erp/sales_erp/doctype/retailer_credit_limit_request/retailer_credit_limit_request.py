@@ -1,3 +1,5 @@
+"""Retailer Credit Limit Request workflow, server-side approval, and audit integrity."""
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
@@ -118,7 +120,7 @@ class RetailerCreditLimitRequest(Document):
                 frappe.PermissionError,
             )
 
-        # 2. Company Resolution
+        # 2. Company & Currency Resolution
         if not self.company:
             self.company = (
                 frappe.defaults.get_user_default("Company")
@@ -132,35 +134,45 @@ class RetailerCreditLimitRequest(Document):
         if not self.company:
             frappe.throw(_("Company is required."))
 
-        # 3. Always capture the authentic current limit server-side on creation or while pending
+        self.currency = (
+            frappe.get_cached_value("Company", self.company, "default_currency")
+            or "INR"
+        )
+
+        # 3. Disallow client edits to decided requests
+        if not self.is_new():
+            stored = frappe.db.get_value(
+                "Retailer Credit Limit Request",
+                self.name,
+                ["status", "proposed_credit_limit", "customer", "company", "reason"],
+                as_dict=True,
+            )
+            if stored and stored.status in ("Approved", "Rejected") and not getattr(self.flags, "in_decision_service", False):
+                frappe.throw(_("Decided credit limit requests cannot be modified."), frappe.PermissionError)
+
+        # 4. Always capture authentic current limit server-side on creation or while pending
         if self.is_new() or self.status == "Pending Approval":
             self.current_credit_limit = get_customer_current_credit_limit(self.customer, self.company)
 
-        # 4. Limit validations
-        proposed = flt(self.proposed_credit_limit)
-        if proposed < 0:
-            frappe.throw(_("Proposed credit limit cannot be negative."))
-        if self.status == "Pending Approval" and proposed == flt(self.current_credit_limit):
+        # 5. Proposed limit validation
+        if flt(self.proposed_credit_limit) < 0:
+            frappe.throw(_("Proposed credit limit cannot be negative."), frappe.ValidationError)
+
+        if flt(self.proposed_credit_limit) == flt(self.current_credit_limit):
             frappe.throw(
-                _("Proposed credit limit ({0}) is identical to the current credit limit.").format(
-                    proposed
+                _("Proposed credit limit ({0} {1:,.2f}) must differ from the current limit.").format(
+                    self.currency, flt(self.current_credit_limit)
                 ),
                 frappe.ValidationError,
             )
 
-        # 5. Non-admins cannot alter decision fields
-        if not admin and not self.is_new():
-            orig = self.get_doc_before_save()
-            if orig and orig.status in ("Approved", "Rejected"):
-                frappe.throw(
-                    _("Decided credit limit requests cannot be modified."),
-                    frappe.PermissionError,
-                )
+        if not (self.reason or "").strip():
+            frappe.throw(_("A valid reason/justification is required."), frappe.ValidationError)
 
 
 @frappe.whitelist(methods=["POST"])
 def approve_credit_limit_request(name):
-    """Administrator approves a proposed retailer credit limit change."""
+    """Administrator approves a proposed retailer credit limit change with row-locking and live limit checks."""
     user = get_current_user()
     if not is_clothing_admin(user):
         frappe.throw(
@@ -168,13 +180,38 @@ def approve_credit_limit_request(name):
             frappe.PermissionError,
         )
 
-    doc = frappe.get_doc("Retailer Credit Limit Request", name)
-    if doc.status != "Pending Approval":
+    # Row-lock transition
+    rows = frappe.db.sql(
+        """
+        SELECT name, status, current_credit_limit, proposed_credit_limit, customer, company, currency, proposer, customer_name
+        FROM `tabRetailer Credit Limit Request`
+        WHERE name = %s
+        FOR UPDATE
+        """,
+        (name,),
+        as_dict=True,
+    )
+    if not rows:
+        frappe.throw(_("Credit limit request {0} does not exist.").format(name), frappe.DoesNotExistError)
+
+    req = rows[0]
+    if req.status != "Pending Approval":
         frappe.throw(
-            _("Credit limit request {0} is already {1}.").format(name, doc.status),
+            _("Credit limit request {0} is already {1}.").format(name, req.status),
             frappe.ValidationError,
         )
 
+    # Detect live ERPNext Customer credit limit changes
+    live_limit = get_customer_current_credit_limit(req.customer, req.company)
+    if flt(live_limit) != flt(req.current_credit_limit):
+        frappe.throw(
+            _("The live credit limit for customer {0} changed to {1:,.2f} while this request was pending approval. "
+              "Please review the live limit before approving.").format(req.customer, flt(live_limit)),
+            frappe.ValidationError,
+        )
+
+    doc = frappe.get_doc("Retailer Credit Limit Request", name)
+    doc.flags.in_decision_service = True
     doc.status = "Approved"
     doc.approver = user
     doc.decided_on = now_datetime()
@@ -186,6 +223,7 @@ def approve_credit_limit_request(name):
     # Notify proposer
     if doc.proposer and doc.proposer != user:
         try:
+            curr = doc.currency or "INR"
             frappe.get_doc(
                 {
                     "doctype": "Notification Log",
@@ -196,7 +234,7 @@ def approve_credit_limit_request(name):
                     "subject": f"Credit limit change approved for {doc.customer_name or doc.customer}",
                     "email_content": (
                         f"Credit limit change for {doc.customer_name} ({doc.customer}) was approved by {user}. "
-                        f"New live limit: ₹{doc.proposed_credit_limit:,.2f}."
+                        f"New live limit: {curr} {doc.proposed_credit_limit:,.2f}."
                     ),
                 }
             ).insert(ignore_permissions=True)
@@ -214,7 +252,7 @@ def approve_credit_limit_request(name):
 
 @frappe.whitelist(methods=["POST"])
 def reject_credit_limit_request(name, reason=None):
-    """Administrator rejects a proposed retailer credit limit change."""
+    """Administrator rejects a proposed retailer credit limit change with row-locking and mandatory reason."""
     user = get_current_user()
     if not is_clothing_admin(user):
         frappe.throw(
@@ -222,17 +260,40 @@ def reject_credit_limit_request(name, reason=None):
             frappe.PermissionError,
         )
 
-    doc = frappe.get_doc("Retailer Credit Limit Request", name)
-    if doc.status != "Pending Approval":
+    reason = (reason or "").strip()
+    if not reason:
         frappe.throw(
-            _("Credit limit request {0} is already {1}.").format(name, doc.status),
+            _("A non-empty rejection reason is required when rejecting a credit limit request."),
             frappe.ValidationError,
         )
 
+    # Row-lock transition
+    rows = frappe.db.sql(
+        """
+        SELECT name, status, proposer, customer, customer_name
+        FROM `tabRetailer Credit Limit Request`
+        WHERE name = %s
+        FOR UPDATE
+        """,
+        (name,),
+        as_dict=True,
+    )
+    if not rows:
+        frappe.throw(_("Credit limit request {0} does not exist.").format(name), frappe.DoesNotExistError)
+
+    req = rows[0]
+    if req.status != "Pending Approval":
+        frappe.throw(
+            _("Credit limit request {0} is already {1}.").format(name, req.status),
+            frappe.ValidationError,
+        )
+
+    doc = frappe.get_doc("Retailer Credit Limit Request", name)
+    doc.flags.in_decision_service = True
     doc.status = "Rejected"
     doc.approver = user
     doc.decided_on = now_datetime()
-    doc.rejection_reason = (reason or "").strip()
+    doc.rejection_reason = reason
     doc.save(ignore_permissions=True)
 
     # Notify proposer
@@ -248,7 +309,7 @@ def reject_credit_limit_request(name, reason=None):
                     "subject": f"Credit limit change rejected for {doc.customer_name or doc.customer}",
                     "email_content": (
                         f"Credit limit change for {doc.customer_name} ({doc.customer}) was rejected by {user}.\n"
-                        f"Reason: {doc.rejection_reason or 'No reason provided'}."
+                        f"Reason: {doc.rejection_reason}."
                     ),
                 }
             ).insert(ignore_permissions=True)
@@ -293,3 +354,29 @@ def propose_credit_limit(customer, proposed_limit, reason, company=None, source_
         "proposed_credit_limit": doc.proposed_credit_limit,
         "status": doc.status,
     }
+
+
+def retailer_credit_limit_request_query_conditions(user=None):
+    """Permission query conditions for Retailer Credit Limit Request."""
+    user = user or frappe.session.user
+    if is_clothing_admin(user) or user == "Administrator":
+        return ""
+    territories = assigned_sales_territories(user)
+    if not territories:
+        return "1=0"
+    escaped = ", ".join(frappe.db.escape(t) for t in territories)
+    return f"`tabRetailer Credit Limit Request`.`territory` IN ({escaped})"
+
+
+def retailer_credit_limit_request_has_permission(doc, user=None, ptype=None, **kwargs):
+    """Document-level permission check for Retailer Credit Limit Request."""
+    user = user or frappe.session.user
+    if is_clothing_admin(user) or user == "Administrator":
+        return True
+    if ptype in ("create", "write", "delete", "cancel") and not is_sales_manager(user):
+        return False
+    territories = set(assigned_sales_territories(user))
+    doc_territory = getattr(doc, "territory", None) or (
+        frappe.db.get_value("Customer", doc.customer, "territory") if getattr(doc, "customer", None) else None
+    )
+    return bool(doc_territory and doc_territory in territories)

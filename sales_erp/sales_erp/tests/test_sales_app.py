@@ -401,10 +401,21 @@ class TestSalesERP(FrappeTestCase):
         self.assertEqual(rsm_visit.salesperson, self.rsm)
         self.assertEqual(rsm_visit.rsm, self.rsm)
         self.assertEqual(rsm_visit.visitor_role, "Regional Sales Manager")
-        self.assertEqual(rsm_visit.review_status, "Reviewed by RSM")
+        self.assertEqual(rsm_visit.review_status, "Submitted")
         self.assertEqual(rsm_visit.financial_assessment, "Healthy")
         self.assertEqual(rsm_visit.customer_footfall, 40)
         self.assertEqual(flt(rsm_visit.recommended_credit_limit), 60000.0)
+
+        # RSM cannot review their own visit; must be reviewed by Administrator
+        from sales_erp.sales_erp.doctype.retailer_visit.retailer_visit import review_visit
+        with self.assertRaises(frappe.PermissionError):
+            review_visit(rsm_visit.name, status="Reviewed by RSM")
+
+        frappe.set_user("Administrator")
+        review_visit(rsm_visit.name, status="Reviewed by Admin", notes="Approved by management")
+        rsm_visit.reload()
+        self.assertEqual(rsm_visit.review_status, "Reviewed by Admin")
+        self.assertEqual(rsm_visit.reviewed_by, "Administrator")
 
     def test_rsm_visit_cadence_lifecycle_and_escalation(self):
         """Verify 80-day RSM visit cadence calculation, advance warning, grace period, and escalation."""
@@ -483,6 +494,10 @@ class TestSalesERP(FrappeTestCase):
                 "visit_type": "RSM Periodic Review",
                 "outcome": "Closed",
                 "notes": "Completed 80-day cycle periodic review.",
+                "financial_assessment": "Healthy",
+                "customer_footfall": 25,
+                "stock_condition": "Well Maintained",
+                "dealer_feedback": "Satisfied with dealer network.",
             }).insert()
 
             frappe.set_user("Administrator")
@@ -686,6 +701,10 @@ class TestSalesERP(FrappeTestCase):
                 "outcome": "Order Expected",
                 "notes": "Reviewed dealer footfall and financials.",
                 "recommended_credit_limit": recommended,
+                "financial_assessment": "Healthy",
+                "customer_footfall": 25,
+                "stock_condition": "Well Maintained",
+                "dealer_feedback": "Dealer confirmed strong demand.",
             }).insert()
 
             # Check that pending request was automatically created linked to this visit

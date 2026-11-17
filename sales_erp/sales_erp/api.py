@@ -3,7 +3,7 @@ import frappe
 from sales_erp import __version__
 from frappe.utils import cint, today, get_first_day
 from sales_erp.roles import ALL_ROLES, ROLE_BUSINESS_ADMIN, ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_WAREHOUSE_MANAGER, ROLE_WAREHOUSE_OPERATOR
-from sales_erp.security import assigned_documents, get_current_user, get_user_roles, get_active_operational_role, require_role, is_salesperson, is_warehouse_operator, is_clothing_admin, has_retailer_access
+from sales_erp.security import assigned_sales_territories, get_current_user, get_user_roles, get_active_operational_role, require_role, is_salesperson, is_warehouse_operator, is_clothing_admin, has_retailer_access
 from sales_erp.erpnext_client import get_pick_lists, get_delivery_notes
 
 @frappe.whitelist()
@@ -27,17 +27,14 @@ def _sales_customer_scope():
     """Return explicit retailer names, or None for a system/business administrator."""
     if is_clothing_admin():
         return None
-    roles = get_user_roles()
-    if ROLE_SALES_MANAGER in roles:
-        territories = assigned_documents("Territory")
-        if not territories:
-            return []
-        return frappe.get_all(
-            "Customer",
-            filters={"disabled": 0, "territory": ["in", territories]},
-            pluck="name",
-        )
-    return assigned_documents("Customer")
+    territories = assigned_sales_territories()
+    if not territories:
+        return []
+    return frappe.get_all(
+        "Customer",
+        filters={"disabled": 0, "territory": ["in", territories]},
+        pluck="name",
+    )
 
 
 def _scoped_sales_order_rows(customers, filters, fields, **kwargs):

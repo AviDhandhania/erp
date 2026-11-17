@@ -1,6 +1,9 @@
+"""Retailer Visit controller and supervisory review service."""
+
 import frappe
+from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, getdate, now_datetime, nowdate
+from frappe.utils import cint, flt, getdate, now_datetime, nowdate
 
 from sales_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
 from sales_erp.security import (
@@ -17,6 +20,22 @@ from sales_erp.supervision import (
     get_territory_supervision,
 )
 
+EVIDENCE_FIELDS = (
+    "customer",
+    "salesperson",
+    "rsm",
+    "visit_date",
+    "visit_type",
+    "visitor_role",
+    "outcome",
+    "notes",
+    "follow_up_date",
+    "financial_assessment",
+    "customer_footfall",
+    "stock_condition",
+    "dealer_feedback",
+)
+
 
 class RetailerVisit(Document):
     def validate(self):
@@ -26,16 +45,84 @@ class RetailerVisit(Document):
 
         # 1. Retailer Access Check
         if not admin and not has_retailer_access(self.customer, user):
-            frappe.throw(frappe._("You do not have access to this retailer."), frappe.PermissionError)
+            frappe.throw(_("You do not have access to this retailer."), frappe.PermissionError)
 
-        # 2. ASM vs RSM Scoping
+        # 2. Immutability of Evidence & Review Fields for Existing Documents
+        if not self.is_new():
+            stored = frappe.db.get_value(
+                "Retailer Visit",
+                self.name,
+                [
+                    "customer",
+                    "salesperson",
+                    "rsm",
+                    "visit_date",
+                    "visit_type",
+                    "visitor_role",
+                    "outcome",
+                    "notes",
+                    "follow_up_date",
+                    "financial_assessment",
+                    "customer_footfall",
+                    "stock_condition",
+                    "dealer_feedback",
+                    "review_status",
+                    "reviewed_by",
+                    "reviewed_on",
+                    "review_notes",
+                ],
+                as_dict=True,
+            )
+            if stored:
+                # ASM cannot edit submitted reports
+                if ROLE_SALESPERSON in roles and not is_sales_manager(user) and not admin:
+                    frappe.throw(
+                        _("Area Sales Managers cannot edit submitted visit reports."),
+                        frappe.PermissionError,
+                    )
+
+                # Evidence immutability: once submitted or reviewed, original visit evidence cannot be altered
+                if not getattr(self.flags, "in_review_service", False):
+                    for field in EVIDENCE_FIELDS:
+                        old_val = stored.get(field)
+                        new_val = getattr(self, field, None)
+                        # Normalize datetimes/dates for comparison if needed
+                        if field in ("visit_date", "follow_up_date"):
+                            old_str = str(getdate(old_val)) if old_val else ""
+                            new_str = str(getdate(new_val)) if new_val else ""
+                            if old_str != new_str:
+                                frappe.throw(
+                                    _("Visit evidence field '{0}' is immutable once submitted.").format(field),
+                                    frappe.PermissionError,
+                                )
+                        elif field == "customer_footfall":
+                            if cint(old_val) != cint(new_val):
+                                frappe.throw(
+                                    _("Visit evidence field '{0}' is immutable once submitted.").format(field),
+                                    frappe.PermissionError,
+                                )
+                        else:
+                            if (old_val or "") != (new_val or ""):
+                                frappe.throw(
+                                    _("Visit evidence field '{0}' is immutable once submitted.").format(field),
+                                    frappe.PermissionError,
+                                )
+
+                    # Non-review services cannot alter review status
+                    if stored.review_status != self.review_status:
+                        frappe.throw(
+                            _("Review status can only be modified through the authorized review service."),
+                            frappe.PermissionError,
+                        )
+
+        # 3. ASM vs RSM Identity and Visit Type Scoping
         if ROLE_SALESPERSON in roles and not is_sales_manager(user) and not admin:
             self.salesperson = user
             self.visitor_role = "Area Sales Manager"
 
             if self.visit_type == "RSM Periodic Review":
                 frappe.throw(
-                    frappe._("Area Sales Managers cannot file an RSM Periodic Review."),
+                    _("Area Sales Managers cannot file an RSM Periodic Review."),
                     frappe.PermissionError,
                 )
 
@@ -54,27 +141,41 @@ class RetailerVisit(Document):
                 self.review_status = "Submitted"
 
         elif is_sales_manager(user) and not admin:
-            if not self.salesperson or self.salesperson == user:
-                self.salesperson = user
-                self.visitor_role = "Regional Sales Manager"
-                self.rsm = user
-                if not self.review_status or self.review_status == "Submitted":
-                    self.review_status = "Reviewed by RSM"
-                    self.reviewed_by = user
-                    self.reviewed_on = now_datetime()
+            # RSM visiting: visitor identity MUST be forced to logged-in assigned RSM
+            self.salesperson = user
+            self.visitor_role = "Regional Sales Manager"
+            self.rsm = user
+            if not self.review_status:
+                self.review_status = "Submitted"
 
-        # 3. Follow-up Date Validations
+        # 4. Required RSM Assessment Fields for Periodic Review
+        if self.visit_type == "RSM Periodic Review":
+            if not self.financial_assessment:
+                frappe.throw(_("Financial Assessment is required for an RSM Periodic Review."))
+            if self.customer_footfall is None or cint(self.customer_footfall) < 0:
+                frappe.throw(_("Daily Customer Footfall must be a valid non-negative number."))
+            if not self.stock_condition:
+                frappe.throw(_("Stock Condition is required for an RSM Periodic Review."))
+            if not (self.dealer_feedback or "").strip():
+                frappe.throw(_("Dealer Feedback is required for an RSM Periodic Review."))
+
+        # 5. Follow-up Date Validations
         if self.outcome == "Follow-up Required" and not self.follow_up_date:
-            frappe.throw(frappe._("Follow-up Date is required for this outcome."))
+            frappe.throw(_("Follow-up Date is required for this outcome."))
         if self.follow_up_date and getdate(self.follow_up_date) < getdate(nowdate()):
-            frappe.throw(frappe._("Follow-up Date cannot be in the past."))
+            frappe.throw(_("Follow-up Date cannot be in the past."))
 
     def on_update(self):
-        # Fulfill/close RSM visit obligation if this is a qualifying RSM visit
-        if self.visitor_role == "Regional Sales Manager" or self.visit_type == "RSM Periodic Review":
+        # Fulfill/close RSM visit obligation if this is a genuine qualifying RSM visit
+        if (
+            self.visitor_role == "Regional Sales Manager"
+            and self.visit_type == "RSM Periodic Review"
+            and self.rsm == self.salesperson
+            and is_sales_manager(self.rsm)
+        ):
             try:
                 from sales_erp.cadence import close_rsm_visit_obligation
-                close_rsm_visit_obligation(self.customer, self.salesperson or self.rsm)
+                close_rsm_visit_obligation(self.customer, self.rsm, qualifying_visit=self.name)
             except Exception:
                 pass
 
@@ -96,7 +197,7 @@ class RetailerVisit(Document):
                                 "proposed_credit_limit": flt(self.recommended_credit_limit),
                                 "source_visit": self.name,
                                 "reason": f"Recommended in RSM visit {self.name}: {self.dealer_feedback or self.notes or 'Periodic review assessment'}",
-                                "proposer": self.salesperson or self.rsm,
+                                "proposer": self.rsm,
                             }
                         )
                         req.flags.ignore_permissions = True
@@ -105,24 +206,53 @@ class RetailerVisit(Document):
 
 @frappe.whitelist(methods=["POST"])
 def review_visit(name, status, notes=None):
-    """Supervising RSM or Administrator reviews an ASM's Retailer Visit."""
+    """Supervisory review of a Retailer Visit with row-locking and role separation."""
     require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
+    admin = is_clothing_admin(user)
+
+    # Row-lock transition
+    rows = frappe.db.sql(
+        "SELECT name, review_status, salesperson, visitor_role, rsm FROM `tabRetailer Visit` WHERE name = %s FOR UPDATE",
+        (name,),
+        as_dict=True,
+    )
+    if not rows:
+        frappe.throw(_("Retailer Visit {0} does not exist.").format(name), frappe.DoesNotExistError)
+
+    current = rows[0]
+
+    # Separation of review roles:
+    if current.visitor_role == "Regional Sales Manager":
+        # Only Administrator can review visits performed by an RSM
+        if not admin:
+            frappe.throw(
+                _("Only administrators can review visits performed by Regional Sales Managers."),
+                frappe.PermissionError,
+            )
+        valid_statuses = {"Reviewed by Admin", "Action Required"}
+        if status not in valid_statuses:
+            frappe.throw(
+                _("Invalid review status '{0}' for an RSM visit. Must be one of: {1}").format(
+                    status, ", ".join(valid_statuses)
+                ),
+                frappe.ValidationError,
+            )
+    else:
+        # Visit performed by ASM
+        if not admin:
+            assert_rsm_supervises_asm(user, current.salesperson)
+        valid_statuses = {"Reviewed by RSM", "Reviewed by Admin", "Action Required"}
+        if status not in valid_statuses:
+            frappe.throw(
+                _("Invalid review status '{0}'. Must be one of: {1}").format(
+                    status, ", ".join(valid_statuses)
+                ),
+                frappe.ValidationError,
+            )
+
     doc = frappe.get_doc("Retailer Visit", name)
-    doc.check_permission("write")
-
-    if not is_clothing_admin(user):
-        assert_rsm_supervises_asm(user, doc.salesperson)
-
-    valid_statuses = {"Reviewed by RSM", "Action Required"}
-    if status not in valid_statuses:
-        frappe.throw(
-            frappe._("Invalid review status '{0}'. Must be one of: {1}").format(
-                status, ", ".join(valid_statuses)
-            ),
-            frappe.ValidationError,
-        )
-
+    doc.flags.in_review_service = True
     doc.review_status = status
     doc.reviewed_by = user
     doc.reviewed_on = now_datetime()

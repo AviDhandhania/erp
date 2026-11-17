@@ -8,7 +8,7 @@ from sales_erp.sales_erp.doctype.retailer_application.retailer_application impor
 )
 from sales_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
 from sales_erp.security import (
-    assigned_documents,
+    assigned_sales_territories,
     get_current_user,
     get_user_roles,
     require_role,
@@ -43,7 +43,7 @@ def _manager_territories(user=None):
     """None means unrestricted admin; an empty list means no manager scope."""
     if _is_assignment_admin(user):
         return None
-    return assigned_documents("Territory", user)
+    return assigned_sales_territories(user)
 
 
 def _assert_customer_scope(customer, territory=None):
@@ -80,12 +80,12 @@ def _active_salespeople():
         user
         for user in users
         if user.name in supervised
-        and (set(assigned_documents("Territory", user.name)) & set(manager_territories))
+        and (set(assigned_sales_territories(user.name)) & set(manager_territories))
     ]
 
 
 def _assert_salesperson_scope(user, territory):
-    if territory not in assigned_documents("Territory", user):
+    if territory not in assigned_sales_territories(user):
         frappe.throw(
             frappe._("The selected Area Sales Manager is not assigned to this retailer's territory."),
             frappe.PermissionError,

@@ -104,7 +104,6 @@ def _role_doctypes(role_name):
         "Customer",
         "Account",
         "Price List",
-        "Territory",
         "Customer Group",
         "Retailer Application",
         "Retailer Visit",
@@ -112,11 +111,11 @@ def _role_doctypes(role_name):
     }
     if role_name == ROLE_SALESPERSON:
         return shared
-    if role_name == ROLE_SALES_MANAGER:
-        return shared | {"ASM Supervision"}
+    if role_name in {ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}:
+        shared = shared | {"Territory", "ASM Supervision"}
     if role_name == ROLE_BUSINESS_ADMIN:
-        return shared | {"Sales Order", "ASM Supervision"}
-    return set()
+        shared = shared | {"Sales Order"}
+    return shared if role_name in {ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN} else set()
 
 
 def _ensure_custom_docperm(doctype, role, actions):

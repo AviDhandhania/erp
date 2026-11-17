@@ -62,7 +62,10 @@ def find_duplicates(doc, exclude=None):
             )
     pending = frappe.get_all(
         "Retailer Application",
-        filters={"name": ["!=", exclude or ""], "status": "Pending"},
+        filters={
+            "name": ["!=", exclude or ""],
+            "status": ["in", ["Pending", "Pending Info", "Resubmitted", "Approved"]],
+        },
         fields=["name", "shop_name", "phone", "email", "gstin"],
     )
     for application in pending:
@@ -127,13 +130,7 @@ def _validate_salesperson_territory(user, territory):
         )
 
 
-@frappe.whitelist()
-def get_territory_assignment(territory):
-    """Return active Area Sales Manager and supervising RSM for a sales territory."""
-    require_role({ROLE_SALES_MANAGER, ROLE_SALESPERSON, ROLE_BUSINESS_ADMIN, "System Manager", "Administrator"})
-    territory = (territory or "").strip()
-    if not territory:
-        return {}
+def _get_territory_assignment(territory):
     from frappe.utils import nowdate
     records = frappe.db.sql(
         """
@@ -152,6 +149,25 @@ def get_territory_assignment(territory):
     if records:
         return {"asm": records[0].asm, "rsm": records[0].rsm}
     return {}
+
+
+@frappe.whitelist()
+def get_territory_assignment(territory, check_permissions=True):
+    """Return active Area Sales Manager and supervising RSM for a sales territory."""
+    require_role({ROLE_SALES_MANAGER, ROLE_SALESPERSON, ROLE_BUSINESS_ADMIN, "System Manager", "Administrator"})
+    territory = (territory or "").strip()
+    if not territory:
+        return {}
+    if check_permissions:
+        user = get_current_user()
+        if not is_clothing_admin(user):
+            allowed = assigned_sales_territories(user)
+            if territory not in allowed:
+                frappe.throw(
+                    frappe._("You are not authorized to query territory assignments outside your assigned territories."),
+                    frappe.PermissionError,
+                )
+    return _get_territory_assignment(territory)
 
 
 class RetailerApplication(Document):
@@ -194,7 +210,7 @@ class RetailerApplication(Document):
             self.salesperson = get_current_user()
             self.territory = _salesperson_application_territory(self.salesperson)
         if self.territory:
-            assignment = get_territory_assignment(self.territory)
+            assignment = get_territory_assignment(self.territory, check_permissions=False)
             if assignment:
                 if not self.salesperson:
                     self.salesperson = assignment.get("asm")

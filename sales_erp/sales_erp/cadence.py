@@ -2,11 +2,11 @@
 
 Enforces the operational model requirements:
 - The RSM must personally visit every shop in their supervisory scope at least once within 80 days.
-- Advance warning notification / obligation task generated as the deadline approaches (day 70).
+- Advance warning notification / structured obligation record generated as the deadline approaches (day 70).
 - 5 grace days follow the 80-day target (days 81-85).
 - If no qualifying RSM visit exists after day 85, an escalation notice is sent to administrators.
 - Idempotent and timezone-safe across repeated scheduler executions.
-- Completing a qualifying RSM visit closes active visit obligations.
+- Completing a qualifying RSM visit satisfies active structured obligations.
 """
 
 from __future__ import annotations
@@ -67,7 +67,8 @@ def get_customer_rsm_visit_status(customer: str, target_date: str | None = None)
         FROM `tabRetailer Visit`
         WHERE customer = %s
           AND docstatus != 2
-          AND (visitor_role = 'Regional Sales Manager' OR visit_type = 'RSM Periodic Review')
+          AND visitor_role = 'Regional Sales Manager'
+          AND visit_type = 'RSM Periodic Review'
           AND DATE(visit_date) <= %s
         ORDER BY visit_date DESC, creation DESC
         LIMIT 1
@@ -122,8 +123,98 @@ def get_customer_rsm_visit_status(customer: str, target_date: str | None = None)
     }
 
 
-def close_rsm_visit_obligation(customer: str, rsm: str | None = None) -> int:
-    """Close any open ToDos for RSM visits to this customer upon visit completion."""
+def sync_rsm_visit_obligation(status_info: dict, target_date: str | None = None) -> str | None:
+    """Create or synchronize a structured RSM Visit Obligation for the customer's current cycle."""
+    customer = status_info.get("customer")
+    if not customer:
+        return None
+
+    base_date = status_info.get("base_date")
+    cycle_id = f"{customer}-{base_date}"
+    rsm = status_info.get("rsm")
+    asm = status_info.get("asm")
+    territory = status_info.get("territory")
+    due_date = status_info.get("due_date")
+    grace_end_date = status_info.get("grace_end_date")
+    status = status_info.get("status")
+
+    escalation_state = "None"
+    if status == STATUS_APPROACHING:
+        escalation_state = "Approaching"
+    elif status == STATUS_GRACE:
+        escalation_state = "Grace"
+    elif status == STATUS_OVERDUE:
+        escalation_state = "Escalated"
+
+    existing = frappe.db.get_value(
+        "RSM Visit Obligation",
+        {"cycle_id": cycle_id},
+        ["name", "status", "escalation_state"],
+        as_dict=True,
+    )
+
+    if existing:
+        if existing.status in ("Open", "Escalated"):
+            new_status = "Escalated" if escalation_state == "Escalated" else "Open"
+            if existing.status != new_status or existing.escalation_state != escalation_state:
+                frappe.db.set_value(
+                    "RSM Visit Obligation",
+                    existing.name,
+                    {
+                        "status": new_status,
+                        "escalation_state": escalation_state,
+                        "assigned_rsm": rsm,
+                        "assigned_asm": asm,
+                    },
+                )
+        return existing.name
+
+    doc = frappe.get_doc(
+        {
+            "doctype": "RSM Visit Obligation",
+            "cycle_id": cycle_id,
+            "customer": customer,
+            "territory": territory,
+            "assigned_rsm": rsm,
+            "assigned_asm": asm,
+            "cycle_start": base_date,
+            "due_date": due_date,
+            "grace_end_date": grace_end_date,
+            "status": "Escalated" if escalation_state == "Escalated" else "Open",
+            "escalation_state": escalation_state,
+        }
+    )
+    doc.flags.ignore_permissions = True
+    doc.insert()
+    return doc.name
+
+
+def close_rsm_visit_obligation(customer: str, rsm: str | None = None, qualifying_visit: str | None = None) -> int:
+    """Fulfill open/escalated obligations for this customer upon visit completion."""
+    obligations = frappe.get_all(
+        "RSM Visit Obligation",
+        filters={
+            "customer": customer,
+            "status": ["in", ["Open", "Escalated"]],
+        },
+        pluck="name",
+    )
+    closed_count = 0
+    now = now_datetime()
+    for name in obligations:
+        frappe.db.set_value(
+            "RSM Visit Obligation",
+            name,
+            {
+                "status": "Satisfied",
+                "qualifying_visit": qualifying_visit,
+                "satisfied_on": now,
+                "satisfied_by": rsm or get_current_user(),
+            },
+        )
+        closed_count += 1
+
+    # Also close any linked legacy ToDos
     filters = {
         "reference_type": "Customer",
         "reference_name": customer,
@@ -133,20 +224,20 @@ def close_rsm_visit_obligation(customer: str, rsm: str | None = None) -> int:
         filters["allocated_to"] = rsm
 
     open_todos = frappe.get_all("ToDo", filters=filters, pluck="name")
-    closed_count = 0
     for todo_name in open_todos:
         todo = frappe.get_doc("ToDo", todo_name)
         if "80-day periodic" in (todo.description or "") or "RSM" in (todo.description or ""):
             todo.status = "Closed"
             todo.flags.ignore_permissions = True
             todo.save()
-            closed_count += 1
 
     return closed_count
 
 
 def sync_rsm_visit_todo(status_info: dict, target_date: str | None = None) -> str | None:
-    """Ensure an open ToDo exists for the supervising RSM when approaching or in grace/overdue."""
+    """Synchronize both structured obligation and linked operational ToDo for supervising RSM."""
+    sync_rsm_visit_obligation(status_info, target_date=target_date)
+
     rsm = status_info.get("rsm")
     customer = status_info.get("customer")
     customer_name = status_info.get("customer_name")
@@ -198,16 +289,22 @@ def send_administrator_escalation(status_info: dict, target_date: str | None = N
     customer = status_info["customer"]
     customer_name = status_info["customer_name"]
     rsm = status_info.get("rsm") or "Unassigned"
-    territory = status_info.get("territory") or "Unassigned"
     days_elapsed = status_info["days_elapsed"]
     target_dt = getdate(target_date or nowdate())
+
+    # Record escalation on the structured obligation
+    obligation_name = sync_rsm_visit_obligation(status_info, target_date=target_date)
+    if obligation_name:
+        last_escalated = frappe.db.get_value("RSM Visit Obligation", obligation_name, "last_escalated_on")
+        if last_escalated and getdate(last_escalated) == target_dt:
+            return []  # Already escalated today
+        frappe.db.set_value("RSM Visit Obligation", obligation_name, "last_escalated_on", now_datetime())
 
     subject = (
         f"ESCALATION: Shop {customer_name} overdue for RSM visit ({days_elapsed} days elapsed). "
         f"Responsible RSM: {rsm}"
     )
 
-    # Active Business Administrators and System Managers
     admin_users = frappe.db.sql(
         """
         SELECT DISTINCT u.name
@@ -229,37 +326,38 @@ def send_administrator_escalation(status_info: dict, target_date: str | None = N
                 "for_user": admin,
                 "document_type": "Customer",
                 "document_name": customer,
-                "subject": ["like", "ESCALATION: Shop % overdue for RSM visit%"],
-                "creation": [">=", add_days(target_dt, -7)],
+                "creation": [">=", f"{target_dt} 00:00:00"],
             },
             fieldname="name",
         )
-        if not recent_notice:
-            notif = frappe.get_doc(
-                {
-                    "doctype": "Notification Log",
-                    "type": "Alert",
-                    "for_user": admin,
-                    "document_type": "Customer",
-                    "document_name": customer,
-                    "subject": subject,
-                    "email_content": (
-                        f"The 80-day RSM visit target and 5-day grace period have expired for shop "
-                        f"{customer_name} ({customer}) in territory {territory}.\n"
-                        f"Days elapsed since last qualifying visit: {days_elapsed}.\n"
-                        f"Assigned RSM: {rsm}."
-                    ),
-                }
-            )
-            notif.flags.ignore_permissions = True
-            notif.insert()
-            created.append(notif.name)
+        if recent_notice:
+            continue
+
+        notification = frappe.get_doc(
+            {
+                "doctype": "Notification Log",
+                "type": "Alert",
+                "for_user": admin,
+                "document_type": "Customer",
+                "document_name": customer,
+                "subject": subject,
+                "email_content": (
+                    f"Retail shop '{customer_name}' ({customer}) in territory '{status_info.get('territory')}' "
+                    f"has not received a qualifying periodic review visit from the assigned Regional Sales Manager ({rsm}) "
+                    f"in {days_elapsed} days. The 80-day cycle deadline ({status_info['due_date']}) and 5-day grace period "
+                    f"({status_info['grace_end_date']}) have both passed."
+                ),
+            }
+        )
+        notification.flags.ignore_permissions = True
+        notification.insert()
+        created.append(notification.name)
 
     return created
 
 
 def evaluate_rsm_visit_cadence(target_date: str | None = None, notify: bool = True) -> dict:
-    """Iterate through active customers in managed sales territories, evaluate cadence, and sync obligations."""
+    """Evaluate 80-day visit cadence for all customers and record obligations / escalations."""
     target_dt = getdate(target_date or nowdate())
 
     customers = frappe.db.sql(
@@ -352,7 +450,6 @@ def get_rsm_visit_cadence_report(
         if territory:
             allowed_territories = [territory]
 
-    # Query customer list
     conditions = ["(c.disabled IS NULL OR c.disabled = 0)"]
     params = []
 
@@ -379,7 +476,6 @@ def get_rsm_visit_cadence_report(
 
     for cust in customers:
         item = get_customer_rsm_visit_status(cust.name, target_date=target_dt)
-        # Apply rsm filter if requested
         if rsm and item.get("rsm") != rsm:
             continue
 
