@@ -22,6 +22,7 @@ from warehouse_erp.roles import (
     ROLE_BUSINESS_ADMIN,
     ROLE_WAREHOUSE_MANAGER,
 )
+from warehouse_erp.api_security import check_rate_limit, record_security_audit_event
 from warehouse_erp.security import (
     assigned_warehouses,
     get_current_user,
@@ -121,6 +122,7 @@ def intake_customer_return(
     notes: str | None = None,
 ) -> dict:
     """Atomically validate, return, and isolate garments into native quarantine."""
+    check_rate_limit("intake_customer_return", limit=60, window_seconds=60)
     require_role(RETURN_INTAKE_ROLES)
     user = get_current_user()
 
@@ -256,6 +258,18 @@ def intake_customer_return(
         notes=notes,
     )
 
+    record_security_audit_event(
+        "Customer Return Intaked",
+        "Return Quarantine",
+        quarantine_doc.get("name"),
+        {
+            "delivery_note": orig_dn.name,
+            "return_delivery_note": return_dn.name,
+            "item_code": item_code,
+            "quantity": return_qty,
+        },
+    )
+
     frappe.db.commit()
 
     return {
@@ -272,6 +286,7 @@ def intake_customer_return(
 @frappe.whitelist(methods=["POST"])
 def move_to_refurbishment(quarantine_name: str, refurbishment_warehouse: str) -> dict:
     """Move quality-cleared returned stock to refurbishment WIP via native Stock Entry."""
+    check_rate_limit("move_to_refurbishment", limit=30, window_seconds=60)
     require_role(RETURN_INTAKE_ROLES)
     user = get_current_user()
 
@@ -339,6 +354,14 @@ def move_to_refurbishment(quarantine_name: str, refurbishment_warehouse: str) ->
     rq.stock_entry = se.name
     rq.flags.ignore_permissions = True
     rq.save()
+
+    record_security_audit_event(
+        "Moved to Refurbishment",
+        "Return Quarantine",
+        rq.name,
+        {"stock_entry": se.name, "target_warehouse": refurbishment_warehouse},
+    )
+
     frappe.db.commit()
 
     return {
@@ -356,6 +379,7 @@ def complete_refurbishment(
     notes: str | None = None,
 ) -> dict:
     """Restock successfully refurbished stock back into saleable inventory via native Stock Entry."""
+    check_rate_limit("complete_refurbishment", limit=30, window_seconds=60)
     require_role(RETURN_INTAKE_ROLES)
     user = get_current_user()
 
@@ -424,6 +448,14 @@ def complete_refurbishment(
         rq.inspection_notes = (rq.inspection_notes or "") + f"\nRestock completed ({user}): {notes.strip()}"
     rq.flags.ignore_permissions = True
     rq.save()
+
+    record_security_audit_event(
+        "Refurbishment Completed",
+        "Return Quarantine",
+        rq.name,
+        {"restock_entry": se.name, "target_warehouse": target_saleable_warehouse},
+    )
+
     frappe.db.commit()
 
     return {

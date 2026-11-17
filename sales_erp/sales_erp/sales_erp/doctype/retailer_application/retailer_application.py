@@ -6,6 +6,12 @@ from frappe.utils import flt, now_datetime
 
 from sales_erp.retailer_defaults import validate_retailer_type
 from sales_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
+from sales_erp.api_security import (
+    check_rate_limit,
+    record_security_audit_event,
+    validate_float,
+    validate_string,
+)
 from sales_erp.security import (
     assigned_sales_territories,
     get_current_user,
@@ -293,7 +299,9 @@ def _lock_application(name):
 
 @frappe.whitelist(methods=["POST"])
 def approve(name, initial_credit_limit=None):
+    check_rate_limit("approve_retailer_application", limit=30, window_seconds=60)
     require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+    name = validate_string(name, "Application Name", max_len=140, required=True)
     application = _lock_application(name)
     application.check_permission("write")
     if application.status not in ("Pending", "Resubmitted"):
@@ -308,79 +316,87 @@ def approve(name, initial_credit_limit=None):
 
     parsed_limit = 0.0
     if initial_credit_limit is not None and str(initial_credit_limit).strip() != "":
-        try:
-            parsed_limit = flt(initial_credit_limit)
-        except (ValueError, TypeError):
-            frappe.throw(frappe._("Initial credit limit must be a valid number."))
-        if parsed_limit < 0:
-            frappe.throw(frappe._("Initial credit limit cannot be negative."))
+        parsed_limit = validate_float(initial_credit_limit, "Initial Credit Limit", min_val=0, max_val=50_000_000)
     elif getattr(application, "initial_credit_limit", None):
-        parsed_limit = flt(application.initial_credit_limit)
+        parsed_limit = validate_float(application.initial_credit_limit, "Initial Credit Limit", min_val=0, max_val=50_000_000)
 
     duplicates = find_duplicates(application, exclude=application.name)
     if duplicates:
         frappe.throw(
             frappe._("Approval stopped because a duplicate retailer was found.")
         )
-    customer = frappe.get_doc(
-        {
-            "doctype": "Customer",
-            "customer_name": application.shop_name,
-            "customer_type": "Company",
-            "customer_group": application.customer_group,
-            "territory": application.territory,
-            "tax_id": application.gstin or None,
-        }
-    ).insert(ignore_permissions=True)
+    try:
+        customer = frappe.get_doc(
+            {
+                "doctype": "Customer",
+                "customer_name": application.shop_name,
+                "customer_type": "Company",
+                "customer_group": application.customer_group,
+                "territory": application.territory,
+                "tax_id": application.gstin or None,
+            }
+        ).insert(ignore_permissions=True)
 
-    if parsed_limit > 0:
-        company = (
-            frappe.defaults.get_user_default("Company")
-            or frappe.db.get_single_value("Global Defaults", "default_company")
-        )
-        if not company:
-            companies = frappe.get_all("Company", limit=1, pluck="name")
-            company = companies[0] if companies else None
-        if company:
-            customer.append(
-                "credit_limits",
-                {
-                    "company": company,
-                    "credit_limit": parsed_limit,
-                },
+        if parsed_limit > 0:
+            company = (
+                frappe.defaults.get_user_default("Company")
+                or frappe.db.get_single_value("Global Defaults", "default_company")
             )
-            customer.save(ignore_permissions=True)
+            if not company:
+                companies = frappe.get_all("Company", limit=1, pluck="name")
+                company = companies[0] if companies else None
+            if company:
+                customer.append(
+                    "credit_limits",
+                    {
+                        "company": company,
+                        "credit_limit": parsed_limit,
+                    },
+                )
+                customer.save(ignore_permissions=True)
 
-    _make_contact(application, customer)
-    _make_address(application, customer)
-    billing_address = (
-        application.billing_address_line1,
-        application.billing_city,
-        application.billing_state,
-        application.billing_pincode,
-    )
-    shipping_address = (
-        application.shipping_address_line1,
-        application.shipping_city,
-        application.shipping_state,
-        application.shipping_pincode,
-    )
-    if application.shipping_address_line1 and shipping_address != billing_address:
-        _make_address(application, customer, shipping=True)
-    application.db_set(
-        {
-            "status": "Approved",
-            "customer": customer.name,
-            "initial_credit_limit": parsed_limit,
-            "reviewed_by": get_current_user(),
-            "reviewed_on": now_datetime(),
-            "rejection_reason": None,
-        }
-    )
+        _make_contact(application, customer)
+        _make_address(application, customer)
+        billing_address = (
+            application.billing_address_line1,
+            application.billing_city,
+            application.billing_state,
+            application.billing_pincode,
+        )
+        shipping_address = (
+            application.shipping_address_line1,
+            application.shipping_city,
+            application.shipping_state,
+            application.shipping_pincode,
+        )
+        if application.shipping_address_line1 and shipping_address != billing_address:
+            _make_address(application, customer, shipping=True)
+        application.db_set(
+            {
+                "status": "Approved",
+                "customer": customer.name,
+                "initial_credit_limit": parsed_limit,
+                "reviewed_by": get_current_user(),
+                "reviewed_on": now_datetime(),
+                "rejection_reason": None,
+            }
+        )
+    except Exception:
+        frappe.db.rollback()
+        raise
+
     frappe.clear_cache(user=application.salesperson)
     frappe.db.after_commit.add(
         lambda user=application.salesperson: frappe.clear_cache(user=user)
     )
+
+    record_security_audit_event(
+        "Retailer Application Approved",
+        "Retailer Application",
+        application.name,
+        {"customer": customer.name, "initial_credit_limit": parsed_limit},
+    )
+
     return {
         "application": application.name,
         "customer": customer.name,
@@ -392,9 +408,10 @@ def approve(name, initial_credit_limit=None):
 @frappe.whitelist(methods=["POST"])
 def request_more_info(name, comments):
     """RSM requests more information from the responsible ASM."""
+    check_rate_limit("request_more_info", limit=30, window_seconds=60)
     require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
-    if not (comments or "").strip():
-        frappe.throw(frappe._("A comment explaining the required information is required."))
+    name = validate_string(name, "Application Name", max_len=140, required=True)
+    comments = validate_string(comments, "Comments", max_len=1000, required=True)
     application = _lock_application(name)
     application.check_permission("write")
     if application.status not in ("Pending", "Resubmitted"):
@@ -406,25 +423,40 @@ def request_more_info(name, comments):
             territory=application.territory,
         )
     user = get_current_user()
-    application.db_set(
-        {
-            "status": "More Information Requested",
-            "info_requested_by": user,
-            "info_requested_on": now_datetime(),
-            "requested_information": comments.strip(),
-        }
+    try:
+        application.db_set(
+            {
+                "status": "More Information Requested",
+                "info_requested_by": user,
+                "info_requested_on": now_datetime(),
+                "requested_information": comments,
+            }
+        )
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Retailer Application RFI",
+        "Retailer Application",
+        application.name,
+        {"requested_information": comments},
     )
+
     return {
         "application": application.name,
         "status": "More Information Requested",
-        "requested_information": comments.strip(),
+        "requested_information": comments,
     }
 
 
 @frappe.whitelist(methods=["POST"])
 def resubmit(name, notes=None):
     """Responsible ASM resubmits application after updating requested details."""
+    check_rate_limit("resubmit_retailer_application", limit=30, window_seconds=60)
     require_role({ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+    name = validate_string(name, "Application Name", max_len=140, required=True)
+    notes = validate_string(notes, "Notes", max_len=1000, required=False)
     application = _lock_application(name)
     application.check_permission("write")
     if application.status != "More Information Requested":
@@ -440,10 +472,22 @@ def resubmit(name, notes=None):
         "status": "Resubmitted",
         "resubmitted_on": now_datetime(),
     }
-    if notes and notes.strip():
+    if notes:
         existing_notes = application.notes or ""
-        updates["notes"] = f"{existing_notes}\nResubmission notes ({user}): {notes.strip()}".strip()
-    application.db_set(updates)
+        updates["notes"] = f"{existing_notes}\nResubmission notes ({user}): {notes}".strip()
+    try:
+        application.db_set(updates)
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Retailer Application Resubmitted",
+        "Retailer Application",
+        application.name,
+        {"notes": notes},
+    )
+
     return {
         "application": application.name,
         "status": "Resubmitted",
@@ -452,9 +496,10 @@ def resubmit(name, notes=None):
 
 @frappe.whitelist(methods=["POST"])
 def reject(name, reason):
+    check_rate_limit("reject_retailer_application", limit=30, window_seconds=60)
     require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
-    if not (reason or "").strip():
-        frappe.throw(frappe._("A rejection reason is required."))
+    name = validate_string(name, "Application Name", max_len=140, required=True)
+    reason = validate_string(reason, "Rejection Reason", max_len=1000, required=True)
     application = _lock_application(name)
     application.check_permission("write")
     if application.status in ("Approved", "Rejected"):
@@ -465,12 +510,23 @@ def reject(name, reason):
             asm=application.salesperson,
             territory=application.territory,
         )
-    application.db_set(
-        {
-            "status": "Rejected",
-            "reviewed_by": get_current_user(),
-            "reviewed_on": now_datetime(),
-            "rejection_reason": reason.strip(),
-        }
+    try:
+        application.db_set(
+            {
+                "status": "Rejected",
+                "reviewed_by": get_current_user(),
+                "reviewed_on": now_datetime(),
+                "rejection_reason": reason,
+            }
+        )
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Retailer Application Rejected",
+        "Retailer Application",
+        application.name,
+        {"rejection_reason": reason},
     )
     return {"application": application.name, "status": "Rejected"}

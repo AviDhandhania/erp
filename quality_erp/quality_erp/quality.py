@@ -8,6 +8,12 @@ from quality_erp.roles import (
     ROLE_QUALITY_INSPECTOR,
     ROLE_QUALITY_MANAGER,
 )
+from quality_erp.api_security import (
+    check_rate_limit,
+    record_security_audit_event,
+    validate_int,
+    validate_string,
+)
 from quality_erp.security import (
     assert_can_approve_quality_gate,
     get_current_user,
@@ -72,35 +78,53 @@ def create_quality_inspection(
     supersedes=None,
 ):
     """Create a new supplier quality inspection entry."""
+    check_rate_limit("create_quality_inspection", limit=60, window_seconds=60)
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
 
-    if stage not in QUALITY_STAGES:
-        frappe.throw(_("Invalid quality stage '{0}'").format(stage), frappe.ValidationError)
+    supplier = validate_string(supplier, "Supplier", max_len=140, required=True)
+    item_code = validate_string(item_code, "Item Code", max_len=140, required=True)
+    stage = validate_string(stage, "Stage", max_len=140, required=True, allowed_values=QUALITY_STAGES)
+    purchase_order = validate_string(purchase_order, "Purchase Order", max_len=140)
+    revision = validate_int(revision, "Revision", min_val=1, max_val=1000) or 1
 
-    doc = frappe.get_doc(
-        {
-            "doctype": "Supplier Quality Inspection",
-            "supplier": supplier,
-            "item_code": item_code,
-            "purchase_order": purchase_order,
-            "stage": stage,
-            "status": "Pending Review",
-            "revision": int(revision or 1),
-            "supersedes": supersedes,
-            "inspector": user,
-            "spec_measurements": spec_notes,
-            "photo_evidence": photo_evidence,
-        }
-    ).insert()
+    try:
+        doc = frappe.get_doc(
+            {
+                "doctype": "Supplier Quality Inspection",
+                "supplier": supplier,
+                "item_code": item_code,
+                "purchase_order": purchase_order,
+                "stage": stage,
+                "status": "Pending Review",
+                "revision": int(revision or 1),
+                "supersedes": supersedes,
+                "inspector": user,
+                "spec_measurements": spec_notes,
+                "photo_evidence": photo_evidence,
+            }
+        ).insert()
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Quality Inspection Created",
+        "Supplier Quality Inspection",
+        doc.name,
+        {"stage": stage, "supplier": supplier, "item_code": item_code, "revision": doc.revision},
+    )
+
     return doc.as_dict()
 
 
 @frappe.whitelist(methods=["POST"])
 def revise_quality_inspection(inspection_name, spec_notes=None, photo_evidence=None):
     """Create a new versioned revision of a rejected or pending inspection report."""
+    check_rate_limit("revise_quality_inspection", limit=30, window_seconds=60)
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
+    inspection_name = validate_string(inspection_name, "Inspection Name", max_len=140, required=True)
 
     # Lock original inspection
     rows = frappe.db.sql(
@@ -118,22 +142,37 @@ def revise_quality_inspection(inspection_name, spec_notes=None, photo_evidence=N
     doc.check_permission("write")
 
     new_revision = (curr.revision or 1) + 1
-    new_doc = frappe.get_doc(
+    try:
+        new_doc = frappe.get_doc(
+            {
+                "doctype": "Supplier Quality Inspection",
+                "supplier": curr.supplier,
+                "item_code": curr.item_code,
+                "purchase_order": curr.purchase_order,
+                "stage": curr.stage,
+                "status": "Pending Review",
+                "revision": new_revision,
+                "supersedes": inspection_name,
+                "inspector": user,
+                "spec_measurements": spec_notes or doc.spec_measurements,
+                "photo_evidence": photo_evidence or doc.photo_evidence,
+                "comments": f"Revision {new_revision} superseding {inspection_name}",
+            }
+        ).insert()
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Quality Inspection Revised",
+        "Supplier Quality Inspection",
+        new_doc.name,
         {
-            "doctype": "Supplier Quality Inspection",
-            "supplier": curr.supplier,
-            "item_code": curr.item_code,
-            "purchase_order": curr.purchase_order,
-            "stage": curr.stage,
-            "status": "Pending Review",
-            "revision": new_revision,
             "supersedes": inspection_name,
-            "inspector": user,
-            "spec_measurements": spec_notes or doc.spec_measurements,
-            "photo_evidence": photo_evidence or doc.photo_evidence,
-            "comments": f"Revision {new_revision} superseding {inspection_name}",
-        }
-    ).insert()
+            "stage": new_doc.stage,
+            "revision": new_revision,
+        },
+    )
 
     return new_doc.as_dict()
 
@@ -141,8 +180,10 @@ def revise_quality_inspection(inspection_name, spec_notes=None, photo_evidence=N
 @frappe.whitelist(methods=["POST"])
 def approve_quality_gate(inspection_name, notes=None):
     """Approve a quality inspection gate. Critical gates require Administrator approval."""
+    check_rate_limit("approve_quality_gate", limit=30, window_seconds=60)
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
+    inspection_name = validate_string(inspection_name, "Inspection Name", max_len=140, required=True)
 
     # Row-lock transition
     rows = frappe.db.sql(
@@ -181,20 +222,33 @@ def approve_quality_gate(inspection_name, notes=None):
     doc.approval_date = now_datetime()
     if notes:
         doc.comments = (doc.comments or "") + f"\nApproval notes ({user}): {notes}"
-    doc.save()
+    try:
+        doc.save()
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Quality Gate Approved",
+        "Supplier Quality Inspection",
+        doc.name,
+        {"stage": doc.stage, "supplier": doc.supplier, "approved_by": user},
+    )
+
     return doc.as_dict()
 
 
 @frappe.whitelist(methods=["POST"])
 def reject_quality_gate(inspection_name, reason):
     """Reject a quality inspection gate with mandatory reason."""
+    check_rate_limit("reject_quality_gate", limit=30, window_seconds=60)
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
-    if not reason or not reason.strip():
-        frappe.throw(_("Rejection requires a documented reason."), frappe.ValidationError)
+    inspection_name = validate_string(inspection_name, "Inspection Name", max_len=140, required=True)
+    reason = validate_string(reason, "Rejection Reason", max_len=1000, required=True)
 
     rows = frappe.db.sql(
-        "SELECT name, status, stage FROM `tabSupplier Quality Inspection` WHERE name = %s FOR UPDATE",
+        "SELECT name, status, stage, supplier FROM `tabSupplier Quality Inspection` WHERE name = %s FOR UPDATE",
         (inspection_name,),
         as_dict=True,
     )
@@ -207,8 +261,20 @@ def reject_quality_gate(inspection_name, reason):
     doc.status = "Rejected"
     doc.approved_by = user
     doc.approval_date = now_datetime()
-    doc.comments = (doc.comments or "") + f"\nRejection ({user}): {reason.strip()}"
-    doc.save()
+    doc.comments = (doc.comments or "") + f"\nRejection ({user}): {reason}"
+    try:
+        doc.save()
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Quality Gate Rejected",
+        "Supplier Quality Inspection",
+        doc.name,
+        {"stage": doc.stage, "supplier": doc.supplier, "reason": reason},
+    )
+
     return doc.as_dict()
 
 
@@ -308,12 +374,26 @@ def record_return_quarantine(
             "inspection_notes": notes,
         }
     ).insert()
+
+    record_security_audit_event(
+        "Return Quarantine Created",
+        "Return Quarantine",
+        doc.name,
+        {
+            "retailer": retailer,
+            "delivery_note": delivery_note,
+            "item_code": item_code,
+            "quantity": float(quantity),
+        },
+    )
+
     return doc.as_dict()
 
 
 @frappe.whitelist(methods=["POST"])
 def inspect_return_quarantine(quarantine_name, decision, notes=None, photo_evidence=None):
     """Quality department inspection decision on returned quarantined garments."""
+    check_rate_limit("inspect_return_quarantine", limit=30, window_seconds=60)
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
 
@@ -356,6 +436,14 @@ def inspect_return_quarantine(quarantine_name, decision, notes=None, photo_evide
     if photo_evidence:
         doc.photo_evidence = photo_evidence
     doc.save()
+
+    record_security_audit_event(
+        "Return Quarantine Inspected",
+        "Return Quarantine",
+        doc.name,
+        {"decision": decision, "status": doc.inspection_status},
+    )
+
     return doc.as_dict()
 
 

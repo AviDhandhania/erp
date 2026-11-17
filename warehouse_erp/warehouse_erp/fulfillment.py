@@ -9,6 +9,13 @@ from warehouse_erp.roles import (
     ROLE_BUSINESS_ADMIN,
     ROLE_WAREHOUSE_MANAGER,
 )
+from warehouse_erp.api_security import (
+    check_rate_limit,
+    record_security_audit_event,
+    validate_float,
+    validate_int,
+    validate_string,
+)
 from warehouse_erp.security import is_warehouse_manager, require_role
 
 FULFILLMENT_ROLES = {
@@ -438,8 +445,11 @@ def _require_picked_rows_preserved(document, snapshot):
 @frappe.whitelist(methods=["POST"])
 def verify_pick_item(pick_list, location, barcode, quantity=1):
     """Increment native picked quantity after exact row and barcode verification."""
+    check_rate_limit("verify_pick_item", limit=120, window_seconds=60)
     require_role(FULFILLMENT_ROLES)
     pick_list = _task_name(pick_list)
+    location = validate_string(location, "Location", max_len=140, required=True)
+    barcode = validate_string(barcode, "Barcode", max_len=140, required=True)
     quantity = _scan_quantity(quantity)
     document = frappe.get_doc("Pick List", pick_list)
     document.check_permission("read")
@@ -465,7 +475,24 @@ def verify_pick_item(pick_list, location, barcode, quantity=1):
         )
     document.scan_mode = 1
     row.picked_qty = picked + quantity
-    document.save(ignore_permissions=True)
+    try:
+        document.save(ignore_permissions=True)
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Pick Item Verified",
+        "Pick List",
+        document.name,
+        {
+            "location": row.name,
+            "item_code": row.item_code,
+            "quantity": quantity,
+            "picked_qty": row.picked_qty,
+        },
+    )
+
     return {
         "pick_list": document.name,
         "location": row.name,
@@ -483,8 +510,10 @@ def verify_pick_item(pick_list, location, barcode, quantity=1):
 @frappe.whitelist(methods=["POST"])
 def undo_pick_item_scan(pick_list, location, barcode=None, quantity=1):
     """Undo the last unsubmitted scan on a draft Pick List row with an audit comment."""
+    check_rate_limit("undo_pick_item_scan", limit=60, window_seconds=60)
     require_role(FULFILLMENT_ROLES)
     pick_list = _task_name(pick_list)
+    location = validate_string(location, "Location", max_len=140, required=True)
     quantity = _scan_quantity(quantity)
     document = frappe.get_doc("Pick List", pick_list)
     document.check_permission("read")
@@ -536,8 +565,23 @@ def undo_pick_item_scan(pick_list, location, barcode=None, quantity=1):
         ),
     )
     document.flags.ignore_permissions = True
-    document.save(ignore_permissions=True)
-    frappe.db.commit()
+    try:
+        document.save(ignore_permissions=True)
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Pick Item Scan Undone",
+        "Pick List",
+        document.name,
+        {
+            "location": row.name,
+            "item_code": row.item_code,
+            "undo_qty": undo_qty,
+            "undone_serial": undone_serial,
+        },
+    )
 
     return {
         "pick_list": document.name,
@@ -705,6 +749,7 @@ def split_pick_shortage_row(pick_list, location, reason):
 @frappe.whitelist(methods=["POST"])
 def complete_pick_list(pick_list):
     """Submit a fully verified Pick List through ERPNext's native controller."""
+    check_rate_limit("complete_pick_list", limit=30, window_seconds=60)
     require_role(FULFILLMENT_ROLES)
     pick_list = _task_name(pick_list)
     document = frappe.get_doc("Pick List", pick_list)
@@ -732,6 +777,9 @@ def complete_pick_list(pick_list):
     frappe.flags.clothing_pick_bundle = document.name
     try:
         document.submit()
+    except Exception:
+        frappe.db.rollback()
+        raise
     finally:
         if previous_bundle_context is None:
             frappe.flags.pop("clothing_pick_bundle", None)
@@ -739,6 +787,14 @@ def complete_pick_list(pick_list):
             frappe.flags.clothing_pick_bundle = previous_bundle_context
 
     _close_pick_assignments(document.name)
+
+    record_security_audit_event(
+        "Pick List Completed",
+        "Pick List",
+        document.name,
+        {"status": document.status, "docstatus": document.docstatus},
+    )
+
     return {
         "pick_list": document.name,
         "docstatus": document.docstatus,
@@ -755,6 +811,7 @@ def _lock_delivery_note(delivery_note):
 @frappe.whitelist(methods=["POST"])
 def create_delivery_note_from_pick(pick_list):
     """Create a native draft Delivery Note from a submitted Pick List."""
+    check_rate_limit("create_delivery_note_from_pick", limit=30, window_seconds=60)
     require_role(FULFILLMENT_ROLES)
     pick_list = _task_name(pick_list)
     document = frappe.get_doc("Pick List", pick_list)
@@ -797,7 +854,12 @@ def create_delivery_note_from_pick(pick_list):
 
     from erpnext.stock.doctype.pick_list.pick_list import create_delivery_note
 
-    result = create_delivery_note(pick_list)
+    try:
+        result = create_delivery_note(pick_list)
+    except Exception:
+        frappe.db.rollback()
+        raise
+
     if isinstance(result, list):
         if not result:
             frappe.throw(
@@ -811,6 +873,13 @@ def create_delivery_note_from_pick(pick_list):
         frappe.throw(
             frappe._("No Delivery Note could be generated from Pick List {0}.").format(pick_list)
         )
+
+    record_security_audit_event(
+        "Delivery Note Created",
+        "Delivery Note",
+        dn.name,
+        {"pick_list": pick_list, "customer": dn.customer},
+    )
 
     frappe.db.commit()
     return {
@@ -907,8 +976,12 @@ def dispatch_delivery_note(
     lr_date=None,
 ):
     """Submit and dispatch a native Delivery Note with carrier handoff metadata."""
+    check_rate_limit("dispatch_delivery_note", limit=30, window_seconds=60)
     require_role(SHORTAGE_RESOLUTION_ROLES)
     delivery_note = _task_name(delivery_note)
+    transporter_name = validate_string(transporter_name, "Transporter Name", max_len=140)
+    vehicle_no = validate_string(vehicle_no, "Vehicle No", max_len=140)
+    lr_no = validate_string(lr_no, "LR No", max_len=140)
     document = frappe.get_doc("Delivery Note", delivery_note)
     document.check_permission("read")
     if document.docstatus != 0:
@@ -936,17 +1009,33 @@ def dispatch_delivery_note(
                 )
 
     if transporter_name:
-        document.transporter_name = str(transporter_name).strip()[:140]
+        document.transporter_name = transporter_name
     if vehicle_no:
-        document.vehicle_no = str(vehicle_no).strip()[:140]
+        document.vehicle_no = vehicle_no
     if lr_no:
-        document.lr_no = str(lr_no).strip()[:140]
+        document.lr_no = lr_no
     if lr_date:
         from frappe.utils import getdate
         document.lr_date = getdate(lr_date)
 
     document.flags.ignore_permissions = True
-    document.submit()
+    try:
+        document.submit()
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Delivery Note Dispatched",
+        "Delivery Note",
+        document.name,
+        {
+            "customer": document.customer,
+            "transporter": transporter_name,
+            "lr_no": lr_no,
+        },
+    )
+
     frappe.db.commit()
 
     return {

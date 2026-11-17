@@ -6,6 +6,12 @@ from frappe.model.document import Document
 from frappe.utils import flt, now_datetime
 
 from sales_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
+from sales_erp.api_security import (
+    check_rate_limit,
+    record_security_audit_event,
+    validate_float,
+    validate_string,
+)
 from sales_erp.security import (
     get_current_user,
     get_user_roles,
@@ -173,12 +179,15 @@ class RetailerCreditLimitRequest(Document):
 @frappe.whitelist(methods=["POST"])
 def approve_credit_limit_request(name):
     """Administrator approves a proposed retailer credit limit change with row-locking and live limit checks."""
+    check_rate_limit("approve_credit_limit_request", limit=30, window_seconds=60)
     user = get_current_user()
     if not is_clothing_admin(user):
         frappe.throw(
             _("Only administrators can approve credit limit adjustments."),
             frappe.PermissionError,
         )
+
+    name = validate_string(name, "Request Name", max_len=140, required=True)
 
     # Row-lock transition
     rows = frappe.db.sql(
@@ -241,6 +250,13 @@ def approve_credit_limit_request(name):
         except Exception:
             pass
 
+    record_security_audit_event(
+        "Credit Limit Approved",
+        "Retailer Credit Limit Request",
+        doc.name,
+        {"customer": doc.customer, "new_limit": flt(doc.proposed_credit_limit)},
+    )
+
     return {
         "name": doc.name,
         "status": "Approved",
@@ -253,6 +269,7 @@ def approve_credit_limit_request(name):
 @frappe.whitelist(methods=["POST"])
 def reject_credit_limit_request(name, reason=None):
     """Administrator rejects a proposed retailer credit limit change with row-locking and mandatory reason."""
+    check_rate_limit("reject_credit_limit_request", limit=30, window_seconds=60)
     user = get_current_user()
     if not is_clothing_admin(user):
         frappe.throw(
@@ -260,12 +277,8 @@ def reject_credit_limit_request(name, reason=None):
             frappe.PermissionError,
         )
 
-    reason = (reason or "").strip()
-    if not reason:
-        frappe.throw(
-            _("A non-empty rejection reason is required when rejecting a credit limit request."),
-            frappe.ValidationError,
-        )
+    name = validate_string(name, "Request Name", max_len=140, required=True)
+    reason = validate_string(reason, "Rejection Reason", max_len=1000, required=True)
 
     # Row-lock transition
     rows = frappe.db.sql(
@@ -316,6 +329,13 @@ def reject_credit_limit_request(name, reason=None):
         except Exception:
             pass
 
+    record_security_audit_event(
+        "Credit Limit Rejected",
+        "Retailer Credit Limit Request",
+        doc.name,
+        {"customer": doc.customer, "reason": reason},
+    )
+
     return {
         "name": doc.name,
         "status": "Rejected",
@@ -328,8 +348,13 @@ def reject_credit_limit_request(name, reason=None):
 @frappe.whitelist(methods=["POST"])
 def propose_credit_limit(customer, proposed_limit, reason, company=None, source_visit=None):
     """Convenience API to propose a credit limit adjustment for a retailer."""
+    check_rate_limit("propose_credit_limit", limit=30, window_seconds=60)
     require_role({ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
+
+    customer = validate_string(customer, "Customer", max_len=140, required=True)
+    proposed_limit = validate_float(proposed_limit, "Proposed Limit", min_val=0, max_val=50_000_000, required=True)
+    reason = validate_string(reason, "Reason", max_len=1000, required=True)
 
     if not is_clothing_admin(user) and not has_retailer_access(customer, user):
         frappe.throw(
@@ -347,6 +372,13 @@ def propose_credit_limit(customer, proposed_limit, reason, company=None, source_
             "source_visit": source_visit,
         }
     ).insert()
+
+    record_security_audit_event(
+        "Credit Limit Proposed",
+        "Retailer Credit Limit Request",
+        doc.name,
+        {"customer": customer, "proposed_limit": flt(proposed_limit)},
+    )
 
     return {
         "name": doc.name,

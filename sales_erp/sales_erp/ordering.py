@@ -8,6 +8,13 @@ import frappe
 from frappe.utils import cint, flt, getdate, nowdate
 
 from sales_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
+from sales_erp.api_security import (
+    check_rate_limit,
+    clear_idempotency,
+    record_security_audit_event,
+    save_idempotency_result,
+    validate_idempotency,
+)
 from sales_erp.security import (
     assigned_sales_territories,
     get_current_user,
@@ -440,6 +447,7 @@ def _active_sales_order_workflow():
 @frappe.whitelist(methods=["POST"])
 def submit_clothing_order(name):
     """Submit one authorized draft through ERPNext's native Sales Order controller."""
+    check_rate_limit("submit_clothing_order", limit=60, window_seconds=60)
     require_role(ORDER_REVIEW_ROLES)
     order = _validate_order_access(name)
     if order.docstatus != 0:
@@ -489,13 +497,25 @@ def submit_clothing_order(name):
 
     # Native submit owns credit-limit, authorization, commission, stock-reservation,
     # taxes, linked-document and status behavior on the pinned ERPNext release.
-    document.submit()
+    try:
+        document.submit()
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Sales Order Submitted",
+        "Sales Order",
+        document.name,
+        {"customer": customer, "grand_total": flt(document.grand_total)},
+    )
     return _result(document)
 
 
 @frappe.whitelist(methods=["POST"])
 def cancel_clothing_order(name):
     """Cancel one authorized submitted order through ERPNext's native controller."""
+    check_rate_limit("cancel_clothing_order", limit=60, window_seconds=60)
     require_role(ORDER_REVIEW_ROLES)
     order = _validate_order_access(name)
     if order.docstatus != 1:
@@ -519,13 +539,25 @@ def cancel_clothing_order(name):
     document.flags.ignore_permissions = True
     # Native cancellation owns linked-document checks, reserved-quantity and stock
     # reservation cleanup, previous-document updates and final status behavior.
-    document.cancel()
+    try:
+        document.cancel()
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Sales Order Cancelled",
+        "Sales Order",
+        document.name,
+        {"customer": getattr(document, "customer", None)},
+    )
     return _result(document)
 
 
 @frappe.whitelist(methods=["POST"])
 def create_draft_sales_order(customer, items, request_id, delivery_date=None):
     """Create a standard ERPNext draft; submission remains a separate native workflow."""
+    check_rate_limit("create_draft_sales_order", limit=60, window_seconds=60)
     require_role(ORDER_ROLES)
     customer = _validate_customer(customer)
     request_id = _request_id(request_id)
@@ -539,6 +571,20 @@ def create_draft_sales_order(customer, items, request_id, delivery_date=None):
         frappe.throw(frappe._("Delivery Date is invalid."))
     if delivery_date < getdate(nowdate()):
         frappe.throw(frappe._("Delivery Date cannot be in the past."))
+
+    cached, is_replay = validate_idempotency(
+        "create_draft_sales_order",
+        request_id,
+        {"customer": customer, "items": rows, "delivery_date": str(delivery_date)},
+    )
+    if is_replay:
+        return cached
+
+    # Row-lock Customer to serialize concurrent orders for the same retailer
+    frappe.db.sql(
+        "SELECT name FROM `tabCustomer` WHERE name = %s FOR UPDATE", customer
+    )
+
     company = _validate_company()
 
     exposure = get_retailer_stock_exposure(customer, company)
@@ -569,6 +615,7 @@ def create_draft_sales_order(customer, items, request_id, delivery_date=None):
     # Shop-stock exposure rule: stock already held at shop + new incoming stock <= approved limit
     if exposure["approved_limit"] > 0 and (exposure["total_exposure"] + flt(order.grand_total)) > exposure["approved_limit"]:
         if not is_clothing_admin():
+            clear_idempotency("create_draft_sales_order", request_id)
             frappe.throw(
                 frappe._(
                     "The combined shop-stock exposure ({0} {1:,.2f}) exceeds the retailer's approved limit of {0} {2:,.2f} "
@@ -589,5 +636,25 @@ def create_draft_sales_order(customer, items, request_id, delivery_date=None):
     except frappe.DuplicateEntryError:
         if existing := _existing_order(request_id, customer):
             return _result(existing, replay=True)
+        clear_idempotency("create_draft_sales_order", request_id)
+        frappe.db.rollback()
         raise
-    return _result(order)
+    except Exception:
+        clear_idempotency("create_draft_sales_order", request_id)
+        frappe.db.rollback()
+        raise
+
+    res = _result(order)
+    record_security_audit_event(
+        "Sales Order Draft Created",
+        "Sales Order",
+        order.name,
+        {"customer": customer, "grand_total": flt(order.grand_total), "request_id": request_id},
+    )
+    save_idempotency_result(
+        "create_draft_sales_order",
+        request_id,
+        res,
+        {"customer": customer, "items": rows, "delivery_date": str(delivery_date)},
+    )
+    return res

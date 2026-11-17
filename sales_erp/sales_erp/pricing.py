@@ -14,6 +14,7 @@ from erpnext.stock.get_item_details import _get_item_details
 from frappe.utils import cint, flt, getdate, nowdate
 
 from sales_erp.roles import ROLE_BUSINESS_ADMIN
+from sales_erp.api_security import check_rate_limit, record_security_audit_event
 from sales_erp.security import has_retailer_access
 from sales_erp.security import require_role
 
@@ -261,6 +262,7 @@ def get_product_pricing(search=None, price_list=None, page=1, page_size=12):
 @frappe.whitelist(methods=["POST"])
 def set_template_price(template, price_list, rate):
     """Apply one rate to every enabled Size variant using native Item Price records."""
+    check_rate_limit("set_template_price", limit=30, window_seconds=60)
     require_role(PRICE_ADMIN_ROLES)
     price_list_details = _selling_price_list(price_list)
     template = str(template or "").strip()[:140]
@@ -281,8 +283,8 @@ def set_template_price(template, price_list, rate):
         rate = Decimal(str(rate))
     except InvalidOperation, ValueError:
         frappe.throw(frappe._("Enter a valid positive price."))
-    if not rate.is_finite() or rate <= 0:
-        frappe.throw(frappe._("Enter a valid positive price."))
+    if not rate.is_finite() or rate <= 0 or rate > 10_000_000:
+        frappe.throw(frappe._("Enter a valid positive price (up to 10,000,000)."))
     variants = _size_only_variants([template])
     if not variants:
         frappe.throw(frappe._("This product has no enabled Size-only variants."))
@@ -300,26 +302,41 @@ def set_template_price(template, price_list, rate):
             ).format(", ".join(sorted(ambiguous)))
         )
     changed = []
-    for variant in variants:
-        if current := prices.get(variant.name):
-            price = frappe.get_doc("Item Price", current.name)
-            price.price_list_rate = rate
-            price.save(ignore_permissions=True)
-            action = "updated"
-        else:
-            price = frappe.get_doc(
-                {
-                    "doctype": "Item Price",
-                    "item_code": variant.name,
-                    "uom": variant.stock_uom,
-                    "price_list": price_list_details.name,
-                    "price_list_rate": rate,
-                    "valid_from": nowdate(),
-                }
-            )
-            price.insert(ignore_permissions=True)
-            action = "created"
-        changed.append({"item_code": variant.name, "item_price": price.name, "action": action})
+    try:
+        for variant in variants:
+            if current := prices.get(variant.name):
+                price = frappe.get_doc("Item Price", current.name)
+                price.price_list_rate = rate
+                price.save(ignore_permissions=True)
+                action = "updated"
+            else:
+                price = frappe.get_doc(
+                    {
+                        "doctype": "Item Price",
+                        "item_code": variant.name,
+                        "uom": variant.stock_uom,
+                        "price_list": price_list_details.name,
+                        "price_list_rate": rate,
+                        "valid_from": nowdate(),
+                    }
+                )
+                price.insert(ignore_permissions=True)
+                action = "created"
+            changed.append({"item_code": variant.name, "item_price": price.name, "action": action})
+    except Exception:
+        frappe.db.rollback()
+        raise
+
+    record_security_audit_event(
+        "Item Price Bulk Updated",
+        "Item",
+        template,
+        {
+            "price_list": price_list_details.name,
+            "rate": float(rate),
+            "variants_count": len(variants),
+        },
+    )
     return {
         "template": template,
         "price_list": price_list_details.name,
