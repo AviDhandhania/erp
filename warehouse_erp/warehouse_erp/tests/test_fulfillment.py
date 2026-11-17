@@ -412,3 +412,113 @@ class TestFulfillment(unittest.TestCase):
             fulfillment.complete_pick_list(document.name)
         self.assertIsNone(frappe.flags.get("clothing_pick_bundle"))
         close_assignments.assert_not_called()
+
+    def test_create_delivery_note_from_pick_requires_submitted_pick_list(self):
+        document, _row = self.pick_document(picked_qty=3, stock_qty=3, docstatus=0)
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.create_delivery_note_from_pick(document.name)
+
+    def test_create_delivery_note_from_pick_enforces_warehouse_permissions(self):
+        document, _row = self.pick_document(picked_qty=3, stock_qty=3, docstatus=1)
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch("warehouse_erp.security.is_warehouse_admin", return_value=False),
+            patch("warehouse_erp.security.assigned_warehouses", return_value=["Other Warehouse"]),
+            self.assertRaises(frappe.PermissionError),
+        ):
+            fulfillment.create_delivery_note_from_pick(document.name)
+
+    def test_create_delivery_note_from_pick_returns_existing_draft(self):
+        document, _row = self.pick_document(picked_qty=3, stock_qty=3, docstatus=1)
+        existing_row = [{"name": "MAT-DN-EXISTING", "customer": "TEST Retailer", "docstatus": 0}]
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch("warehouse_erp.security.is_warehouse_admin", return_value=True),
+            patch.object(frappe.db, "sql", return_value=existing_row),
+        ):
+            result = fulfillment.create_delivery_note_from_pick(document.name)
+        self.assertEqual(result["delivery_note"], "MAT-DN-EXISTING")
+        self.assertEqual(result["docstatus"], 0)
+
+    def test_create_delivery_note_from_pick_success(self):
+        document, _row = self.pick_document(picked_qty=3, stock_qty=3, docstatus=1)
+        dn_mock = frappe._dict(name="MAT-DN-0001", customer="TEST Customer", docstatus=0)
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch("warehouse_erp.security.is_warehouse_admin", return_value=True),
+            patch.object(frappe.db, "sql", return_value=[]),
+            patch("erpnext.stock.doctype.pick_list.pick_list.create_delivery_note", return_value=dn_mock),
+            patch.object(frappe.db, "commit"),
+        ):
+            result = fulfillment.create_delivery_note_from_pick(document.name)
+        self.assertEqual(result["delivery_note"], "MAT-DN-0001")
+        self.assertEqual(result["customer"], "TEST Customer")
+
+    def test_dispatch_delivery_note_requires_draft(self):
+        dn = frappe._dict(name="MAT-DN-0001", docstatus=1, items=[], check_permission=MagicMock())
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=dn),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.dispatch_delivery_note(dn.name)
+
+    def test_dispatch_delivery_note_enforces_warehouse_permissions(self):
+        item = frappe._dict(warehouse="TEST Warehouse")
+        dn = frappe._dict(name="MAT-DN-0001", docstatus=0, items=[item], check_permission=MagicMock())
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=dn),
+            patch.object(fulfillment, "_lock_delivery_note"),
+            patch("warehouse_erp.security.is_warehouse_admin", return_value=False),
+            patch("warehouse_erp.security.assigned_warehouses", return_value=["Other Warehouse"]),
+            self.assertRaises(frappe.PermissionError),
+        ):
+            fulfillment.dispatch_delivery_note(dn.name)
+
+    def test_dispatch_delivery_note_success_with_metadata_and_submit(self):
+        item = frappe._dict(warehouse="TEST Warehouse")
+        dn = frappe._dict(
+            name="MAT-DN-0001",
+            docstatus=0,
+            status="Draft",
+            items=[item],
+            flags=frappe._dict(),
+            check_permission=MagicMock(),
+            submit=MagicMock(),
+        )
+
+        def submit():
+            dn.docstatus = 1
+            dn.status = "Completed"
+
+        dn.submit.side_effect = submit
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=dn),
+            patch.object(fulfillment, "_lock_delivery_note") as lock,
+            patch("warehouse_erp.security.is_warehouse_admin", return_value=True),
+            patch.object(frappe.db, "commit"),
+        ):
+            result = fulfillment.dispatch_delivery_note(
+                delivery_note=dn.name,
+                transporter_name="FastTrack Logistics",
+                vehicle_no="KA-01-AB-1234",
+                lr_no="LR-987654",
+                lr_date="2026-11-17",
+            )
+        lock.assert_called_once_with(dn.name)
+        self.assertEqual(dn.transporter_name, "FastTrack Logistics")
+        self.assertEqual(dn.vehicle_no, "KA-01-AB-1234")
+        self.assertEqual(dn.lr_no, "LR-987654")
+        dn.submit.assert_called_once()
+        self.assertEqual(result["docstatus"], 1)
+        self.assertEqual(result["status"], "Completed")
+

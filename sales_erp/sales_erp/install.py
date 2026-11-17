@@ -108,6 +108,7 @@ def _role_doctypes(role_name):
         "Retailer Application",
         "Retailer Visit",
         "Retailer Assignment History",
+        "Delivery Follow-Up Obligation",
     }
     if role_name == ROLE_SALESPERSON:
         return shared
@@ -273,6 +274,13 @@ def after_install():
                     _ensure_custom_docperm(doctype, name, ["read", "write", "report"])
                 else:
                     _ensure_custom_docperm(doctype, name, ["read", "write", "create"])
+            elif doctype == "Delivery Follow-Up Obligation":
+                if name == ROLE_BUSINESS_ADMIN:
+                    _ensure_custom_docperm(doctype, name, ["read", "write", "create", "delete", "export", "report"])
+                elif name == ROLE_SALESPERSON:
+                    _ensure_custom_docperm(doctype, name, ["read", "write", "report"])
+                else:
+                    _ensure_custom_docperm(doctype, name, ["read", "report"])
             elif doctype == "Retailer Visit":
                 if name == ROLE_BUSINESS_ADMIN:
                     _ensure_custom_docperm(doctype, name, ["read", "write", "create", "delete", "export", "report"])

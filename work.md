@@ -64,7 +64,7 @@ Confirmed requirements now governing the next warehouse/quality stages:
 - [ ] Complete normal fulfilment from approved order through scan/pick, packing, the
   permitted billing-preparation step and recorded handoff to delivery using native Sales
   Order, Pick List, Delivery Note and Sales Invoice controllers.
-- [ ] Generate a delivery follow-up obligation for the responsible ASM, who contacts the
+- [x] Generate a delivery follow-up obligation for the responsible ASM, who contacts the
   retailer and records confirmation or issues.
 - [ ] Implement return intake by scanning the exact Item/Size/serial/batch against an
   authorized original transaction and prevent duplicate or excess returns.

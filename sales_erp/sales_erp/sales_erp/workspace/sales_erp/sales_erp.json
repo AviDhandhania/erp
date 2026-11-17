@@ -60,7 +60,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Field Sales & Retailers",
-   "link_count": 7,
+   "link_count": 8,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -71,6 +71,16 @@
    "link_count": 0,
    "link_to": "clothing-orders",
    "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Delivery Follow-Ups",
+   "link_count": 0,
+   "link_to": "Delivery Follow-Up Obligation",
+   "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
   },

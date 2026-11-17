@@ -1,0 +1,195 @@
+{
+ "autoname": "format:DFO-{YYYY}-{#####}",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "delivery_note",
+  "customer",
+  "customer_name",
+  "territory",
+  "assigned_asm",
+  "assigned_rsm",
+  "col_break_1",
+  "posting_date",
+  "due_date",
+  "status",
+  "outcome",
+  "follow_up_section",
+  "contact_person",
+  "contact_datetime",
+  "issue_notes",
+  "qualifying_visit",
+  "satisfaction_section",
+  "satisfied_on",
+  "satisfied_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "delivery_note",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Delivery Note",
+   "options": "Delivery Note",
+   "reqd": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Retailer",
+   "options": "Customer",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "customer.customer_name",
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Retailer Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "customer.territory",
+   "fieldname": "territory",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Territory",
+   "options": "Territory",
+   "read_only": 1
+  },
+  {
+   "fieldname": "assigned_asm",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Assigned Area Sales Manager",
+   "options": "User",
+   "search_index": 1
+  },
+  {
+   "fieldname": "assigned_rsm",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Supervising Regional Sales Manager",
+   "options": "User"
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Dispatch Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Follow-Up Due Date",
+   "reqd": 1
+  },
+  {
+   "default": "Pending Contact",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending Contact\nSatisfied\nIssue Escalated",
+   "reqd": 1
+  },
+  {
+   "fieldname": "outcome",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Delivery Outcome",
+   "options": "\nDelivered in Full & Good Condition\nShortage Reported\nDamage Reported\nDelivery Refused / Returned\nRetailer Unavailable"
+  },
+  {
+   "fieldname": "follow_up_section",
+   "fieldtype": "Section Break",
+   "label": "Follow-up Details & Confirmation"
+  },
+  {
+   "fieldname": "contact_person",
+   "fieldtype": "Data",
+   "label": "Retailer Contact Person"
+  },
+  {
+   "fieldname": "contact_datetime",
+   "fieldtype": "Datetime",
+   "label": "Contact Date & Time"
+  },
+  {
+   "fieldname": "issue_notes",
+   "fieldtype": "Text",
+   "label": "Delivery Notes / Issue Details"
+  },
+  {
+   "fieldname": "qualifying_visit",
+   "fieldtype": "Link",
+   "label": "Linked Retailer Visit",
+   "options": "Retailer Visit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "satisfaction_section",
+   "fieldtype": "Section Break",
+   "label": "Audit Trail"
+  },
+  {
+   "fieldname": "satisfied_on",
+   "fieldtype": "Datetime",
+   "label": "Completed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "satisfied_by",
+   "fieldtype": "Link",
+   "label": "Completed By",
+   "options": "User",
+   "read_only": 1
+  }
+ ],
+ "module": "Sales ERP",
+ "name": "Delivery Follow-Up Obligation",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Business Administrator",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Regional Sales Manager"
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Area Sales Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "due_date",
+ "sort_order": "ASC",
+ "track_changes": 1
+}

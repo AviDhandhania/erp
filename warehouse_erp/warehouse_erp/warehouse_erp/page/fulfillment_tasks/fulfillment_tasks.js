@@ -82,11 +82,15 @@ class FulfillmentTasks {
 		const workflowNotice = task.workflow ? `<div class="alert alert-warning">${__("Pick List workflow {0} is active. Its configured approval actions must be completed before submission.", [this.escape(task.workflow)])}</div>` : "";
 		const shortageAction = task.can_resolve_shortage ? `<button type="button" class="btn btn-default resolve-pick-shortage">${__("Resolve shortage")}</button>` : "";
 		const completeAction = task.can_complete_pick ? `<button type="button" class="btn btn-primary complete-pick-list">${__("Complete picking")}</button>` : "";
-		const footerActions = shortageAction || completeAction ? `<div class="text-right">${shortageAction} ${completeAction}</div>` : "";
-		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div></div>${task.can_verify_items ? `<div class="alert alert-info">${__("Scan the SKU/item barcode, Batch No, or Serial No required by the exact Pick List row. ERPNext validates tracked stock when each scan is saved.")}</div>` : ""}${workflowNotice}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${task.can_verify_items ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}${footerActions}`);
+		const createDnAction = task.can_create_delivery_note ? `<button type="button" class="btn btn-primary create-delivery-note">${__("Create Delivery Note")}</button>` : "";
+		const dispatchAction = task.can_dispatch_delivery ? `<button type="button" class="btn btn-primary dispatch-delivery-note">${__("Dispatch Delivery")}</button>` : "";
+		const footerActions = shortageAction || completeAction || createDnAction || dispatchAction ? `<div class="text-right">${shortageAction} ${completeAction} ${createDnAction} ${dispatchAction}</div>` : "";
+		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div>${task.transporter_name ? `<div><span>${__("Transporter")}</span><strong>${this.escape(task.transporter_name)}</strong></div>` : ""}${task.lr_no ? `<div><span>${__("LR No")}</span><strong>${this.escape(task.lr_no)}</strong></div>` : ""}</div>${task.can_verify_items ? `<div class="alert alert-info">${__("Scan the SKU/item barcode, Batch No, or Serial No required by the exact Pick List row. ERPNext validates tracked stock when each scan is saved.")}</div>` : ""}${workflowNotice}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${task.can_verify_items ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}${footerActions}`);
 		dialog.$body.on("click", ".verify-pick-item", (event) => this.verify_item(task, event.currentTarget, dialog));
 		dialog.$body.on("click", ".resolve-pick-shortage", () => this.resolve_shortage(task, dialog));
 		dialog.$body.on("click", ".complete-pick-list", () => this.complete_pick(task, dialog));
+		dialog.$body.on("click", ".create-delivery-note", () => this.create_delivery_note(task, dialog));
+		dialog.$body.on("click", ".dispatch-delivery-note", () => this.dispatch_delivery(task, dialog));
 		dialog.show();
 	}
 
@@ -145,5 +149,53 @@ class FulfillmentTasks {
 		});
 		await this.refresh();
 		this.open_task(task.name);
+	}
+
+	async create_delivery_note(task, dialog) {
+		const confirmed = await new Promise((resolve) => {
+			frappe.confirm(__("Create native Delivery Note from Pick List {0}?", [task.name]), () => resolve(true), () => resolve(false));
+		});
+		if (!confirmed) return;
+		const { message } = await frappe.call({
+			method: "warehouse_erp.fulfillment.create_delivery_note_from_pick",
+			type: "POST",
+			args: { pick_list: task.name },
+			freeze: true,
+			freeze_message: __("Creating Delivery Note with ERPNext…"),
+		});
+		dialog.hide();
+		frappe.show_alert({ message: __("Delivery Note {0} created for {1}", [message.delivery_note, message.customer]), indicator: "green" });
+		this.state.task_type = "delivery";
+		this.$root.find(".fulfillment-type").val("delivery");
+		await this.refresh();
+		this.open_task(message.delivery_note);
+	}
+
+	async dispatch_delivery(task, dialog) {
+		const values = await new Promise((resolve) => {
+			frappe.prompt([
+				{ fieldname: "transporter_name", fieldtype: "Data", label: __("Transporter / Carrier"), default: task.transporter_name || "" },
+				{ fieldname: "vehicle_no", fieldtype: "Data", label: __("Vehicle Number"), default: task.vehicle_no || "" },
+				{ fieldname: "lr_no", fieldtype: "Data", label: __("LR / Tracking Number"), default: task.lr_no || "" },
+				{ fieldname: "lr_date", fieldtype: "Date", label: __("LR / Dispatch Date"), default: task.lr_date || frappe.datetime.nowdate() },
+			], resolve, __("Dispatch Delivery Note {0}", [task.name]), __("Submit & Hand Off"));
+		});
+		if (!values) return;
+		const { message } = await frappe.call({
+			method: "warehouse_erp.fulfillment.dispatch_delivery_note",
+			type: "POST",
+			args: {
+				delivery_note: task.name,
+				transporter_name: values.transporter_name,
+				vehicle_no: values.vehicle_no,
+				lr_no: values.lr_no,
+				lr_date: values.lr_date,
+			},
+			freeze: true,
+			freeze_message: __("Dispatching delivery with ERPNext…"),
+		});
+		dialog.hide();
+		frappe.show_alert({ message: __("Delivery Note {0} dispatched ({1})", [message.delivery_note, message.status]), indicator: "green" });
+		this.refresh();
 	}
 }

@@ -158,6 +158,14 @@ def get_fulfillment_task(task_type, name):
             and not workflow_name
             and is_warehouse_manager()
         ),
+        "can_create_delivery_note": bool(task_type == "pick" and document.docstatus == 1),
+        "can_dispatch_delivery": bool(
+            task_type == "delivery" and document.docstatus == 0 and is_warehouse_manager()
+        ),
+        "transporter_name": document.get("transporter_name"),
+        "vehicle_no": document.get("vehicle_no"),
+        "lr_no": document.get("lr_no"),
+        "lr_date": str(document.get("lr_date")) if document.get("lr_date") else None,
     }
 
 
@@ -548,6 +556,138 @@ def complete_pick_list(pick_list):
     _close_pick_assignments(document.name)
     return {
         "pick_list": document.name,
+        "docstatus": document.docstatus,
+        "status": document.status,
+    }
+
+
+def _lock_delivery_note(delivery_note):
+    frappe.db.sql(
+        "select name from `tabDelivery Note` where name = %s for update", delivery_note
+    )
+
+
+@frappe.whitelist(methods=["POST"])
+def create_delivery_note_from_pick(pick_list):
+    """Create a native draft Delivery Note from a submitted Pick List."""
+    require_role(FULFILLMENT_ROLES)
+    pick_list = _task_name(pick_list)
+    document = frappe.get_doc("Pick List", pick_list)
+    document.check_permission("read")
+    if document.docstatus != 1:
+        frappe.throw(
+            frappe._("Only a completed (submitted) Pick List can be converted to a Delivery Note.")
+        )
+
+    from warehouse_erp.security import assigned_warehouses, is_warehouse_admin
+
+    user = frappe.session.user
+    if not is_warehouse_admin(user):
+        allowed = assigned_warehouses(user)
+        for row in document.locations:
+            if row.warehouse and row.warehouse not in allowed:
+                frappe.throw(
+                    frappe._("You do not have permission for warehouse {0}.").format(row.warehouse),
+                    frappe.PermissionError,
+                )
+
+    # Return existing draft Delivery Note if already generated for this Pick List
+    existing = frappe.db.sql(
+        """
+        SELECT DISTINCT dn.name, dn.customer, dn.docstatus
+        FROM `tabDelivery Note Item` dni
+        JOIN `tabDelivery Note` dn ON dn.name = dni.parent
+        WHERE dni.against_pick_list = %s AND dn.docstatus = 0
+        """,
+        (pick_list,),
+        as_dict=True,
+    )
+    if existing:
+        record = existing[0]
+        return {
+            "delivery_note": record.get("name") if isinstance(record, dict) else record.name,
+            "customer": record.get("customer") if isinstance(record, dict) else record.customer,
+            "docstatus": record.get("docstatus") if isinstance(record, dict) else record.docstatus,
+        }
+
+    from erpnext.stock.doctype.pick_list.pick_list import create_delivery_note
+
+    result = create_delivery_note(pick_list)
+    if isinstance(result, list):
+        if not result:
+            frappe.throw(
+                frappe._("No Delivery Note could be generated from Pick List {0}.").format(pick_list)
+            )
+        dn = result[0]
+    else:
+        dn = result
+
+    if not dn or not getattr(dn, "name", None):
+        frappe.throw(
+            frappe._("No Delivery Note could be generated from Pick List {0}.").format(pick_list)
+        )
+
+    frappe.db.commit()
+    return {
+        "delivery_note": dn.name,
+        "customer": dn.customer,
+        "docstatus": dn.docstatus,
+    }
+
+
+@frappe.whitelist(methods=["POST"])
+def dispatch_delivery_note(
+    delivery_note,
+    transporter_name=None,
+    vehicle_no=None,
+    lr_no=None,
+    lr_date=None,
+):
+    """Submit and dispatch a native Delivery Note with carrier handoff metadata."""
+    require_role(SHORTAGE_RESOLUTION_ROLES)
+    delivery_note = _task_name(delivery_note)
+    document = frappe.get_doc("Delivery Note", delivery_note)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(frappe._("Only a draft Delivery Note can be dispatched."))
+
+    _lock_delivery_note(delivery_note)
+    document = frappe.get_doc("Delivery Note", delivery_note)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(
+            frappe._("This Delivery Note changed while being dispatched. Refresh it.")
+        )
+
+    from warehouse_erp.security import assigned_warehouses, is_warehouse_admin
+
+    user = frappe.session.user
+    if not is_warehouse_admin(user):
+        allowed = assigned_warehouses(user)
+        for item in (document.get("items") or []):
+            item_wh = item.get("warehouse") if isinstance(item, dict) else getattr(item, "warehouse", None)
+            if item_wh and item_wh not in allowed:
+                frappe.throw(
+                    frappe._("You do not have permission for warehouse {0}.").format(item_wh),
+                    frappe.PermissionError,
+                )
+
+    if transporter_name:
+        document.transporter_name = str(transporter_name).strip()[:140]
+    if vehicle_no:
+        document.vehicle_no = str(vehicle_no).strip()[:140]
+    if lr_no:
+        document.lr_no = str(lr_no).strip()[:140]
+    if lr_date:
+        from frappe.utils import getdate
+        document.lr_date = getdate(lr_date)
+
+    document.flags.ignore_permissions = True
+    document.submit()
+    frappe.db.commit()
+
+    return {
+        "delivery_note": document.name,
         "docstatus": document.docstatus,
         "status": document.status,
     }
