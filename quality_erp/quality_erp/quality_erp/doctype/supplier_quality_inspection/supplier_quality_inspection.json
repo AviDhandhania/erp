@@ -25,6 +25,7 @@
   "fabric_quality_score",
   "stitching_quality_score",
   "photo_evidence",
+  "evidence_photos",
   "comments"
  ],
  "fields": [
@@ -151,7 +152,13 @@
   {
    "fieldname": "photo_evidence",
    "fieldtype": "Attach Image",
-   "label": "Photo Evidence"
+   "label": "Primary Photo Evidence"
+  },
+  {
+   "fieldname": "evidence_photos",
+   "fieldtype": "Table",
+   "label": "Evidence Photographs",
+   "options": "Quality Inspection Evidence"
   },
   {
    "fieldname": "comments",

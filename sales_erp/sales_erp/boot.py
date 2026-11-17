@@ -42,15 +42,16 @@ def ensure_module_app_mapped():
         frappe.setup_module_map()
         module_app = getattr(frappe.local, "module_app", None) or {}
 
-    missing = any(mod not in module_app for mod in ("sales_erp", "warehouse_erp", "quality_erp"))
-    if missing:
-        frappe.cache.delete_value("app_modules")
-        frappe.client_cache.delete_value("installed_app_modules")
-        frappe.setup_module_map(include_all_apps=True)
-        if hasattr(frappe.local, "module_app") and frappe.local.module_app is not None:
-            frappe.local.module_app["sales_erp"] = "sales_erp"
-            frappe.local.module_app["warehouse_erp"] = "warehouse_erp"
-            frappe.local.module_app["quality_erp"] = "quality_erp"
+    for key, app in [
+        ("sales_erp", "sales_erp"),
+        ("Sales ERP", "sales_erp"),
+        ("warehouse_erp", "warehouse_erp"),
+        ("Warehouse ERP", "warehouse_erp"),
+        ("quality_erp", "quality_erp"),
+        ("Quality ERP", "quality_erp"),
+    ]:
+        module_app[key] = app
+    frappe.local.module_app = module_app
 
 
 def apply_runtime_patches():

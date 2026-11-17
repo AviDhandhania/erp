@@ -39,6 +39,7 @@ before_request = ["quality_erp.boot.apply_runtime_patches"]
 
 # Document Permission Hooks (Document-level access control)
 has_permission = {
+	"File": "quality_erp.file_security.has_file_permission",
 	"Supplier Quality Inspection": "quality_erp.security.quality_inspection_has_permission",
 	"Return Quarantine": "quality_erp.security.return_quarantine_has_permission",
 }

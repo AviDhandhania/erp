@@ -39,6 +39,7 @@ before_request = ["warehouse_erp.boot.apply_runtime_patches"]
 
 # Document Permission Hooks (Document-level access control)
 has_permission = {
+	"File": "warehouse_erp.file_security.has_file_permission",
 	"Warehouse": "warehouse_erp.security.warehouse_has_permission",
 	"Pick List": "warehouse_erp.security.pick_list_has_permission",
 	"Delivery Note": "warehouse_erp.security.delivery_note_has_permission",

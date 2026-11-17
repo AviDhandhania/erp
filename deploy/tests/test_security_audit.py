@@ -32,6 +32,11 @@ APPROVED_RUNTIME_IGNORE_PERMISSIONS = {
     ("warehouse_erp/warehouse_erp/fulfillment.py", "complete_pick_list", "Submits Pick List and closes open assignments under row lock"),
     ("warehouse_erp/warehouse_erp/fulfillment.py", "create_packing_slip", "Creates native Packing Slip under warehouse permission and row lock"),
     ("warehouse_erp/warehouse_erp/fulfillment.py", "dispatch_delivery_note", "Submits Delivery Note after validating warehouse permission and LR details"),
+    ("sales_erp/sales_erp/file_security.py", "save_secure_file", "Inserts private File document after validating content bytes, magic signature, and decompression bounds"),
+    ("sales_erp/sales_erp/file_security.py", "reference_safe_delete_file", "Deletes unreferenced local File document after verifying zero active references across suite"),
+    ("quality_erp/quality_erp/file_security.py", "save_secure_file", "Inserts private File document after validating content bytes, magic signature, and decompression bounds"),
+    ("quality_erp/quality_erp/file_security.py", "reference_safe_delete_file", "Deletes unreferenced local File document after verifying zero active references across suite"),
+    ("warehouse_erp/warehouse_erp/file_security.py", "save_secure_file", "Inserts private File document after validating content bytes, magic signature, and decompression bounds"),
 }
 
 

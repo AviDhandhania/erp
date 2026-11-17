@@ -1,0 +1,94 @@
+{
+ "actions": [],
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "file",
+  "caption",
+  "evidence_type",
+  "display_order",
+  "uploader",
+  "uploaded_on",
+  "revision",
+  "file_size",
+  "content_hash"
+ ],
+ "fields": [
+  {
+   "fieldname": "file",
+   "fieldtype": "Attach Image",
+   "in_list_view": 1,
+   "label": "File",
+   "reqd": 1
+  },
+  {
+   "fieldname": "caption",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Caption / Defect Description"
+  },
+  {
+   "default": "Fabric Defect",
+   "fieldname": "evidence_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Evidence Type",
+   "options": "Fit Sample\nRefit Sample\nSize Set\nProduction Sample\nFabric Defect\nStitching Defect\nMeasurement Deviation\nPackaging / Label Defect\nQuarantine Defect\nRefurbishment Before\nRefurbishment After\nGeneral Defect\nOther",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "display_order",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Display Order"
+  },
+  {
+   "fieldname": "uploader",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Uploader",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "uploaded_on",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Uploaded On",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "revision",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Revision",
+   "read_only": 1
+  },
+  {
+   "fieldname": "file_size",
+   "fieldtype": "Int",
+   "label": "File Size (Bytes)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "content_hash",
+   "fieldtype": "Data",
+   "label": "Content SHA-256",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-17 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Quality ERP",
+ "name": "Quality Inspection Evidence",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "idx",
+ "sort_order": "ASC",
+ "track_changes": 1
+}

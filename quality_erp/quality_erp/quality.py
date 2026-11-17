@@ -66,6 +66,56 @@ def check_stage_prerequisites(stage, supplier, item_code, purchase_order=None, c
             )
 
 
+def _build_evidence_photo_rows(evidence_photos=None, photo_evidence=None, revision=1, user=None):
+    rows = []
+    user = user or frappe.session.user
+    now = now_datetime()
+
+    if isinstance(evidence_photos, str):
+        try:
+            evidence_photos = json.loads(evidence_photos)
+        except Exception:
+            evidence_photos = None
+
+    if evidence_photos and isinstance(evidence_photos, (list, tuple)):
+        for idx, item in enumerate(evidence_photos):
+            if isinstance(item, dict):
+                file_url = item.get("file") or item.get("photo_evidence")
+                if file_url:
+                    rows.append({
+                        "file": file_url,
+                        "caption": item.get("caption") or f"Inspection evidence {idx + 1}",
+                        "evidence_type": item.get("evidence_type") or "Fabric Defect",
+                        "display_order": item.get("display_order") or idx,
+                        "uploader": item.get("uploader") or user,
+                        "uploaded_on": item.get("uploaded_on") or now,
+                        "revision": item.get("revision") or revision,
+                    })
+            elif isinstance(item, str):
+                rows.append({
+                    "file": item,
+                    "caption": f"Inspection photo {idx + 1}",
+                    "evidence_type": "Fabric Defect",
+                    "display_order": idx,
+                    "uploader": user,
+                    "uploaded_on": now,
+                    "revision": revision,
+                })
+
+    if not rows and photo_evidence:
+        rows.append({
+            "file": photo_evidence,
+            "caption": "Primary inspection photograph",
+            "evidence_type": "General Defect",
+            "display_order": 0,
+            "uploader": user,
+            "uploaded_on": now,
+            "revision": revision,
+        })
+
+    return rows
+
+
 @frappe.whitelist(methods=["POST"])
 def create_quality_inspection(
     supplier,
@@ -76,8 +126,9 @@ def create_quality_inspection(
     photo_evidence=None,
     revision=1,
     supersedes=None,
+    evidence_photos=None,
 ):
-    """Create a new supplier quality inspection entry."""
+    """Create a new supplier quality inspection entry with multi-photo evidence."""
     check_rate_limit("create_quality_inspection", limit=60, window_seconds=60)
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
@@ -87,6 +138,9 @@ def create_quality_inspection(
     stage = validate_string(stage, "Stage", max_len=140, required=True, allowed_values=QUALITY_STAGES)
     purchase_order = validate_string(purchase_order, "Purchase Order", max_len=140)
     revision = validate_int(revision, "Revision", min_val=1, max_val=1000) or 1
+
+    photo_rows = _build_evidence_photo_rows(evidence_photos, photo_evidence, revision=revision, user=user)
+    primary_photo = photo_evidence or (photo_rows[0]["file"] if photo_rows else None)
 
     try:
         doc = frappe.get_doc(
@@ -101,7 +155,8 @@ def create_quality_inspection(
                 "supersedes": supersedes,
                 "inspector": user,
                 "spec_measurements": spec_notes,
-                "photo_evidence": photo_evidence,
+                "photo_evidence": primary_photo,
+                "evidence_photos": photo_rows,
             }
         ).insert()
     except Exception:
@@ -112,15 +167,15 @@ def create_quality_inspection(
         "Quality Inspection Created",
         "Supplier Quality Inspection",
         doc.name,
-        {"stage": stage, "supplier": supplier, "item_code": item_code, "revision": doc.revision},
+        {"stage": stage, "supplier": supplier, "item_code": item_code, "revision": doc.revision, "photo_count": len(photo_rows)},
     )
 
     return doc.as_dict()
 
 
 @frappe.whitelist(methods=["POST"])
-def revise_quality_inspection(inspection_name, spec_notes=None, photo_evidence=None):
-    """Create a new versioned revision of a rejected or pending inspection report."""
+def revise_quality_inspection(inspection_name, spec_notes=None, photo_evidence=None, evidence_photos=None):
+    """Create a new versioned revision of a rejected or pending inspection report, preserving prior evidence."""
     check_rate_limit("revise_quality_inspection", limit=30, window_seconds=60)
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
@@ -142,6 +197,31 @@ def revise_quality_inspection(inspection_name, spec_notes=None, photo_evidence=N
     doc.check_permission("write")
 
     new_revision = (curr.revision or 1) + 1
+
+    # Preserve all prior photos from superseded revision
+    combined_photos = []
+    for prev_photo in doc.get("evidence_photos") or []:
+        combined_photos.append({
+            "file": prev_photo.file,
+            "caption": prev_photo.caption,
+            "evidence_type": prev_photo.evidence_type,
+            "display_order": prev_photo.display_order,
+            "uploader": prev_photo.uploader,
+            "uploaded_on": prev_photo.uploaded_on,
+            "revision": prev_photo.revision or curr.revision,
+        })
+
+    # Append newly uploaded photos for this revision
+    new_photos = _build_evidence_photo_rows(evidence_photos, photo_evidence, revision=new_revision, user=user)
+    combined_photos.extend(new_photos)
+
+    primary_photo = (
+        (new_photos[0]["file"] if new_photos else None)
+        or photo_evidence
+        or doc.photo_evidence
+        or (combined_photos[0]["file"] if combined_photos else None)
+    )
+
     try:
         new_doc = frappe.get_doc(
             {
@@ -155,7 +235,8 @@ def revise_quality_inspection(inspection_name, spec_notes=None, photo_evidence=N
                 "supersedes": inspection_name,
                 "inspector": user,
                 "spec_measurements": spec_notes or doc.spec_measurements,
-                "photo_evidence": photo_evidence or doc.photo_evidence,
+                "photo_evidence": primary_photo,
+                "evidence_photos": combined_photos,
                 "comments": f"Revision {new_revision} superseding {inspection_name}",
             }
         ).insert()
@@ -171,6 +252,7 @@ def revise_quality_inspection(inspection_name, spec_notes=None, photo_evidence=N
             "supersedes": inspection_name,
             "stage": new_doc.stage,
             "revision": new_revision,
+            "photo_count": len(combined_photos),
         },
     )
 
@@ -322,6 +404,17 @@ def get_quality_review_bundle(supplier, item_code, purchase_order=None, gate="Pr
     stage_reports = {}
     approved_stages = set()
     for r in all_reports:
+        # Load child evidence photos for comprehensive review
+        try:
+            r["evidence_photos"] = frappe.get_all(
+                "Quality Inspection Evidence",
+                filters={"parent": r.name, "parenttype": "Supplier Quality Inspection"},
+                fields=["name", "file", "caption", "evidence_type", "display_order", "uploader", "uploaded_on", "revision"],
+                order_by="revision asc, display_order asc",
+            )
+        except Exception:
+            r["evidence_photos"] = []
+
         if not purchase_order or not r.purchase_order or r.purchase_order == purchase_order:
             stage_reports[r.stage] = r
             if r.status == "Approved":
@@ -351,11 +444,15 @@ def record_return_quarantine(
     quarantine_warehouse=None,
     return_delivery_note=None,
     photo_evidence=None,
+    evidence_photos=None,
     notes=None,
 ):
     """Record an item intake into the quarantine warehouse for quality inspection."""
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN, "Clothing Warehouse Manager"})
     user = get_current_user()
+
+    photo_rows = _build_evidence_photo_rows(evidence_photos, photo_evidence, revision=1, user=user)
+    primary_photo = photo_evidence or (photo_rows[0]["file"] if photo_rows else None)
 
     doc = frappe.get_doc(
         {
@@ -368,7 +465,8 @@ def record_return_quarantine(
             "quarantine_warehouse": quarantine_warehouse,
             "return_reason": return_reason,
             "inspection_status": "Quarantined",
-            "photo_evidence": photo_evidence,
+            "photo_evidence": primary_photo,
+            "evidence_photos": photo_rows,
             "inspected_by": user,
             "inspected_on": now_datetime(),
             "inspection_notes": notes,
@@ -384,6 +482,7 @@ def record_return_quarantine(
             "delivery_note": delivery_note,
             "item_code": item_code,
             "quantity": float(quantity),
+            "photo_count": len(photo_rows),
         },
     )
 
@@ -391,7 +490,7 @@ def record_return_quarantine(
 
 
 @frappe.whitelist(methods=["POST"])
-def inspect_return_quarantine(quarantine_name, decision, notes=None, photo_evidence=None):
+def inspect_return_quarantine(quarantine_name, decision, notes=None, photo_evidence=None, evidence_photos=None):
     """Quality department inspection decision on returned quarantined garments."""
     check_rate_limit("inspect_return_quarantine", limit=30, window_seconds=60)
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
@@ -433,15 +532,23 @@ def inspect_return_quarantine(quarantine_name, decision, notes=None, photo_evide
     doc.inspected_on = now_datetime()
     if notes:
         doc.inspection_notes = (doc.inspection_notes or "") + f"\nInspection ({user}): {notes.strip()}"
-    if photo_evidence:
+
+    new_photos = _build_evidence_photo_rows(evidence_photos, photo_evidence, revision=1, user=user)
+    if new_photos:
+        for p in new_photos:
+            doc.append("evidence_photos", p)
+        if not doc.photo_evidence:
+            doc.photo_evidence = new_photos[0]["file"]
+    elif photo_evidence:
         doc.photo_evidence = photo_evidence
+
     doc.save()
 
     record_security_audit_event(
         "Return Quarantine Inspected",
         "Return Quarantine",
         doc.name,
-        {"decision": decision, "status": doc.inspection_status},
+        {"decision": decision, "status": doc.inspection_status, "photo_count": len(doc.get("evidence_photos") or [])},
     )
 
     return doc.as_dict()

@@ -4,6 +4,7 @@ import os
 import frappe
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 
+from sales_erp.boot import ensure_module_app_mapped
 from sales_erp.erpnext_compat import ensure_erpnext_contact_fields
 from sales_erp.retailer_defaults import ensure_retailer_defaults
 from sales_erp.roles import (
@@ -175,6 +176,7 @@ def ensure_sales_erp_sidebar():
 
 
 def after_install():
+    ensure_module_app_mapped()
     ensure_retailer_defaults()
     ensure_erpnext_contact_fields()
     create_custom_fields(
@@ -313,5 +315,6 @@ def configure_launcher():
 
 
 def after_migrate():
+    ensure_module_app_mapped()
     after_install()
     ensure_sales_erp_sidebar()

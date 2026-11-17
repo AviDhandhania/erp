@@ -22,6 +22,7 @@
   "inspected_by",
   "inspected_on",
   "photo_evidence",
+  "evidence_photos",
   "inspection_notes",
   "section_break_stock",
   "stock_entry",
@@ -136,7 +137,13 @@
   {
    "fieldname": "photo_evidence",
    "fieldtype": "Attach Image",
-   "label": "Defect Photo Evidence"
+   "label": "Primary Photo Evidence"
+  },
+  {
+   "fieldname": "evidence_photos",
+   "fieldtype": "Table",
+   "label": "Defect Evidence Photographs",
+   "options": "Quality Inspection Evidence"
   },
   {
    "fieldname": "inspection_notes",

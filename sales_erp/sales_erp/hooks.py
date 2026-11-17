@@ -73,6 +73,7 @@ scheduler_events = {
 
 # Document Permission Hooks (Document-level access control)
 has_permission = {
+	"File": "sales_erp.file_security.has_file_permission",
 	"Customer": "sales_erp.security.customer_has_permission",
 	"Sales Order": "sales_erp.security.operational_document_has_permission",
 	"Retailer Application": "sales_erp.security.retailer_record_has_permission",
