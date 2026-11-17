@@ -35,9 +35,7 @@ after_migrate = "quality_erp.install.after_migrate"
 extend_bootinfo = "quality_erp.boot.restrict_quality_app_visibility"
 boot_session = "quality_erp.boot.restrict_quality_app_visibility"
 
-before_request = [
-	"quality_erp.boot.apply_runtime_patches",
-]
+before_request = []
 
 # Document Permission Hooks (Document-level access control)
 has_permission = {

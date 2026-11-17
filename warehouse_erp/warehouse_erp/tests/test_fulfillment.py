@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import frappe
 
-from clothing_erp import fulfillment
+from warehouse_erp import fulfillment
 
 
 class TestFulfillment(unittest.TestCase):
@@ -96,12 +96,12 @@ class TestFulfillment(unittest.TestCase):
 
     def test_warehouse_workspace_uses_only_app_owned_fulfillment_page(self):
         root = Path(__file__).parents[1]
-        page = root / "clothing_erp/page/fulfillment_tasks/fulfillment_tasks.js"
+        page = root / "warehouse_erp/page/fulfillment_tasks/fulfillment_tasks.js"
         self.assertTrue(page.exists())
         workspace = json.loads(
             (
                 root
-                / "clothing_erp/workspace/warehouse_operations/warehouse_operations.json"
+                / "warehouse_erp/workspace/warehouse_erp/warehouse_erp.json"
             ).read_text()
         )
         links = workspace["shortcuts"] + workspace["links"]

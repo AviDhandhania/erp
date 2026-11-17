@@ -1,5 +1,6 @@
 """Keep Clothing ERP operational users inside their purpose-built application."""
 
+import frappe
 from clothing_erp.insights_compat import is_insights_admin
 from clothing_erp.roles import (
     ALL_ROLES,
@@ -11,7 +12,7 @@ from clothing_erp.security import get_current_user, get_user_roles
 def restrict_erpnext_app_visibility(bootinfo):
     """Enforce app visibility scoping:
     1. Frappe Insights is strictly available only to admins.
-    2. ERPNext, India Compliance, and legacy monolithic Clothing ERP are hidden from operational users.
+    2. ERPNext and India Compliance are hidden from operational users.
     """
     user = get_current_user()
     roles = get_user_roles(user)

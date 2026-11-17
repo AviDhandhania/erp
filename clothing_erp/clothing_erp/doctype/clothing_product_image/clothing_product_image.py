@@ -1,5 +1,6 @@
-from frappe.model.document import Document
+"""Backward-compatibility re-export of Clothing Product Image controller."""
+from sales_erp.sales_erp.doctype.clothing_product_image.clothing_product_image import (
+    ClothingProductImage,
+)
 
-
-class ClothingProductImage(Document):
-    pass
+__all__ = ["ClothingProductImage"]

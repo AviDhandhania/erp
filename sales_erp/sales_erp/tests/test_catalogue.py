@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import frappe
 
-from clothing_erp import catalogue, pricing
+from sales_erp import catalogue, pricing
 
 
 class TestCatalogue(unittest.TestCase):
@@ -22,11 +22,11 @@ class TestCatalogue(unittest.TestCase):
 
     def test_product_pricing_page_is_admin_owned_and_linked(self):
         root = Path(__file__).parents[1]
-        page = root / "clothing_erp/page/product_pricing/product_pricing.json"
+        page = root / "sales_erp/page/product_pricing/product_pricing.json"
         self.assertTrue(page.exists())
         self.assertIn('"role": "Clothing Business Administrator"', page.read_text())
         workspace = (
-            root / "clothing_erp/workspace/clothing_erp/clothing_erp.json"
+            root / "sales_erp/workspace/sales_erp/sales_erp.json"
         ).read_text()
         self.assertIn('"link_to": "product-pricing"', workspace)
 
@@ -368,7 +368,7 @@ class TestCatalogue(unittest.TestCase):
             patch.object(catalogue, "_active_prices", return_value={}),
             patch.object(catalogue, "_stock", return_value={}),
             patch(
-                "clothing_erp.pricing.get_customer_prices",
+                "sales_erp.pricing.get_customer_prices",
                 return_value=(
                     {"TEST-TSHIRT-M": {"rate": 425, "currency": "INR"}},
                     "Retailer Price",
@@ -397,19 +397,19 @@ class TestCatalogue(unittest.TestCase):
         page = loads(
             (
                 app_root
-                / "clothing_erp/page/clothing_catalogue/clothing_catalogue.json"
+                / "sales_erp/page/clothing_catalogue/clothing_catalogue.json"
             ).read_text()
         )
         workspace = loads(
             (
                 app_root
-                / "clothing_erp/workspace/salesperson_portal/salesperson_portal.json"
+                / "sales_erp/workspace/sales_erp/sales_erp.json"
             ).read_text()
         )
         catalogue_script = (
-            app_root / "clothing_erp/page/clothing_catalogue/clothing_catalogue.js"
+            app_root / "sales_erp/page/clothing_catalogue/clothing_catalogue.js"
         ).read_text()
-        self.assertEqual(page["module"], "Clothing ERP")
+        self.assertEqual(page["module"], "Sales ERP")
         self.assertNotIn("Guest", {row["role"] for row in page["roles"]})
         self.assertTrue(
             any(

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import frappe
 from frappe.utils import getdate
 
-from clothing_erp import ordering
+from sales_erp import ordering
 
 
 class TestOrdering(unittest.TestCase):
@@ -220,15 +220,14 @@ class TestOrdering(unittest.TestCase):
 
     def test_clothing_orders_page_replaces_native_sales_order_workspace_links(self):
         root = Path(__file__).parents[1]
-        page = root / "clothing_erp/page/clothing_orders/clothing_orders.js"
+        page = root / "sales_erp/page/clothing_orders/clothing_orders.js"
         self.assertTrue(page.exists())
         self.assertIn("get_clothing_orders", page.read_text())
-        for workspace in ("salesperson_portal", "clothing_erp"):
-            content = (
-                root / f"clothing_erp/workspace/{workspace}/{workspace}.json"
-            ).read_text()
-            self.assertIn('"link_to": "clothing-orders"', content)
-            self.assertNotIn('"link_to": "Sales Order"', content)
+        content = (
+            root / "sales_erp/workspace/sales_erp/sales_erp.json"
+        ).read_text()
+        self.assertIn('"link_to": "clothing-orders"', content)
+        self.assertNotIn('"link_to": "Sales Order"', content)
 
     def test_submit_rejects_unauthorized_user_before_order_lookup(self):
         with (
@@ -341,7 +340,7 @@ class TestOrdering(unittest.TestCase):
     def test_order_dialog_exposes_only_server_authorized_lifecycle_actions(self):
         page = (
             Path(__file__).parents[1]
-            / "clothing_erp/page/clothing_orders/clothing_orders.js"
+            / "sales_erp/page/clothing_orders/clothing_orders.js"
         ).read_text()
         self.assertIn("order.review.can_edit", page)
         self.assertIn('frappe.set_route("Form", "Sales Order", order.name)', page)

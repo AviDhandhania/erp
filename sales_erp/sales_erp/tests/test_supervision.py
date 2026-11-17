@@ -6,9 +6,9 @@ from unittest.mock import MagicMock, patch
 import frappe
 from frappe.utils import add_days, getdate, nowdate
 
-from clothing_erp import security, supervision
-from clothing_erp.clothing_erp.doctype.asm_supervision import asm_supervision
-from clothing_erp.roles import ROLE_ASM, ROLE_BUSINESS_ADMIN, ROLE_RSM
+from sales_erp import security, supervision
+from sales_erp.sales_erp.doctype.asm_supervision import asm_supervision
+from sales_erp.roles import ROLE_ASM, ROLE_BUSINESS_ADMIN, ROLE_RSM
 
 
 class TestSupervision(unittest.TestCase):
@@ -137,7 +137,7 @@ class TestSupervision(unittest.TestCase):
             patch.object(supervision, "validate_rsm_user"),
             patch.object(supervision, "validate_assignment_territory"),
             patch(
-                "clothing_erp.clothing_erp.doctype.asm_supervision.asm_supervision.nowdate",
+                "sales_erp.sales_erp.doctype.asm_supervision.asm_supervision.nowdate",
                 return_value="2026-11-15",
             ),
             patch.object(frappe.db, "sql"),

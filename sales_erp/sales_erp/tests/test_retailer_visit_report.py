@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import frappe
 
-from clothing_erp.clothing_erp.report.retailer_visit_report import retailer_visit_report
+from sales_erp.sales_erp.report.retailer_visit_report import retailer_visit_report
 
 
 class TestRetailerVisitReport(unittest.TestCase):

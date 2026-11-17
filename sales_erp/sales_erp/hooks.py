@@ -42,20 +42,10 @@ after_migrate = "sales_erp.install.after_migrate"
 extend_bootinfo = "sales_erp.boot.restrict_sales_app_visibility"
 boot_session = "sales_erp.boot.restrict_sales_app_visibility"
 
-before_request = [
-	"sales_erp.boot.apply_runtime_patches",
-	"sales_erp.insights_compat.enforce_insights_admin_access",
-]
-
-doc_events = {
-	"Item": {
-		"on_update": "sales_erp.gallery.cleanup_removed_gallery_files",
-	}
-}
+before_request = []
 
 scheduler_events = {
 	"daily": ["sales_erp.cadence.evaluate_rsm_visit_cadence"],
-	"daily_long": ["sales_erp.gallery.cleanup_orphan_gallery_files"],
 }
 
 # Document Permission Hooks (Document-level access control)
@@ -65,6 +55,7 @@ has_permission = {
 	"Retailer Application": "sales_erp.security.retailer_record_has_permission",
 	"Retailer Visit": "sales_erp.security.retailer_record_has_permission",
 	"Retailer Credit Limit Request": "sales_erp.security.retailer_credit_limit_request_has_permission",
+	"RSM Visit Obligation": "sales_erp.sales_erp.doctype.rsm_visit_obligation.rsm_visit_obligation.rsm_visit_obligation_has_permission",
 	"ASM Supervision": "sales_erp.security.asm_supervision_has_permission",
 	"Retailer Assignment History": "sales_erp.security.retailer_assignment_history_has_permission",
 	"User": "sales_erp.security.user_has_permission",
@@ -76,6 +67,7 @@ permission_query_conditions = {
 	"Retailer Application": "sales_erp.security.retailer_application_conditions",
 	"Retailer Visit": "sales_erp.security.retailer_visit_conditions",
 	"Retailer Credit Limit Request": "sales_erp.security.retailer_credit_limit_request_conditions",
+	"RSM Visit Obligation": "sales_erp.sales_erp.doctype.rsm_visit_obligation.rsm_visit_obligation.rsm_visit_obligation_query_conditions",
 	"ASM Supervision": "sales_erp.security.asm_supervision_conditions",
 	"Retailer Assignment History": "sales_erp.security.retailer_assignment_history_conditions",
 	"User": "sales_erp.security.user_query_conditions",

@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import frappe
 
-from clothing_erp import hooks, retailer_assignment
-from clothing_erp.clothing_erp.doctype.retailer_application import retailer_application
+from sales_erp import hooks, retailer_assignment
+from sales_erp.sales_erp.doctype.retailer_application import retailer_application
 
 
 class TestRetailerWorkflow(unittest.TestCase):
@@ -147,7 +147,7 @@ class TestRetailerWorkflow(unittest.TestCase):
 
     def test_legacy_reassignment_page_redirects_to_territory_assignments(self):
         app_root = Path(__file__).parents[1]
-        page_root = app_root / "clothing_erp/page/retailer_assignments"
+        page_root = app_root / "sales_erp/page/retailer_assignments"
         page = json.loads((page_root / "retailer_assignments.json").read_text())
         script = (page_root / "retailer_assignments.js").read_text()
         self.assertNotIn("Customer", hooks.doctype_js)
@@ -271,7 +271,7 @@ class TestRetailerWorkflow(unittest.TestCase):
         with (
             patch.object(
                 retailer_assignment,
-                "assigned_documents",
+                "assigned_sales_territories",
                 return_value=["TEST North"],
             ),
             patch.object(frappe, "throw", side_effect=frappe.PermissionError),
@@ -367,7 +367,7 @@ class TestRetailerWorkflow(unittest.TestCase):
 
     def test_rsm_retailer_reassignment_restricted_to_supervised_asms(self):
         with (
-            patch.object(retailer_assignment, "assigned_documents", return_value=["TEST North"]),
+            patch.object(retailer_assignment, "assigned_sales_territories", return_value=["TEST North"]),
             patch.object(retailer_assignment, "_is_assignment_admin", return_value=False),
             patch.object(retailer_assignment, "get_current_user", return_value="rsm@example.invalid"),
             patch.object(retailer_assignment, "is_active_supervisor", return_value=False),
@@ -376,10 +376,50 @@ class TestRetailerWorkflow(unittest.TestCase):
                 retailer_assignment._assert_salesperson_scope("unsupervised_asm@example.invalid", "TEST North")
 
         with (
-            patch.object(retailer_assignment, "assigned_documents", return_value=["TEST North"]),
+            patch.object(retailer_assignment, "assigned_sales_territories", return_value=["TEST North"]),
             patch.object(retailer_assignment, "_is_assignment_admin", return_value=False),
             patch.object(retailer_assignment, "get_current_user", return_value="rsm@example.invalid"),
             patch.object(retailer_assignment, "is_active_supervisor", return_value=True),
         ):
             # Supervising RSM can assign
             retailer_assignment._assert_salesperson_scope("supervised_asm@example.invalid", "TEST North")
+
+    def test_get_territory_assignment_enforces_supervision_scope(self):
+        with (
+            patch.object(retailer_application, "require_role"),
+            patch.object(retailer_application, "get_current_user", return_value="rsm@example.invalid"),
+            patch.object(retailer_application, "is_clothing_admin", return_value=False),
+            patch.object(retailer_application, "assigned_sales_territories", return_value=["TEST North"]),
+        ):
+            # Out of scope territory -> throws PermissionError
+            with self.assertRaises(frappe.PermissionError):
+                retailer_application.get_territory_assignment("TEST South")
+
+            # In scope territory -> queries DB and succeeds
+            with patch.object(retailer_application, "_get_territory_assignment", return_value={"asm": "asm@example.invalid", "rsm": "rsm@example.invalid"}):
+                res = retailer_application.get_territory_assignment("TEST North")
+                self.assertEqual(res["asm"], "asm@example.invalid")
+
+    def test_find_duplicates_checks_all_active_application_states(self):
+        app = frappe._dict(
+            shop_name="TEST Unique Shop",
+            phone="+91 99999 88888",
+            email="unique@example.invalid",
+            gstin="27AAAAA0000A1Z5",
+        )
+        for active_status in ("Pending", "Pending Info", "Resubmitted", "Approved"):
+            with (
+                patch.object(frappe, "get_all", side_effect=[
+                    [],  # Customers
+                    [frappe._dict(
+                        name="APP-DUP-01",
+                        shop_name="TEST Unique Shop",
+                        phone="+91 99999 88888",
+                        email="unique@example.invalid",
+                        gstin="27AAAAA0000A1Z5",
+                        status=active_status,
+                    )],
+                ]),
+            ):
+                dups = retailer_application.find_duplicates(app)
+                self.assertTrue(len(dups) > 0, f"Failed to detect duplicate for status {active_status}")
