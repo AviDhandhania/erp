@@ -522,3 +522,143 @@ class TestFulfillment(unittest.TestCase):
         self.assertEqual(result["docstatus"], 1)
         self.assertEqual(result["status"], "Completed")
 
+    def test_bundle_backed_row_allows_incremental_scan_and_preserves_bundle(self):
+        before, before_row = self.pick_document(stock_qty=2)
+        after, after_row = self.pick_document(stock_qty=2)
+        before_row.serial_and_batch_bundle = "SABB-0001"
+        after_row.serial_and_batch_bundle = "SABB-0001"
+        serial_scan = frappe._dict(item_code="TEST-SHIRT-M", serial_no="TEST-SER-01")
+
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", side_effect=[before, after]),
+            patch.object(fulfillment, "_scan_barcode", return_value=serial_scan),
+            patch.object(
+                fulfillment,
+                "_item_tracking",
+                return_value=frappe._dict(has_serial_no=1, has_batch_no=0),
+            ),
+            patch.object(fulfillment, "_bundle_contains", return_value=True),
+            patch.object(fulfillment, "_lock_pick_list"),
+        ):
+            result = fulfillment.verify_pick_item(
+                before.name, before_row.name, serial_scan.serial_no
+            )
+
+        self.assertEqual(after_row.serial_no, "TEST-SER-01")
+        self.assertEqual(after_row.picked_qty, 1)
+        self.assertEqual(after_row.serial_and_batch_bundle, "SABB-0001")
+        self.assertNotIn("use_serial_batch_fields", after_row)
+        after.save.assert_called_once_with(ignore_permissions=True)
+        self.assertEqual(result["scan_type"], "serial")
+
+    def test_bundle_backed_row_rejects_unallocated_serial(self):
+        document, row = self.pick_document(stock_qty=2)
+        row.serial_and_batch_bundle = "SABB-0001"
+        serial_scan = frappe._dict(item_code="TEST-SHIRT-M", serial_no="TEST-SER-WRONG")
+
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(fulfillment, "_scan_barcode", return_value=serial_scan),
+            patch.object(
+                fulfillment,
+                "_item_tracking",
+                return_value=frappe._dict(has_serial_no=1, has_batch_no=0),
+            ),
+            patch.object(fulfillment, "_bundle_contains", return_value=False),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.verify_pick_item(document.name, row.name, serial_scan.serial_no)
+
+    def test_split_pick_shortage_row_rejects_unpicked_or_fully_picked_row(self):
+        document, row = self.pick_document(picked_qty=0, stock_qty=5)
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(fulfillment, "_active_pick_list_workflow", return_value=None),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            # picked_qty == 0 -> should reject
+            fulfillment.split_pick_shortage_row(document.name, row.name, "Damaged remaining units")
+
+        row.picked_qty = 5
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(fulfillment, "_active_pick_list_workflow", return_value=None),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            # picked_qty >= stock_qty -> should reject
+            fulfillment.split_pick_shortage_row(document.name, row.name, "Damaged remaining units")
+
+    def test_split_pick_shortage_row_success(self):
+        before, before_row = self.pick_document(picked_qty=2, stock_qty=5)
+        after, after_row = self.pick_document(picked_qty=2, stock_qty=5)
+        after.append = MagicMock(return_value=frappe._dict(name="TEST-LOCATION-2"))
+
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", side_effect=[before, after]),
+            patch.object(fulfillment, "_active_pick_list_workflow", return_value=None),
+            patch.object(fulfillment, "_lock_pick_list") as lock,
+            patch.object(frappe.db, "commit"),
+        ):
+            result = fulfillment.split_pick_shortage_row(
+                before.name, before_row.name, "Damaged stock on shelf for remaining 3 units"
+            )
+
+        lock.assert_called_once_with(before.name)
+        self.assertEqual(after_row.stock_qty, 2)
+        self.assertEqual(after_row.qty, 2)
+        after.append.assert_called_once()
+        appended_args = after.append.call_args[0]
+        self.assertEqual(appended_args[0], "locations")
+        self.assertEqual(appended_args[1]["stock_qty"], 3)
+        self.assertEqual(appended_args[1]["picked_qty"], 0.0)
+        after.save.assert_called_once_with(ignore_permissions=True)
+        self.assertEqual(result["picked_qty"], 2)
+        self.assertEqual(result["shortage_qty"], 3)
+
+    def test_create_packing_slip_requires_draft_delivery_note(self):
+        dn = frappe._dict(name="MAT-DN-0001", docstatus=1, check_permission=MagicMock())
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=dn),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.create_packing_slip(dn.name)
+
+    def test_create_packing_slip_success(self):
+        item = frappe._dict(name="item-1", item_code="TEST-SHIRT-M", item_name="Shirt", qty=5, warehouse="TEST Warehouse")
+        dn = frappe._dict(name="MAT-DN-0001", docstatus=0, items=[item], check_permission=MagicMock())
+        mock_ps = frappe._dict(
+            name="MAT-PAC-0001",
+            from_case_no=1,
+            to_case_no=2,
+            gross_weight_pkg=15.5,
+            items=[frappe._dict(item_code="TEST-SHIRT-M")],
+            flags=frappe._dict(),
+            insert=MagicMock(),
+        )
+
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=dn),
+            patch("warehouse_erp.security.is_warehouse_admin", return_value=True),
+            patch("erpnext.stock.doctype.delivery_note.delivery_note.make_packing_slip", return_value=mock_ps),
+            patch.object(frappe.db, "commit"),
+        ):
+            result = fulfillment.create_packing_slip(
+                delivery_note=dn.name,
+                from_case_no=1,
+                to_case_no=2,
+                gross_weight_pkg=15.5,
+            )
+
+        mock_ps.insert.assert_called_once_with(ignore_permissions=True)
+        self.assertEqual(result["packing_slip"], "MAT-PAC-0001")
+        self.assertEqual(result["from_case_no"], 1)
+        self.assertEqual(result["to_case_no"], 2)
+        self.assertEqual(result["gross_weight_pkg"], 15.5)
+

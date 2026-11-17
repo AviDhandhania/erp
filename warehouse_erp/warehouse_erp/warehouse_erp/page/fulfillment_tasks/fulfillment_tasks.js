@@ -78,22 +78,33 @@ class FulfillmentTasks {
 	async open_task(name) {
 		const { message: task } = await frappe.call({ method: "warehouse_erp.fulfillment.get_fulfillment_task", args: { task_type: this.state.task_type, name }, freeze: true, freeze_message: __("Loading task…") });
 		const dialog = new frappe.ui.Dialog({ title: task.name, size: "extra-large" });
+		const hasRowActions = task.can_verify_items || task.can_split_shortage;
 		const rows = task.rows.map((row) => {
-			const action = task.can_verify_items ? `<button type="button" class="btn btn-default btn-xs verify-pick-item" data-location="${this.escape(row.location)}" data-item-code="${this.escape(row.item_code)}">${__("Verify item")}</button>` : "";
-			return `<tr><td><strong>${this.escape(row.item_name || row.item_code)}</strong><small>${this.escape(row.item_code)}</small></td><td>${this.escape(row.warehouse)}</td><td class="text-right">${format_number(row.stock_qty)} ${this.escape(row.stock_uom)}</td><td class="text-right">${row.picked_qty == null ? "0" : format_number(row.picked_qty)}</td><td>${this.escape(row.batch_no || row.serial_no || "—")}</td>${task.can_verify_items ? `<td class="text-right">${action}</td>` : ""}</tr>`;
+			let action = "";
+			if (task.can_verify_items) {
+				action += `<button type="button" class="btn btn-default btn-xs verify-pick-item" data-location="${this.escape(row.location)}" data-item-code="${this.escape(row.item_code)}">${__("Verify item")}</button>`;
+			}
+			if (row.can_split) {
+				action += ` <button type="button" class="btn btn-default btn-xs split-pick-shortage" data-location="${this.escape(row.location)}" data-item-code="${this.escape(row.item_code)}">${__("Split shortage")}</button>`;
+			}
+			return `<tr><td><strong>${this.escape(row.item_name || row.item_code)}</strong><small>${this.escape(row.item_code)}</small></td><td>${this.escape(row.warehouse)}</td><td class="text-right">${format_number(row.stock_qty)} ${this.escape(row.stock_uom)}</td><td class="text-right">${row.picked_qty == null ? "0" : format_number(row.picked_qty)}</td><td>${this.escape(row.batch_no || row.serial_no || "—")}</td>${hasRowActions ? `<td class="text-right">${action}</td>` : ""}</tr>`;
 		}).join("");
 		const workflowNotice = task.workflow ? `<div class="alert alert-warning">${__("Pick List workflow {0} is active. Its configured approval actions must be completed before submission.", [this.escape(task.workflow)])}</div>` : "";
 		const shortageAction = task.can_resolve_shortage ? `<button type="button" class="btn btn-default resolve-pick-shortage">${__("Resolve shortage")}</button>` : "";
 		const completeAction = task.can_complete_pick ? `<button type="button" class="btn btn-primary complete-pick-list">${__("Complete picking")}</button>` : "";
 		const createDnAction = task.can_create_delivery_note ? `<button type="button" class="btn btn-primary create-delivery-note">${__("Create Delivery Note")}</button>` : "";
+		const packAction = task.can_pack ? `<button type="button" class="btn btn-default create-packing-slip">${__("Create Packing Slip")}</button>` : "";
 		const dispatchAction = task.can_dispatch_delivery ? `<button type="button" class="btn btn-primary dispatch-delivery-note">${__("Dispatch Delivery")}</button>` : "";
 		const returnAction = task.task_type === "delivery" && Number(task.docstatus) === 1 ? `<button type="button" class="btn btn-default intake-delivery-return">${__("Intake Return")}</button>` : "";
-		const footerActions = shortageAction || completeAction || createDnAction || dispatchAction || returnAction ? `<div class="text-right">${shortageAction} ${completeAction} ${createDnAction} ${dispatchAction} ${returnAction}</div>` : "";
-		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div>${task.transporter_name ? `<div><span>${__("Transporter")}</span><strong>${this.escape(task.transporter_name)}</strong></div>` : ""}${task.lr_no ? `<div><span>${__("LR No")}</span><strong>${this.escape(task.lr_no)}</strong></div>` : ""}</div>${task.can_verify_items ? `<div class="alert alert-info">${__("Scan the SKU/item barcode, Batch No, or Serial No required by the exact Pick List row. ERPNext validates tracked stock when each scan is saved.")}</div>` : ""}${workflowNotice}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${task.can_verify_items ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}${footerActions}`);
+		const footerActions = shortageAction || completeAction || createDnAction || packAction || dispatchAction || returnAction ? `<div class="text-right">${shortageAction} ${completeAction} ${createDnAction} ${packAction} ${dispatchAction} ${returnAction}</div>` : "";
+		const packingSlipBadges = (task.packing_slips || []).map((ps) => `<div><span>${__("Packing Slip")}</span><strong>${this.escape(ps.name)} (Boxes ${ps.from_case_no}–${ps.to_case_no}${ps.gross_weight_pkg ? `, ${ps.gross_weight_pkg} kg` : ""})</strong></div>`).join("");
+		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div>${task.transporter_name ? `<div><span>${__("Transporter")}</span><strong>${this.escape(task.transporter_name)}</strong></div>` : ""}${task.lr_no ? `<div><span>${__("LR No")}</span><strong>${this.escape(task.lr_no)}</strong></div>` : ""}${packingSlipBadges}</div>${task.can_verify_items ? `<div class="alert alert-info">${__("Scan the SKU/item barcode, Batch No, or Serial No required by the exact Pick List row. ERPNext validates tracked stock when each scan is saved.")}</div>` : ""}${workflowNotice}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${hasRowActions ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}${footerActions}`);
 		dialog.$body.on("click", ".verify-pick-item", (event) => this.verify_item(task, event.currentTarget, dialog));
+		dialog.$body.on("click", ".split-pick-shortage", (event) => this.split_shortage(task, event.currentTarget, dialog));
 		dialog.$body.on("click", ".resolve-pick-shortage", () => this.resolve_shortage(task, dialog));
 		dialog.$body.on("click", ".complete-pick-list", () => this.complete_pick(task, dialog));
 		dialog.$body.on("click", ".create-delivery-note", () => this.create_delivery_note(task, dialog));
+		dialog.$body.on("click", ".create-packing-slip", () => this.create_packing_slip(task, dialog));
 		dialog.$body.on("click", ".dispatch-delivery-note", () => this.dispatch_delivery(task, dialog));
 		dialog.$body.on("click", ".intake-delivery-return", () => {
 			dialog.hide();
@@ -162,6 +173,60 @@ class FulfillmentTasks {
 			__("Resolve shortage"),
 			__("Reallocate unpicked rows")
 		);
+	}
+
+	split_shortage(task, button, dialog) {
+		frappe.prompt(
+			[{ fieldname: "reason", fieldtype: "Small Text", label: __("Shortage reason and splitting note"), reqd: 1 }],
+			async (values) => {
+				const { message } = await frappe.call({
+					method: "warehouse_erp.fulfillment.split_pick_shortage_row",
+					type: "POST",
+					args: { pick_list: task.name, location: button.dataset.location, reason: values.reason },
+					freeze: true,
+					freeze_message: __("Splitting partially picked row with ERPNext…"),
+				});
+				dialog.hide();
+				frappe.show_alert({
+					message: __("Row split: {0} picked, {1} moved to new shortage row", [message.picked_qty, message.shortage_qty]),
+					indicator: "green",
+				});
+				await this.refresh();
+				this.open_task(task.name);
+			},
+			__("Split partial shortage"),
+			__("Split row")
+		);
+	}
+
+	create_packing_slip(task, dialog) {
+		frappe.prompt([
+			{ fieldname: "from_case_no", fieldtype: "Int", label: __("From Box / Package No"), default: 1 },
+			{ fieldname: "to_case_no", fieldtype: "Int", label: __("To Box / Package No"), default: 1 },
+			{ fieldname: "gross_weight_pkg", fieldtype: "Float", label: __("Gross Weight (kg)") },
+			{ fieldname: "net_weight_pkg", fieldtype: "Float", label: __("Net Weight (kg)") },
+		], async (values) => {
+			const { message } = await frappe.call({
+				method: "warehouse_erp.fulfillment.create_packing_slip",
+				type: "POST",
+				args: {
+					delivery_note: task.name,
+					from_case_no: values.from_case_no,
+					to_case_no: values.to_case_no,
+					gross_weight_pkg: values.gross_weight_pkg,
+					net_weight_pkg: values.net_weight_pkg,
+				},
+				freeze: true,
+				freeze_message: __("Creating native Packing Slip with ERPNext…"),
+			});
+			dialog.hide();
+			frappe.show_alert({
+				message: __("Packing Slip {0} created with {1} items", [message.packing_slip, message.item_count]),
+				indicator: "green",
+			});
+			await this.refresh();
+			this.open_task(task.name);
+		}, __("Create Packing Slip for {0}", [task.name]), __("Create Slip"));
 	}
 
 	create_delivery_note(task, dialog) {

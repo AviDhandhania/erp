@@ -18,6 +18,7 @@ from sales_erp.seed import SEED_ASM_NORTH, SEED_ASM_SOUTH, SEED_RSM, seed_catalo
 class TestCreditLimitRequest(FrappeTestCase):
     def setUp(self):
         super().setUp()
+        frappe.setup_module_map()
         frappe.set_user("Administrator")
         seed_catalogue()
         self.asm_south = SEED_ASM_SOUTH

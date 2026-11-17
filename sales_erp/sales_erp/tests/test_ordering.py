@@ -258,10 +258,16 @@ class TestOrdering(unittest.TestCase):
         )
 
     def test_submit_locks_rechecks_and_uses_native_controller(self):
-        order = frappe._dict(name="SAL-ORD-TEST-0001", docstatus=0)
+        order = frappe._dict(
+            name="SAL-ORD-TEST-0001",
+            docstatus=0,
+            customer="TEST Retailer",
+            company="TEST Company",
+        )
         document = MagicMock(
             name=order.name,
             customer="TEST Retailer",
+            company="TEST Company",
             docstatus=1,
             status="To Deliver and Bill",
             currency="INR",
@@ -273,6 +279,21 @@ class TestOrdering(unittest.TestCase):
                 ordering, "_validate_order_access", side_effect=[order, order]
             ) as access,
             patch.object(ordering, "_active_sales_order_workflow", return_value=None),
+            patch.object(
+                ordering,
+                "get_retailer_stock_exposure",
+                return_value={
+                    "customer": "TEST Retailer",
+                    "company": "TEST Company",
+                    "currency": "INR",
+                    "approved_limit": 0.0,
+                    "stock_held_at_shop": 0.0,
+                    "pending_orders_value": 0.0,
+                    "total_exposure": 0.0,
+                    "available_exposure": None,
+                    "exceeds_limit": False,
+                },
+            ),
             patch.object(frappe.db, "sql") as lock,
             patch.object(frappe, "get_doc", return_value=document),
         ):
@@ -346,3 +367,83 @@ class TestOrdering(unittest.TestCase):
         self.assertIn('frappe.set_route("Form", "Sales Order", order.name)', page)
         self.assertIn("order.review.can_cancel", page)
         self.assertIn("cancel_clothing_order", page)
+
+    def test_draft_order_rejects_exceeding_stock_exposure_limit_for_non_admin(self):
+        order = MagicMock(
+            customer="TEST Retailer",
+            docstatus=0,
+            status="Draft",
+            currency="INR",
+            grand_total=150000.0,
+        )
+        order.name = "SAL-ORD-TEST-0002"
+        mock_exposure = {
+            "customer": "TEST Retailer",
+            "company": "TEST Company",
+            "currency": "INR",
+            "approved_limit": 100000.0,
+            "stock_held_at_shop": 40000.0,
+            "pending_orders_value": 20000.0,
+            "total_exposure": 60000.0,
+            "available_exposure": 40000.0,
+            "exceeds_limit": False,
+        }
+        with (
+            patch.object(ordering, "require_role"),
+            patch.object(ordering, "_validate_customer", return_value="TEST Retailer"),
+            patch.object(ordering, "_existing_order", return_value=None),
+            patch.object(ordering, "_validate_catalogue_items"),
+            patch.object(ordering, "_validate_company", return_value="TEST Company"),
+            patch.object(ordering, "get_retailer_stock_exposure", return_value=mock_exposure),
+            patch.object(ordering, "is_clothing_admin", return_value=False),
+            patch.object(frappe, "get_doc", return_value=order),
+            patch.object(ordering, "nowdate", return_value="2026-11-08"),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            # 60000 (total_exposure) + 150000 (new order) = 210000 > 100000 (limit) -> throws
+            ordering.create_draft_sales_order(
+                "TEST Retailer",
+                [{"item_code": "TEST-TEE-S01", "qty": 100}],
+                "6d508e18-83cf-4dfe-9732-68bc7db84eb5",
+                "2026-11-09",
+            )
+
+    def test_submit_clothing_order_rejects_exceeding_stock_exposure_limit(self):
+        order = frappe._dict(
+            name="SAL-ORD-TEST-0003",
+            docstatus=0,
+            customer="TEST Retailer",
+            company="TEST Company",
+        )
+        document = MagicMock(
+            name=order.name,
+            customer="TEST Retailer",
+            company="TEST Company",
+            docstatus=0,
+            status="Draft",
+            currency="INR",
+            grand_total=50000.0,
+        )
+        mock_exposure = {
+            "customer": "TEST Retailer",
+            "company": "TEST Company",
+            "currency": "INR",
+            "approved_limit": 80000.0,
+            "stock_held_at_shop": 50000.0,
+            "pending_orders_value": 0.0,
+            "total_exposure": 50000.0,
+            "available_exposure": 30000.0,
+            "exceeds_limit": False,
+        }
+        with (
+            patch.object(ordering, "require_role"),
+            patch.object(ordering, "_validate_order_access", side_effect=[order, order]),
+            patch.object(ordering, "_active_sales_order_workflow", return_value=None),
+            patch.object(ordering, "get_retailer_stock_exposure", return_value=mock_exposure),
+            patch.object(ordering, "is_clothing_admin", return_value=False),
+            patch.object(frappe.db, "sql"),
+            patch.object(frappe, "get_doc", return_value=document),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            # 50000 (total_exposure) + 50000 (grand_total) = 100000 > 80000 (approved_limit) -> throws
+            ordering.submit_clothing_order(order.name)

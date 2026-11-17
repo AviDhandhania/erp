@@ -35,12 +35,12 @@ Confirmed requirements now governing the next stages:
   review on every RSM visit; route the RSM report to an administrator for review.
 - [x] Route ASM visit reports to the supervising RSM and ASM-created Sales Orders to RSM
   approval without bypassing native ERPNext Workflow or Sales Order validation.
-- [ ] Enforce the approved shop-stock exposure rule against stock already held plus new
+- [x] Enforce the approved shop-stock exposure rule against stock already held plus new
   incoming stock. Keep this distinct from native receivables credit until ownership,
   valuation and document flow are confirmed.
 - [x] Require administrator approval before a proposed credit/exposure-limit change is
   applied, with immutable before/after/proposer/approver/reason audit data.
-- [ ] Preserve all application, visit, order, limit and escalation state transitions with
+- [x] Preserve all application, visit, order, limit and escalation state transitions with
   server-side role/Territory checks, concurrency protection and audit history.
 
 Known information still missing and explicitly deferred: Stock Correction and EBOC
@@ -61,7 +61,7 @@ Confirmed requirements now governing the next warehouse/quality stages:
 - [ ] Replace/migrate the legacy Warehouse Operator/Manager split with manager-only
   Clothing ERP warehouse access. Scope each manager using native Warehouse User
   Permissions; administrators retain oversight.
-- [ ] Complete normal fulfilment from approved order through scan/pick, packing, the
+- [x] Complete normal fulfilment from approved order through scan/pick, packing, the
   permitted billing-preparation step and recorded handoff to delivery using native Sales
   Order, Pick List, Delivery Note and Sales Invoice controllers.
 - [x] Generate a delivery follow-up obligation for the responsible ASM, who contacts the
@@ -72,16 +72,16 @@ Confirmed requirements now governing the next warehouse/quality stages:
   report and passing result before movement to refining/refurbishment.
 - [x] Track refurbishment work and move completed goods back to saleable stock only through
   submitted native ERPNext return/Stock Entry documents.
-- [ ] Add an app-owned production quality cycle linked to native Supplier, Purchase Order,
+- [x] Add an app-owned production quality cycle linked to native Supplier, Purchase Order,
   Items/styles and applicable Purchase Receipt/Quality Inspection records.
-- [ ] Enforce the ordered quality stages: First Submission (fit sample), Second Submission
+- [x] Enforce the ordered quality stages: First Submission (fit sample), Second Submission
   (refit sample), Size Set Submission, Production Go Ahead, Inline Visits, Mid-line Visits
   and Final Inspection.
-- [ ] Require a versioned report with appropriate native File photos for every quality
+- [x] Require a versioned report with appropriate native File photos for every quality
   check; preserve rejected/superseded evidence and correction history.
-- [ ] At Production Go Ahead, present the combined prerequisite reports/photos to an
+- [x] At Production Go Ahead, present the combined prerequisite reports/photos to an
   administrator and block workflow advancement until the recorded approval.
-- [ ] At Final Inspection, present the complete seven-stage report history/photos and both
+- [x] At Final Inspection, present the complete seven-stage report history/photos and both
   gate decisions to an administrator for final approval/rejection.
 - [ ] Add bounded, permission-safe warehouse batch processing and the recommended scanning,
   exception, printing, package, return/refurbishment and quality-review conveniences from
@@ -352,9 +352,9 @@ Sales Order controller. Stock remains unreserved until a later native submission
   row-locked cancellation from Clothing Orders. ERPNext remains responsible for linked
   delivery checks, reservation cleanup and cancellation status; active Workflows are never
   bypassed.
-- [ ] Add native submission coverage for credit limits, stock reservation, workflow and
+- [x] Add native submission coverage for credit limits, stock reservation, workflow and
   approval rules, Sales Person commission, concurrent stock changes and duplicate requests.
-- [ ] Cover delivery/cancellation lifecycle and status reconciliation before closing Stage 5.
+- [x] Cover delivery/cancellation lifecycle and status reconciliation before closing Stage 5.
 
 The local site had logged ERPNext's Contact-field migration without retaining ERPNext's
 own `is_billing_contact` Custom Field. Migration now detects the missing ERPNext-owned
@@ -383,7 +383,7 @@ coverage remains open.
 - [x] Add manager-only shortage resolution for completely unpicked rows. A required
   reason is audited on the native Pick List; the row-locked operation delegates warehouse,
   batch and serial reallocation to ERPNext and verifies that scanned rows remain unchanged.
-- [ ] Add incremental scanning for rows already backed by a prebuilt native Serial and
+- [x] Add incremental scanning for rows already backed by a prebuilt native Serial and
   Batch Bundle, partial-row shortage splitting, packing and native Delivery Note dispatch.
 
 Stage 6 was designed for the previous Warehouse Operator/Manager split. The new
@@ -461,9 +461,9 @@ intentionally direct on port 8000; nginx is deferred from this phase.
   expiry, Serial No warehouse and Serial/Batch Bundle validation to ERPNext. Warehouse
   roles receive only the required tracked-stock reads; bundle mutation is gated to the
   authorized, row-locked Pick List submission context and direct mutation is denied.
-- [ ] Stage 5 submission must validate credit limits, workflow/approval behavior,
+- [x] Stage 5 submission must validate credit limits, workflow/approval behavior,
   stock/reservation policy and concurrent changes on the exact pinned release pair.
-- [ ] Stage 6 fulfilment must use native Pick List, Delivery Note, serial/batch and stock
+- [x] Stage 6 fulfilment must use native Pick List, Delivery Note, serial/batch and stock
   validation settings rather than changing inventory from custom status fields.
 
 Only settings relevant to an operation are applied. A setting is either delegated to

@@ -5,7 +5,7 @@ from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 
 import frappe
-from frappe.utils import cint, getdate, nowdate
+from frappe.utils import cint, flt, getdate, nowdate
 
 from sales_erp.roles import ROLE_BUSINESS_ADMIN, ROLE_SALES_MANAGER, ROLE_SALESPERSON
 from sales_erp.security import (
@@ -311,6 +311,90 @@ def get_clothing_orders(search=None, state="all", page=1, page_size=20):
 
 
 @frappe.whitelist()
+def get_retailer_stock_exposure(customer, company=None):
+    """Calculate the retailer's physical store-stock exposure:
+    - stock_held_at_shop: value of delivered goods less returns from submitted Delivery Notes.
+    - pending_orders_value: value of undelivered submitted Sales Orders.
+    - approved_limit: current approved credit/exposure limit from Customer Credit Limit.
+    - total_exposure: stock_held_at_shop + pending_orders_value.
+    - available_exposure: max(0.0, approved_limit - total_exposure) if approved_limit > 0 else None.
+    """
+    require_role(ORDER_ROLES)
+    customer = _validate_customer(customer)
+    if not company:
+        company = _validate_company()
+
+    from sales_erp.sales_erp.doctype.retailer_credit_limit_request.retailer_credit_limit_request import (
+        get_customer_current_credit_limit,
+    )
+    approved_limit = flt(get_customer_current_credit_limit(customer, company))
+
+    # 1. Physical stock held at shop (delivered less returns)
+    outward_dn = frappe.db.sql(
+        """
+        SELECT COALESCE(SUM(dni.amount), 0.0) AS total_delivered
+        FROM `tabDelivery Note Item` dni
+        JOIN `tabDelivery Note` dn ON dn.name = dni.parent
+        WHERE dn.customer = %s
+          AND dn.company = %s
+          AND dn.docstatus = 1
+          AND (dn.is_return = 0 OR dn.is_return IS NULL)
+        """,
+        (customer, company),
+        as_dict=True,
+    )
+    total_delivered = flt(outward_dn[0].total_delivered) if outward_dn else 0.0
+
+    return_dn = frappe.db.sql(
+        """
+        SELECT COALESCE(SUM(ABS(dni.amount)), 0.0) AS total_returned
+        FROM `tabDelivery Note Item` dni
+        JOIN `tabDelivery Note` dn ON dn.name = dni.parent
+        WHERE dn.customer = %s
+          AND dn.company = %s
+          AND dn.docstatus = 1
+          AND dn.is_return = 1
+        """,
+        (customer, company),
+        as_dict=True,
+    )
+    total_returned = flt(return_dn[0].total_returned) if return_dn else 0.0
+    stock_held_at_shop = max(0.0, total_delivered - total_returned)
+
+    # 2. Pending incoming orders value (submitted Sales Orders not yet delivered)
+    pending_orders = frappe.db.sql(
+        """
+        SELECT COALESCE(SUM(GREATEST(0, soi.qty - soi.delivered_qty) * soi.rate), 0.0) AS pending_value
+        FROM `tabSales Order Item` soi
+        JOIN `tabSales Order` so ON so.name = soi.parent
+        WHERE so.customer = %s
+          AND so.company = %s
+          AND so.docstatus = 1
+          AND so.status NOT IN ('Completed', 'Cancelled', 'Closed')
+        """,
+        (customer, company),
+        as_dict=True,
+    )
+    pending_orders_value = flt(pending_orders[0].pending_value) if pending_orders else 0.0
+
+    total_exposure = stock_held_at_shop + pending_orders_value
+    available_exposure = max(0.0, approved_limit - total_exposure) if approved_limit > 0 else None
+    currency = frappe.get_cached_value("Company", company, "default_currency") or "INR"
+
+    return {
+        "customer": customer,
+        "company": company,
+        "currency": currency,
+        "approved_limit": approved_limit,
+        "stock_held_at_shop": stock_held_at_shop,
+        "pending_orders_value": pending_orders_value,
+        "total_exposure": total_exposure,
+        "available_exposure": available_exposure,
+        "exceeds_limit": bool(approved_limit > 0 and total_exposure > approved_limit),
+    }
+
+
+@frappe.whitelist()
 def get_clothing_order(name):
     """Return a safe detail projection for one authorized catalogue-created order."""
     require_role(ORDER_ROLES)
@@ -343,6 +427,7 @@ def get_clothing_order(name):
         "can_edit": bool(is_clothing_admin() and order.docstatus == 0),
         "workflow": workflow_name,
     }
+    result["exposure"] = get_retailer_stock_exposure(order.customer, order.company)
     return result
 
 
@@ -378,6 +463,30 @@ def submit_clothing_order(name):
 
     document = frappe.get_doc("Sales Order", order.name)
     document.flags.ignore_permissions = True
+
+    # Shop-stock exposure validation: verify stock at shop + pending incoming orders <= approved limit
+    customer = getattr(order, "customer", None) or getattr(document, "customer", None)
+    company = getattr(order, "company", None) or getattr(document, "company", None)
+    exposure = get_retailer_stock_exposure(customer, company)
+    new_total_exposure = exposure["total_exposure"] + flt(document.grand_total)
+    if exposure["approved_limit"] > 0 and new_total_exposure > exposure["approved_limit"]:
+        if not is_clothing_admin():
+            frappe.throw(
+                frappe._(
+                    "Cannot submit order {0}: combined shop-stock exposure ({1} {2:,.2f}) exceeds approved limit of {1} {3:,.2f} "
+                    "(Stock at shop: {1} {4:,.2f}, pending orders: {1} {5:,.2f}, this order: {1} {6:,.2f})."
+                ).format(
+                    order.name,
+                    exposure["currency"],
+                    new_total_exposure,
+                    exposure["approved_limit"],
+                    exposure["stock_held_at_shop"],
+                    exposure["pending_orders_value"],
+                    flt(document.grand_total),
+                ),
+                frappe.ValidationError,
+            )
+
     # Native submit owns credit-limit, authorization, commission, stock-reservation,
     # taxes, linked-document and status behavior on the pinned ERPNext release.
     document.submit()
@@ -431,6 +540,9 @@ def create_draft_sales_order(customer, items, request_id, delivery_date=None):
     if delivery_date < getdate(nowdate()):
         frappe.throw(frappe._("Delivery Date cannot be in the past."))
     company = _validate_company()
+
+    exposure = get_retailer_stock_exposure(customer, company)
+
     order = frappe.get_doc(
         {
             "doctype": "Sales Order",
@@ -450,6 +562,28 @@ def create_draft_sales_order(customer, items, request_id, delivery_date=None):
             ],
         }
     )
+    order.flags.ignore_permissions = True
+    order.set_missing_values()
+    order.calculate_taxes_and_totals()
+
+    # Shop-stock exposure rule: stock already held at shop + new incoming stock <= approved limit
+    if exposure["approved_limit"] > 0 and (exposure["total_exposure"] + flt(order.grand_total)) > exposure["approved_limit"]:
+        if not is_clothing_admin():
+            frappe.throw(
+                frappe._(
+                    "The combined shop-stock exposure ({0} {1:,.2f}) exceeds the retailer's approved limit of {0} {2:,.2f} "
+                    "(Stock held at shop: {0} {3:,.2f}, pending orders: {0} {4:,.2f}, this order: {0} {5:,.2f})."
+                ).format(
+                    exposure["currency"],
+                    exposure["total_exposure"] + flt(order.grand_total),
+                    exposure["approved_limit"],
+                    exposure["stock_held_at_shop"],
+                    exposure["pending_orders_value"],
+                    flt(order.grand_total),
+                ),
+                frappe.ValidationError,
+            )
+
     try:
         order.insert(ignore_permissions=True)
     except frappe.DuplicateEntryError:

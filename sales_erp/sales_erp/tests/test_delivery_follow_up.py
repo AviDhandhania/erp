@@ -24,6 +24,9 @@ from sales_erp.seed import (
 class TestDeliveryFollowUp(FrappeTestCase):
     def setUp(self):
         super().setUp()
+        from collections import defaultdict
+        frappe.local.request_cache = defaultdict(dict)
+        frappe.setup_module_map()
         frappe.set_user("Administrator")
         seed_catalogue()
         self.asm_north = SEED_ASM_NORTH

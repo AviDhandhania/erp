@@ -99,8 +99,21 @@ def get_fulfillment_task(task_type, name):
     document = frappe.get_doc(doctype, name)
     document.check_permission("read")
     child_rows = document.locations if task_type == "pick" else document.items
+    workflow_name = (
+        _active_pick_list_workflow()
+        if task_type == "pick" and document.docstatus == 0
+        else None
+    )
+    is_mgr = is_warehouse_manager()
     rows = []
     for row in child_rows[:200]:
+        can_split = bool(
+            task_type == "pick"
+            and document.docstatus == 0
+            and 0 < flt(row.get("picked_qty"), 6) < flt(row.get("stock_qty"), 6)
+            and is_mgr
+            and not workflow_name
+        )
         rows.append(
             {
                 "item_code": row.item_code,
@@ -114,13 +127,9 @@ def get_fulfillment_task(task_type, name):
                 "serial_no": row.get("serial_no"),
                 "sales_order": row.get("sales_order") or row.get("against_sales_order"),
                 "location": row.name,
+                "can_split": can_split,
             }
         )
-    workflow_name = (
-        _active_pick_list_workflow()
-        if task_type == "pick" and document.docstatus == 0
-        else None
-    )
     pick_complete = bool(child_rows) and all(
         flt(row.get("picked_qty"), 6) >= flt(row.get("stock_qty"), 6)
         for row in child_rows
@@ -130,6 +139,14 @@ def get_fulfillment_task(task_type, name):
         and flt(row.get("stock_qty"), 6) > 0
         for row in child_rows
     )
+    packing_slips = []
+    if task_type == "delivery":
+        packing_slips = frappe.get_all(
+            "Packing Slip",
+            filters={"delivery_note": document.name, "docstatus": ["<", 2]},
+            fields=["name", "from_case_no", "to_case_no", "gross_weight_pkg", "docstatus"],
+            order_by="from_case_no asc",
+        )
     return {
         "name": document.name,
         "task_type": task_type,
@@ -156,11 +173,14 @@ def get_fulfillment_task(task_type, name):
             and document.docstatus == 0
             and has_unpicked_rows
             and not workflow_name
-            and is_warehouse_manager()
+            and is_mgr
         ),
+        "can_split_shortage": any(r.get("can_split") for r in rows),
         "can_create_delivery_note": bool(task_type == "pick" and document.docstatus == 1),
+        "can_pack": bool(task_type == "delivery" and document.docstatus == 0 and is_mgr),
+        "packing_slips": packing_slips,
         "can_dispatch_delivery": bool(
-            task_type == "delivery" and document.docstatus == 0 and is_warehouse_manager()
+            task_type == "delivery" and document.docstatus == 0 and is_mgr
         ),
         "transporter_name": document.get("transporter_name"),
         "vehicle_no": document.get("vehicle_no"),
@@ -258,17 +278,14 @@ def _validate_pick_scan(document, row, barcode, quantity, apply=False):
     has_batch = bool(tracking.get("has_batch_no"))
 
     if has_serial:
-        if row.get("serial_and_batch_bundle"):
-            frappe.throw(
-                frappe._(
-                    "This serialized row already uses a native Serial and Batch Bundle; "
-                    "incremental scanning cannot safely rewrite that allocation."
-                )
-            )
         if not scan.get("serial_no"):
             frappe.throw(frappe._("Scan a Serial No for this serialized item."))
         if quantity != 1:
             frappe.throw(frappe._("Serialized items must be scanned one at a time."))
+        if row.get("serial_and_batch_bundle") and not _bundle_contains(row, scan):
+            frappe.throw(
+                frappe._("The scanned serial is not allocated to this Pick List row bundle.")
+            )
         if _serial_already_scanned(document, scan.serial_no):
             frappe.throw(frappe._("This Serial No has already been scanned."))
     elif has_batch and not scan.get("batch_no"):
@@ -283,7 +300,7 @@ def _validate_pick_scan(document, row, barcode, quantity, apply=False):
             frappe._("The scanned serial or batch is not allocated to this Pick List row.")
         )
 
-    if apply and not row.get("serial_and_batch_bundle"):
+    if apply:
         if scan.get("serial_no"):
             serials = (
                 _serial_numbers(row.get("serial_no"))
@@ -292,10 +309,11 @@ def _validate_pick_scan(document, row, barcode, quantity, apply=False):
             )
             serials.append(scan.serial_no)
             row.serial_no = "\n".join(serials)
-        if scan.get("batch_no"):
-            row.batch_no = scan.batch_no
-        if has_serial or has_batch:
-            row.use_serial_batch_fields = 1
+        if not row.get("serial_and_batch_bundle"):
+            if scan.get("batch_no"):
+                row.batch_no = scan.batch_no
+            if has_serial or has_batch:
+                row.use_serial_batch_fields = 1
 
     return frappe._dict(
         scan_type=(
@@ -518,6 +536,104 @@ def resolve_pick_shortage(pick_list, reason):
 
 
 @frappe.whitelist(methods=["POST"])
+def split_pick_shortage_row(pick_list, location, reason):
+    """Split a partially picked row into a completed picked row and a new shortage row."""
+    require_role(SHORTAGE_RESOLUTION_ROLES)
+    pick_list = _task_name(pick_list)
+    reason = _shortage_reason(reason)
+    document = frappe.get_doc("Pick List", pick_list)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(frappe._("Only a draft Pick List shortage can be split."))
+    _require_no_pick_workflow()
+
+    row = _pick_location(document, location)
+    picked_stock = flt(row.get("picked_qty"), 6)
+    required_stock = flt(row.get("stock_qty"), 6)
+    if picked_stock <= 0:
+        frappe.throw(
+            frappe._("Only partially picked rows can be split. Use shortage reallocation for unpicked rows.")
+        )
+    if picked_stock >= required_stock:
+        frappe.throw(frappe._("This row is already completely picked."))
+
+    _lock_pick_list(pick_list)
+    document = frappe.get_doc("Pick List", pick_list)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(
+            frappe._("This Pick List changed during shortage splitting. Refresh it.")
+        )
+    _require_no_pick_workflow()
+
+    row = _pick_location(document, location)
+    picked_stock = flt(row.get("picked_qty"), 6)
+    required_stock = flt(row.get("stock_qty"), 6)
+    if picked_stock <= 0 or picked_stock >= required_stock:
+        frappe.throw(
+            frappe._("This row's picked state changed. Refresh the Pick List.")
+        )
+
+    shortage_stock = required_stock - picked_stock
+    conversion_factor = flt(row.get("conversion_factor")) or 1.0
+    picked_qty = picked_stock / conversion_factor
+    shortage_qty = shortage_stock / conversion_factor
+
+    # Adjust the existing row to represent the completed portion
+    row.stock_qty = picked_stock
+    row.qty = picked_qty
+
+    # Append the new shortage row with picked_qty = 0
+    new_row = document.append(
+        "locations",
+        {
+            "item_code": row.item_code,
+            "item_name": row.item_name,
+            "item_group": row.get("item_group"),
+            "description": row.get("description"),
+            "warehouse": row.warehouse,
+            "qty": shortage_qty,
+            "stock_qty": shortage_stock,
+            "picked_qty": 0.0,
+            "stock_uom": row.stock_uom,
+            "uom": row.uom,
+            "conversion_factor": row.conversion_factor,
+            "sales_order": row.get("sales_order"),
+            "sales_order_item": row.get("sales_order_item"),
+            "against_sales_order": row.get("against_sales_order"),
+            "material_request": row.get("material_request"),
+            "material_request_item": row.get("material_request_item"),
+        },
+    )
+
+    document.add_comment(
+        "Comment",
+        frappe._(
+            "<strong>Clothing ERP partial shortage split</strong><br>"
+            "Item: {0}<br>Location: {1}<br>Picked: {2} {3}<br>Split shortage: {4} {3}<br>Reason: {5}"
+        ).format(
+            escape_html(row.item_code),
+            escape_html(row.name),
+            flt(picked_stock),
+            escape_html(row.stock_uom or ""),
+            flt(shortage_stock),
+            escape_html(reason),
+        ),
+    )
+    document.flags.ignore_permissions = True
+    document.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "pick_list": document.name,
+        "location": row.name,
+        "new_location": new_row.name,
+        "picked_qty": picked_stock,
+        "shortage_qty": shortage_stock,
+    }
+
+
+@frappe.whitelist(methods=["POST"])
 def complete_pick_list(pick_list):
     """Submit a fully verified Pick List through ERPNext's native controller."""
     require_role(FULFILLMENT_ROLES)
@@ -632,6 +748,84 @@ def create_delivery_note_from_pick(pick_list):
         "delivery_note": dn.name,
         "customer": dn.customer,
         "docstatus": dn.docstatus,
+    }
+
+
+@frappe.whitelist(methods=["POST"])
+def create_packing_slip(
+    delivery_note,
+    from_case_no=None,
+    to_case_no=None,
+    gross_weight_pkg=0.0,
+    net_weight_pkg=0.0,
+):
+    """Create and save a native Packing Slip for an unpacked draft Delivery Note."""
+    require_role(FULFILLMENT_ROLES)
+    delivery_note = _task_name(delivery_note)
+    document = frappe.get_doc("Delivery Note", delivery_note)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(
+            frappe._("A Packing Slip can only be created for a draft Delivery Note.")
+        )
+
+    from warehouse_erp.security import assigned_warehouses, is_warehouse_admin
+
+    user = frappe.session.user
+    if not is_warehouse_admin(user):
+        allowed = assigned_warehouses(user)
+        for item in (document.get("items") or []):
+            item_wh = item.get("warehouse") if isinstance(item, dict) else getattr(item, "warehouse", None)
+            if item_wh and item_wh not in allowed:
+                frappe.throw(
+                    frappe._("You do not have permission for warehouse {0}.").format(item_wh),
+                    frappe.PermissionError,
+                )
+
+    from erpnext.stock.doctype.delivery_note.delivery_note import make_packing_slip
+
+    packing_slip = make_packing_slip(delivery_note)
+    if not packing_slip.get("items"):
+        frappe.throw(
+            frappe._("All items in Delivery Note {0} are already packed.").format(delivery_note)
+        )
+
+    # Determine case numbering if not provided
+    if from_case_no is None:
+        last_case = frappe.db.sql(
+            """
+            SELECT MAX(to_case_no) FROM `tabPacking Slip`
+            WHERE delivery_note = %s AND docstatus < 2
+            """,
+            (delivery_note,),
+        )[0][0]
+        from_case_no = cint(last_case) + 1 if last_case else 1
+    else:
+        from_case_no = max(cint(from_case_no), 1)
+
+    if to_case_no is None:
+        to_case_no = from_case_no
+    else:
+        to_case_no = max(cint(to_case_no), from_case_no)
+
+    packing_slip.from_case_no = from_case_no
+    packing_slip.to_case_no = to_case_no
+    if flt(gross_weight_pkg) > 0:
+        packing_slip.gross_weight_pkg = flt(gross_weight_pkg)
+    if flt(net_weight_pkg) > 0:
+        packing_slip.net_weight_pkg = flt(net_weight_pkg)
+
+    packing_slip.flags.ignore_permissions = True
+    packing_slip.insert(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "packing_slip": packing_slip.name,
+        "delivery_note": document.name,
+        "from_case_no": packing_slip.from_case_no,
+        "to_case_no": packing_slip.to_case_no,
+        "gross_weight_pkg": packing_slip.gross_weight_pkg,
+        "item_count": len(packing_slip.get("items") or []),
     }
 
 
