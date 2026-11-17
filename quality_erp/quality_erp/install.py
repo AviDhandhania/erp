@@ -89,6 +89,32 @@ def after_install():
                 name,
                 ["read", "write", "create", "delete", "export", "report"],
             )
+            _ensure_custom_docperm(
+                "Quality Checklist Template",
+                name,
+                ["read", "write", "create", "delete", "export", "report"],
+            )
+        elif name == ROLE_QUALITY_MANAGER:
+            _ensure_custom_docperm(
+                "Supplier Quality Inspection",
+                name,
+                ["read", "write", "create", "report"],
+            )
+            _ensure_custom_docperm(
+                "Return Quarantine",
+                name,
+                ["read", "write", "create", "report"],
+            )
+            _ensure_custom_docperm(
+                "Production Quality Cycle",
+                name,
+                ["read", "write", "create", "report"],
+            )
+            _ensure_custom_docperm(
+                "Quality Checklist Template",
+                name,
+                ["read", "write", "create", "report"],
+            )
         else:
             _ensure_custom_docperm(
                 "Supplier Quality Inspection",
@@ -104,6 +130,11 @@ def after_install():
                 "Production Quality Cycle",
                 name,
                 ["read", "write", "create", "report"],
+            )
+            _ensure_custom_docperm(
+                "Quality Checklist Template",
+                name,
+                ["read", "report"],
             )
 
     ensure_quality_erp_sidebar()

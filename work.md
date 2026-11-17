@@ -243,16 +243,16 @@ documented residual risk and a release block for every unresolved critical/high 
 - [x] Create a real Production Quality Cycle with a confirmed unique business key and links
   to Supplier, Purchase Order, relevant Items/styles/colourways, production lot/season and
   applicable Purchase Receipt/native Quality Inspection. Do not duplicate purchasing/stock (quality_erp/cycle.py, quality_erp/doctype/production_quality_cycle, quality_erp/tests/test_production_quality_cycle.py).
-- [ ] Replace the single broad inspection record model with explicit cycle/stage/report
-  relationships supporting multiple Inline and Mid-line visits and immutable revisions.
-- [ ] Add versioned checklist templates by item group/product/category; historical reports
-  retain the exact checklist version reviewed.
-- [ ] Capture measurements/readings, sampling plan, sampled/passed/failed quantities,
-  defect code/severity, result, recommendation, corrective action, owner and due date.
-- [ ] Implement multi-photo private evidence, captions/types/order, side-by-side revision
-  comparison and missing-evidence gates as defined in the security section.
-- [ ] Implement correction requested, resubmitted, conditional approval, rejection,
-  supersession and exceptional override policies with immutable reasons and exact revisions.
+- [x] Replace the single broad inspection record model with explicit cycle/stage/report
+  relationships supporting multiple Inline and Mid-line visits and immutable revisions (quality_erp/doctype/supplier_quality_inspection, quality_erp/doctype/production_quality_cycle, quality_erp/quality.py).
+- [x] Add versioned checklist templates by item group/product/category; historical reports
+  retain the exact checklist version reviewed (quality_erp/doctype/quality_checklist_template, quality_erp/doctype/quality_inspection_checklist_item, quality_erp/quality.py).
+- [x] Capture measurements/readings, sampling plan, sampled/passed/failed quantities,
+  defect code/severity, result, recommendation, corrective action, owner and due date (quality_erp/doctype/quality_inspection_reading_item, quality_erp/doctype/quality_inspection_defect_item, quality_erp/doctype/supplier_quality_inspection, quality_erp/quality.py).
+- [x] Implement multi-photo private evidence, captions/types/order, side-by-side revision
+  comparison and missing-evidence gates as defined in the security section (quality_erp/doctype/quality_inspection_evidence, quality_erp/quality.py).
+- [x] Implement correction requested, resubmitted, conditional approval, rejection,
+  supersession and exceptional override policies with immutable reasons and exact revisions (quality_erp/doctype/supplier_quality_inspection, quality_erp/quality.py).
 - [ ] Build a single Production Go Ahead review screen showing all prerequisites, evidence,
   corrections and exact revisions; only authorized administrators may decide the gate.
 - [ ] Build a complete Final Inspection review screen showing all seven stages, repeated
@@ -1564,3 +1564,61 @@ Session 11 established the core Production Quality Cycle entity, native document
    - Deploy & Hardening: **54/54** tests passed.
    - Supply Chain Runner: **0** findings across secrets, SAST, dependencies, and licenses.
    - Total Suite Tests: **385/385** tests passing cleanly across all apps.
+
+## Session 12: Quality Stage Reports, Checklists and Evidence — verified 2026-11-17
+
+Session 12 implemented structured stage reports, versioned checklist templates with historical retention, measurements and tolerance checking, sampling plans, defect severities, corrective action lifecycle, immutable supersession, and side-by-side revision comparison:
+
+1. **Explicit Cycle / Stage / Report Architecture & Seven Ordered Stages**:
+   - Linked stage reports (`Supplier Quality Inspection`) directly to parent `Production Quality Cycle` records via foreign keys, synchronizing stage progress and last inspection timestamps.
+   - Preserved strict sequential lifecycle order: Fit Sample (1) -> Refit Sample (2) -> Size Set (3) -> Production Go Ahead (4) -> Inline Visits (5) -> Mid-line Visits (6) -> Final Inspection (7).
+   - `check_stage_prerequisites`: Validates preceding stage approvals before allowing gate transitions.
+
+2. **Multiple Inline and Mid-line Visits**:
+   - Explicit `visit_number`, `visit_type` (`Fit Review`, `Initial Inline`, `Follow-up Inline`, `Inline Visit`, `Mid-line Visit 1`, `Mid-line Visit 2`, `Final Inspection`), and `location_details` (factory floor, cutting/sewing line).
+   - Prerequisites allow subsequent inline visits (visit 2, 3...) and subsequent mid-line visits during ongoing production after Gate 4 (Production Go Ahead) is approved.
+
+3. **Versioned Checklist Templates by Product/Category & Historical Retention**:
+   - DocType `Quality Checklist Template` and child `Quality Checklist Template Item` with `template_name`, `item_group`, `product_category`, `version`, `criticality` (Minor/Major/Critical), `target_value`, `min_value`, `max_value`, and `uom`.
+   - Database-enforced uniqueness of `(template_name, version)`.
+   - `_populate_checklist_items`: When a stage report is created with a template, check points are frozen into child table `Quality Inspection Checklist Item` (`check_point`, `check_type`, `target_value`, `actual_value`, `status`, `criticality`, `notes`).
+   - **Historical Retention Proven**: Subsequent changes or new versions to a checklist template never alter historical inspection reports.
+
+4. **Measurements, Readings & Tolerance Checking**:
+   - Child table `Quality Inspection Reading Item`: `parameter_name`, `spec_size`, `spec_target`, `tolerance_plus`, `tolerance_minus`, `actual_reading`, `variance`, `reading_status` (`In Spec` / `Out of Spec`), `uom`.
+   - Automatic server-side computation of `variance = round(actual_reading - spec_target, 4)` and `reading_status`.
+
+5. **Sampling Plans, Defect Severity & Counts**:
+   - Configurable sampling plans: `AQL 1.5 Level II`, `AQL 2.5 Level II`, `AQL 4.0 Level II`, `100% Inspection`, `Random 10%`, `Custom Sample`.
+   - Child table `Quality Inspection Defect Item`: `defect_code`, `defect_description`, `severity` (`Minor`, `Major`, `Critical`), `defect_count`, `sample_reference`, `action_required`.
+   - Automatic aggregation of `critical_defects_count`, `major_defects_count`, `minor_defects_count`, and sampled `passed_quantity` / `failed_quantity`.
+
+6. **Recommendation, Result & Corrective Action Lifecycle**:
+   - Evaluation fields: `result` (`Passed`, `Failed`, `Conditionally Passed`, `Pending Review`) and `recommendation` (`Accept Lot`, `Reject Lot`, `100% Re-inspection Required`, `Correction & Resubmission Required`, `Production Go Ahead Recommended`, `Rework & Reinspect`).
+   - Corrective actions: `corrective_action_required`, `corrective_action`, `corrective_action_owner`, `corrective_action_owner_name`, `corrective_action_due_date`, `corrective_action_status` (`Open`, `In Progress`, `Resolved`, `Overdue`, `Waived`), `resolution_notes`, and auto-timestamped `resolved_date`.
+
+7. **Multi-Photo Private Evidence**:
+   - Child table `Quality Inspection Evidence` attached to reports with private files, captions, display order, evidence types, uploader, timestamp, and revision tags.
+   - Reference-safe deletion and upload retry handling.
+
+8. **Immutable Revision / Supersession & Side-by-Side Comparison**:
+   - `revise_quality_inspection`: Creates revision 2 (etc.) under `SELECT ... FOR UPDATE` row locking; sets `supersedes = original_name`, updates original `superseded_by = new_name`, `is_latest = 0`.
+   - Approved reports strictly cannot be revised.
+   - Preserves all historical photos and observations tagged with their respective revision numbers.
+   - `compare_inspection_revisions`: Provides side-by-side structured comparison diff of metadata, checklist points, measurement tolerances, defect counts, corrective action status, and photos.
+
+9. **Security, Privacy & Concurrency**:
+   - Multi-company and supplier User Permission boundaries strictly enforced.
+   - Row-locking (`SELECT ... FOR UPDATE`) prevents race conditions during concurrent revisions.
+   - Non-quality users cannot access or view private evidence.
+
+10. **Test Suite Verification**:
+    - Quality ERP: **45/45** tests passed (+14 comprehensive Session 12 tests in `test_quality_stage_reports.py` covering templates, historical retention, tolerance calculation, defect severities, multiple visits, corrective action lifecycle, revision supersession, side-by-side comparison, row locking, multi-company/supplier isolation, and migration compatibility).
+    - Warehouse ERP: **105/105** tests passed.
+    - Sales ERP: **195/195** tests passed.
+    - Deploy & Hardening: **54/54** tests passed.
+    - Supply Chain Runner: **0** findings across secrets, SAST, dependencies, and licenses.
+    - Total Suite Tests: **399/399** tests passing cleanly across all apps.
+
+11. **Boundary Enforcement**:
+    - Stopped strictly before critical gate UI / approval review screens as instructed. Session 13 will address the Production Go Ahead and Final Inspection review screens and gate approval bundles.

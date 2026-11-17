@@ -1,0 +1,88 @@
+{
+ "actions": [],
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "check_point",
+  "check_type",
+  "criticality",
+  "is_mandatory",
+  "target_value",
+  "min_value",
+  "max_value",
+  "uom",
+  "guidelines"
+ ],
+ "fields": [
+  {
+   "fieldname": "check_point",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Check Point / Parameter",
+   "reqd": 1
+  },
+  {
+   "default": "Visual Inspection",
+   "fieldname": "check_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Check Type",
+   "options": "Measurement\nVisual Inspection\nReading\nPass/Fail\nTolerance Check\nPackaging",
+   "reqd": 1
+  },
+  {
+   "default": "Major",
+   "fieldname": "criticality",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Criticality",
+   "options": "Minor\nMajor\nCritical",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_mandatory",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Mandatory"
+  },
+  {
+   "fieldname": "target_value",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Target / Standard"
+  },
+  {
+   "fieldname": "min_value",
+   "fieldtype": "Float",
+   "label": "Min Value"
+  },
+  {
+   "fieldname": "max_value",
+   "fieldtype": "Float",
+   "label": "Max Value"
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Data",
+   "label": "UOM"
+  },
+  {
+   "fieldname": "guidelines",
+   "fieldtype": "Small Text",
+   "label": "Inspection Guidelines / Tolerance"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-17 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Quality ERP",
+ "name": "Quality Checklist Template Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "idx",
+ "sort_order": "ASC",
+ "track_changes": 1
+}

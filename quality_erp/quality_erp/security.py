@@ -166,3 +166,16 @@ def get_production_quality_cycle_conditions(user=None):
 
     return " AND ".join(conditions) if conditions else ""
 
+
+def quality_checklist_template_has_permission(doc, ptype="read", user=None):
+    user = get_current_user(user)
+    if is_quality_admin(user):
+        return True
+    if not is_quality_inspector(user):
+        return False
+    if ptype in ("read", "report"):
+        return True
+    if ptype in ("write", "create"):
+        return is_quality_manager(user)
+    return False
+

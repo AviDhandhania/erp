@@ -157,20 +157,19 @@ decided before DocType keys and uniqueness rules are created.
 
 ### Stage reports
 
-Each report should include, as applicable:
+Each report is captured in `Supplier Quality Inspection` linked directly to its parent `Production Quality Cycle`:
 
-- cycle, Supplier, Purchase Order and relevant Item/style/colour/season;
-- stage and inspection/report date;
-- quality user and visit/location details;
-- checklist version and individual observations/readings;
-- defects, severity, quantities sampled/passed/failed and corrective action;
-- recommendation and stage result;
-- multiple photos with type, caption and display order;
-- requested corrections, responsible party and due date;
-- revision number and links to the report it supersedes; and
-- immutable author/submission/review timestamps.
+- **Cycle and Native Links**: cycle key, Supplier, Purchase Order, Item/style/colourway, production lot, and season.
+- **Stage & Visit Sequence**: stage (1-7), visit number (supporting multiple visits for Inline and Mid-line visits), visit type, and factory location details.
+- **Versioned Checklists**: linked to versioned `Quality Checklist Template` (by item group / category); check points are frozen into child table `Quality Inspection Checklist Item` ensuring historical checklist retention across template updates.
+- **Measurements & Readings**: child table `Quality Inspection Reading Item` capturing spec target, tolerances (+/-), actual reading, server-calculated variance, and In Spec / Out of Spec classification.
+- **Sampling Plans & Defect Severity**: AQL 1.5/2.5/4.0 plans, lot size, sample size, passed/failed quantities, and child table `Quality Inspection Defect Item` tracking defect code, description, count, and severity (Minor, Major, Critical).
+- **Recommendation & Result**: result (`Passed`, `Failed`, `Conditionally Passed`, `Pending Review`) and recommendation (`Accept Lot`, `Reject Lot`, `100% Re-inspection Required`, `Correction & Resubmission Required`, `Production Go Ahead Recommended`, `Rework & Reinspect`).
+- **Corrective Actions**: corrective action required, action description, action owner (`User`), party name, due date, status (`Open`, `In Progress`, `Resolved`, `Overdue`, `Waived`), resolution notes, and auto-recorded resolution timestamp.
+- **Multi-Photo Private Evidence**: child table `Quality Inspection Evidence` capturing private files, captions, display order, evidence types, uploader, timestamp, and revision tags.
+- **Immutable Revisions & Side-by-Side Comparison**: revising a report creates an incremented revision under `SELECT ... FOR UPDATE` row locking; sets `supersedes` and updates original to `superseded_by` and `is_latest = 0`; approved reports cannot be revised; `compare_inspection_revisions` provides comprehensive side-by-side revision comparison diffs.
 
-Photos should use native private File records by default, be included in site backups and
+Photos use native private File records by default, are included in site backups and
 follow reference-safe deletion. File type, size, privacy, malware handling and retention
 must follow configured Frappe policy. A rejected or superseded report's evidence must not
 be silently deleted.

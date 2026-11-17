@@ -43,6 +43,7 @@ has_permission = {
 	"Supplier Quality Inspection": "quality_erp.security.quality_inspection_has_permission",
 	"Return Quarantine": "quality_erp.security.return_quarantine_has_permission",
 	"Production Quality Cycle": "quality_erp.security.production_quality_cycle_has_permission",
+	"Quality Checklist Template": "quality_erp.security.quality_checklist_template_has_permission",
 }
 
 permission_query_conditions = {

@@ -139,13 +139,22 @@ class ProductionQualityCycle(Document):
         """Update cycle statistics and stage progress from linked inspection records."""
         inspections = frappe.get_all(
             "Supplier Quality Inspection",
-            filters={"production_quality_cycle": self.name},
-            fields=["name", "stage", "status", "inspection_date"],
+            filters={"production_quality_cycle": self.name, "is_latest": 1},
+            fields=["name", "stage", "status", "result", "inspection_date", "visit_number"],
             order_by="inspection_date desc, creation desc",
         )
+        if not inspections:
+            inspections = frappe.get_all(
+                "Supplier Quality Inspection",
+                filters={"production_quality_cycle": self.name},
+                fields=["name", "stage", "status", "result", "inspection_date", "visit_number"],
+                order_by="inspection_date desc, creation desc",
+            )
 
         self.total_inspections_count = len(inspections)
-        approved_stages = {i.stage for i in inspections if i.status == "Approved"}
+        approved_stages = {
+            i.stage for i in inspections if (i.status == "Approved" or i.get("result") == "Passed")
+        }
         self.total_stages_passed = len(approved_stages)
 
         if inspections:

@@ -1,0 +1,99 @@
+{
+ "actions": [],
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "parameter_name",
+  "spec_size",
+  "spec_target",
+  "tolerance_plus",
+  "tolerance_minus",
+  "actual_reading",
+  "variance",
+  "reading_status",
+  "uom",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "parameter_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Measurement / Spec Point",
+   "reqd": 1
+  },
+  {
+   "fieldname": "spec_size",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Size"
+  },
+  {
+   "default": "0",
+   "fieldname": "spec_target",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Target (Spec)",
+   "reqd": 1
+  },
+  {
+   "default": "0.5",
+   "fieldname": "tolerance_plus",
+   "fieldtype": "Float",
+   "label": "+ Tolerance"
+  },
+  {
+   "default": "0.5",
+   "fieldname": "tolerance_minus",
+   "fieldtype": "Float",
+   "label": "- Tolerance"
+  },
+  {
+   "default": "0",
+   "fieldname": "actual_reading",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Actual Reading",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "variance",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Variance",
+   "read_only": 1
+  },
+  {
+   "default": "In Spec",
+   "fieldname": "reading_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "In Spec\nOut of Spec"
+  },
+  {
+   "default": "cm",
+   "fieldname": "uom",
+   "fieldtype": "Data",
+   "label": "UOM"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-17 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Quality ERP",
+ "name": "Quality Inspection Reading Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "idx",
+ "sort_order": "ASC",
+ "track_changes": 1
+}

@@ -14,22 +14,59 @@
   "production_quality_cycle",
   "column_break_1",
   "stage",
+  "visit_number",
+  "visit_type",
+  "location_details",
   "production_lot",
   "season",
   "status",
+  "result",
+  "recommendation",
   "inspector",
   "inspection_date",
   "revision",
   "supersedes",
+  "superseded_by",
+  "is_latest",
+  "section_break_sampling",
+  "sampling_plan",
+  "lot_size",
+  "sample_size",
+  "passed_quantity",
+  "failed_quantity",
+  "column_break_sampling",
+  "max_allowed_defects",
+  "critical_defects_count",
+  "major_defects_count",
+  "minor_defects_count",
+  "fabric_quality_score",
+  "stitching_quality_score",
+  "section_break_checklist",
+  "checklist_template",
+  "checklist_template_version",
+  "checklist_items",
+  "section_break_measurements",
+  "spec_measurements",
+  "measurements",
+  "section_break_defects",
+  "defects",
+  "section_break_corrective",
+  "corrective_action_required",
+  "corrective_action",
+  "corrective_action_owner",
+  "corrective_action_owner_name",
+  "column_break_corrective",
+  "corrective_action_due_date",
+  "corrective_action_status",
+  "resolved_date",
+  "resolution_notes",
   "section_break_approval",
   "approved_by",
   "approval_date",
-  "section_break_details",
-  "spec_measurements",
-  "fabric_quality_score",
-  "stitching_quality_score",
+  "section_break_evidence",
   "photo_evidence",
   "evidence_photos",
+  "recommendation_notes",
   "comments"
  ],
  "fields": [
@@ -42,6 +79,13 @@
    "options": "SQI-.YYYY.-.#####",
    "reqd": 1,
    "set_only_once": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company"
   },
   {
    "fieldname": "supplier",
@@ -68,6 +112,14 @@
    "options": "Purchase Order"
   },
   {
+   "fieldname": "production_quality_cycle",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Production Quality Cycle",
+   "options": "Production Quality Cycle"
+  },
+  {
    "fieldname": "column_break_1",
    "fieldtype": "Column Break"
   },
@@ -81,6 +133,35 @@
    "reqd": 1
   },
   {
+   "default": "1",
+   "fieldname": "visit_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Visit Number"
+  },
+  {
+   "default": "Fit Review",
+   "fieldname": "visit_type",
+   "fieldtype": "Select",
+   "label": "Visit Type",
+   "options": "Fit Review\nInitial Inline\nFollow-up Inline\nInline Visit\nMid-line Visit\nMid-line Visit 1\nMid-line Visit 2\nPre-Final\nFinal Inspection\nAd-Hoc Visit"
+  },
+  {
+   "fieldname": "location_details",
+   "fieldtype": "Data",
+   "label": "Location Details"
+  },
+  {
+   "fieldname": "production_lot",
+   "fieldtype": "Data",
+   "label": "Production Lot"
+  },
+  {
+   "fieldname": "season",
+   "fieldtype": "Data",
+   "label": "Season"
+  },
+  {
    "default": "Pending Review",
    "fieldname": "status",
    "fieldtype": "Select",
@@ -88,6 +169,20 @@
    "in_standard_filter": 1,
    "label": "Status",
    "options": "Draft\nPending Review\nApproved\nRejected"
+  },
+  {
+   "default": "Pending Review",
+   "fieldname": "result",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Result",
+   "options": "Pending Review\nPassed\nFailed\nConditionally Passed"
+  },
+  {
+   "fieldname": "recommendation",
+   "fieldtype": "Select",
+   "label": "Recommendation",
+   "options": "\nAccept Lot\nReject Lot\n100% Re-inspection Required\nCorrection & Resubmission Required\nProduction Go Ahead Recommended\nRework & Reinspect"
   },
   {
    "fieldname": "inspector",
@@ -116,6 +211,200 @@
    "read_only": 1
   },
   {
+   "fieldname": "superseded_by",
+   "fieldtype": "Link",
+   "label": "Superseded By",
+   "options": "Supplier Quality Inspection",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_latest",
+   "fieldtype": "Check",
+   "label": "Is Latest Revision"
+  },
+  {
+   "fieldname": "section_break_sampling",
+   "fieldtype": "Section Break",
+   "label": "Sampling Plan & Counts"
+  },
+  {
+   "default": "AQL 2.5 Level II",
+   "fieldname": "sampling_plan",
+   "fieldtype": "Select",
+   "label": "Sampling Plan",
+   "options": "AQL 1.5 Level II\nAQL 2.5 Level II\nAQL 4.0 Level II\n100% Inspection\nRandom 10%\nCustom Sample"
+  },
+  {
+   "default": "0",
+   "fieldname": "lot_size",
+   "fieldtype": "Int",
+   "label": "Lot Size"
+  },
+  {
+   "default": "0",
+   "fieldname": "sample_size",
+   "fieldtype": "Int",
+   "label": "Sample Size"
+  },
+  {
+   "default": "0",
+   "fieldname": "passed_quantity",
+   "fieldtype": "Int",
+   "label": "Passed Quantity"
+  },
+  {
+   "default": "0",
+   "fieldname": "failed_quantity",
+   "fieldtype": "Int",
+   "label": "Failed Quantity"
+  },
+  {
+   "fieldname": "column_break_sampling",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "max_allowed_defects",
+   "fieldtype": "Int",
+   "label": "Max Allowed Defects"
+  },
+  {
+   "default": "0",
+   "fieldname": "critical_defects_count",
+   "fieldtype": "Int",
+   "label": "Critical Defects Count",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "major_defects_count",
+   "fieldtype": "Int",
+   "label": "Major Defects Count",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "minor_defects_count",
+   "fieldtype": "Int",
+   "label": "Minor Defects Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "fabric_quality_score",
+   "fieldtype": "Int",
+   "label": "Fabric Quality Score (1-100)"
+  },
+  {
+   "fieldname": "stitching_quality_score",
+   "fieldtype": "Int",
+   "label": "Stitching Quality Score (1-100)"
+  },
+  {
+   "fieldname": "section_break_checklist",
+   "fieldtype": "Section Break",
+   "label": "Quality Checklist"
+  },
+  {
+   "fieldname": "checklist_template",
+   "fieldtype": "Link",
+   "label": "Checklist Template",
+   "options": "Quality Checklist Template"
+  },
+  {
+   "fieldname": "checklist_template_version",
+   "fieldtype": "Int",
+   "label": "Checklist Template Version",
+   "read_only": 1
+  },
+  {
+   "fieldname": "checklist_items",
+   "fieldtype": "Table",
+   "label": "Checklist Observations",
+   "options": "Quality Inspection Checklist Item"
+  },
+  {
+   "fieldname": "section_break_measurements",
+   "fieldtype": "Section Break",
+   "label": "Measurements & Readings"
+  },
+  {
+   "fieldname": "spec_measurements",
+   "fieldtype": "Small Text",
+   "label": "Spec Notes / Summary"
+  },
+  {
+   "fieldname": "measurements",
+   "fieldtype": "Table",
+   "label": "Measurements Table",
+   "options": "Quality Inspection Reading Item"
+  },
+  {
+   "fieldname": "section_break_defects",
+   "fieldtype": "Section Break",
+   "label": "Defects & Findings"
+  },
+  {
+   "fieldname": "defects",
+   "fieldtype": "Table",
+   "label": "Defects List",
+   "options": "Quality Inspection Defect Item"
+  },
+  {
+   "fieldname": "section_break_corrective",
+   "fieldtype": "Section Break",
+   "label": "Corrective Action & Ownership"
+  },
+  {
+   "default": "0",
+   "fieldname": "corrective_action_required",
+   "fieldtype": "Check",
+   "label": "Corrective Action Required"
+  },
+  {
+   "fieldname": "corrective_action",
+   "fieldtype": "Text",
+   "label": "Corrective Action Details"
+  },
+  {
+   "fieldname": "corrective_action_owner",
+   "fieldtype": "Link",
+   "label": "Action Owner (User)",
+   "options": "User"
+  },
+  {
+   "fieldname": "corrective_action_owner_name",
+   "fieldtype": "Data",
+   "label": "Action Owner Name / Party"
+  },
+  {
+   "fieldname": "column_break_corrective",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "corrective_action_due_date",
+   "fieldtype": "Date",
+   "label": "Action Due Date"
+  },
+  {
+   "default": "Open",
+   "fieldname": "corrective_action_status",
+   "fieldtype": "Select",
+   "label": "Action Status",
+   "options": "Open\nIn Progress\nResolved\nOverdue\nWaived"
+  },
+  {
+   "fieldname": "resolved_date",
+   "fieldtype": "Datetime",
+   "label": "Resolved Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "resolution_notes",
+   "fieldtype": "Text",
+   "label": "Resolution Notes"
+  },
+  {
    "fieldname": "section_break_approval",
    "fieldtype": "Section Break",
    "label": "Gate Approval"
@@ -134,24 +423,9 @@
    "read_only": 1
   },
   {
-   "fieldname": "section_break_details",
+   "fieldname": "section_break_evidence",
    "fieldtype": "Section Break",
-   "label": "Inspection Details & Measurements"
-  },
-  {
-   "fieldname": "spec_measurements",
-   "fieldtype": "Small Text",
-   "label": "Spec & Measurements"
-  },
-  {
-   "fieldname": "fabric_quality_score",
-   "fieldtype": "Int",
-   "label": "Fabric Quality Score (1-100)"
-  },
-  {
-   "fieldname": "stitching_quality_score",
-   "fieldtype": "Int",
-   "label": "Stitching Quality Score (1-100)"
+   "label": "Evidence & Recommendations"
   },
   {
    "fieldname": "photo_evidence",
@@ -165,38 +439,18 @@
    "options": "Quality Inspection Evidence"
   },
   {
+   "fieldname": "recommendation_notes",
+   "fieldtype": "Text",
+   "label": "Recommendation Notes"
+  },
+  {
    "fieldname": "comments",
    "fieldtype": "Text",
    "label": "Inspector Notes / Rejection Reason"
-  },
-  {
-   "fieldname": "company",
-   "fieldtype": "Link",
-   "in_standard_filter": 1,
-   "label": "Company",
-   "options": "Company"
-  },
-  {
-   "fieldname": "production_quality_cycle",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Production Quality Cycle",
-   "options": "Production Quality Cycle"
-  },
-  {
-   "fieldname": "production_lot",
-   "fieldtype": "Data",
-   "label": "Production Lot"
-  },
-  {
-   "fieldname": "season",
-   "fieldtype": "Data",
-   "label": "Season"
   }
  ],
  "links": [],
- "modified": "2026-11-16 00:00:00.000000",
+ "modified": "2026-11-17 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Quality ERP",
  "name": "Supplier Quality Inspection",
