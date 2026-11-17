@@ -189,3 +189,32 @@ def get_delivery_note_conditions(user=None):
         f"EXISTS (SELECT 1 FROM `tabDelivery Note Item` dni "
         f"WHERE dni.parent = `tabDelivery Note`.name AND dni.warehouse IN ({escaped}))"
     )
+
+
+def delivery_handoff_has_permission(doc, ptype="read", user=None, **kwargs):
+    user = get_current_user(user)
+    if is_warehouse_admin(user):
+        return True
+    if not is_warehouse_manager(user):
+        return False
+    doc_obj = frappe.get_doc("Delivery Handoff", doc) if isinstance(doc, str) else doc
+    dn_name = getattr(doc_obj, "delivery_note", None)
+    if not dn_name:
+        return True
+    return delivery_note_has_permission(dn_name, ptype=ptype, user=user)
+
+
+def get_delivery_handoff_conditions(user=None):
+    user = get_current_user(user)
+    if is_warehouse_admin(user):
+        return ""
+    if not is_warehouse_manager(user):
+        return "1=0"
+    allowed = assigned_warehouses(user)
+    if not allowed:
+        return "1=0"
+    escaped = ", ".join(frappe.db.escape(wh) for wh in allowed)
+    return (
+        f"EXISTS (SELECT 1 FROM `tabDelivery Note Item` dni "
+        f"WHERE dni.parent = `tabDelivery Handoff`.delivery_note AND dni.warehouse IN ({escaped}))"
+    )

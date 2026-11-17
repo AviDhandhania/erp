@@ -56,7 +56,107 @@ def ensure_warehouse_erp_sidebar():
         frappe.modules.import_file.import_file_by_path(sidebar_file, force=True, ignore_version=True)
 
 
+def ensure_custom_fields():
+    from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+    create_custom_fields(
+        {
+            "Pick List": [
+                {
+                    "fieldname": "custom_wave_id",
+                    "label": "Wave ID",
+                    "fieldtype": "Data",
+                    "insert_after": "parent_warehouse",
+                    "in_list_view": 1,
+                    "in_standard_filter": 1,
+                    "description": "Identifier for the picking wave batch.",
+                },
+                {
+                    "fieldname": "custom_route_id",
+                    "label": "Route ID",
+                    "fieldtype": "Data",
+                    "insert_after": "custom_wave_id",
+                    "in_list_view": 1,
+                    "in_standard_filter": 1,
+                    "description": "Destination route / geographical delivery run.",
+                },
+            ],
+            "Delivery Note": [
+                {
+                    "fieldname": "custom_wave_id",
+                    "label": "Wave ID",
+                    "fieldtype": "Data",
+                    "insert_after": "customer",
+                    "in_list_view": 1,
+                    "in_standard_filter": 1,
+                },
+                {
+                    "fieldname": "custom_route_id",
+                    "label": "Route ID",
+                    "fieldtype": "Data",
+                    "insert_after": "custom_wave_id",
+                    "in_list_view": 1,
+                    "in_standard_filter": 1,
+                },
+                {
+                    "fieldname": "custom_delivery_handoff",
+                    "label": "Delivery Handoff",
+                    "fieldtype": "Link",
+                    "options": "Delivery Handoff",
+                    "insert_after": "transporter_name",
+                    "read_only": 1,
+                    "no_copy": 1,
+                },
+                {
+                    "fieldname": "custom_billing_invoice",
+                    "label": "Prepared Billing Invoice",
+                    "fieldtype": "Link",
+                    "options": "Sales Invoice",
+                    "insert_after": "custom_delivery_handoff",
+                    "read_only": 1,
+                    "no_copy": 1,
+                },
+            ],
+            "Packing Slip": [
+                {
+                    "fieldname": "custom_package_barcode",
+                    "label": "Package Barcode",
+                    "fieldtype": "Data",
+                    "insert_after": "to_case_no",
+                    "in_list_view": 1,
+                },
+                {
+                    "fieldname": "custom_length",
+                    "label": "Length (cm)",
+                    "fieldtype": "Float",
+                    "insert_after": "gross_weight_uom",
+                },
+                {
+                    "fieldname": "custom_width",
+                    "label": "Width (cm)",
+                    "fieldtype": "Float",
+                    "insert_after": "custom_length",
+                },
+                {
+                    "fieldname": "custom_height",
+                    "label": "Height (cm)",
+                    "fieldtype": "Float",
+                    "insert_after": "custom_width",
+                },
+                {
+                    "fieldname": "custom_dimension_uom",
+                    "label": "Dimension UOM",
+                    "fieldtype": "Data",
+                    "default": "cm",
+                    "insert_after": "custom_height",
+                },
+            ],
+        }
+    )
+
+
 def after_install():
+    ensure_custom_fields()
     for role in ALL_ROLES:
         if not frappe.db.exists("Role", role["role_name"]):
             frappe.get_doc(
@@ -70,11 +170,12 @@ def after_install():
 
     for role in ALL_ROLES:
         name = role["role_name"]
-        for dt in ("Warehouse", "Pick List", "Delivery Note", "Stock Entry", "Packing Slip"):
+        for dt in ("Warehouse", "Pick List", "Delivery Note", "Stock Entry", "Packing Slip", "Delivery Handoff"):
             _ensure_custom_docperm(dt, name, ["read"])
 
         _ensure_custom_docperm("Serial and Batch Bundle", name, ["read", "write", "create", "submit"])
         _ensure_custom_docperm("Packing Slip", name, ["read", "write", "create", "submit"])
+        _ensure_custom_docperm("Delivery Handoff", name, ["read", "write", "create"])
 
     remove_legacy_operator_permissions()
     ensure_warehouse_erp_sidebar()

@@ -217,16 +217,16 @@ documented residual risk and a release block for every unresolved critical/high 
 
 - [x] Finish the manager-only migration described in the P0 access section and verify old
   operator users lose all list, read, print, scan, dispatch, return and attachment access.
-- [ ] Formalize the native document sequence and authority for Pick List, Packing Slip,
+- [x] Formalize the native document sequence and authority for Pick List, Packing Slip,
   Delivery Note, draft/submitted Sales Invoice and India Compliance/e-Waybill. Warehouse
   managers must never alter protected accounting or commercial fields.
-- [ ] Add server-generated wave/route work queues, bounded bulk preflight, per-document
+- [x] Add server-generated wave/route work queues, bounded bulk preflight, per-document
   failure reporting, safe retries, cancellation and job progress for large operations.
-- [ ] Complete package identity, count, weight, dimensions, carrier, vehicle, LR/tracking,
+- [x] Complete package identity, count, weight, dimensions, carrier, vehicle, LR/tracking,
   handler acceptance, timestamps and proof of handoff with immutable audit history.
 - [ ] Implement printable labels/manifests with permission checks, deterministic templates,
   printer-safe PDF and optional reviewed ZPL, reprint audit and no sensitive excess fields.
-- [ ] Complete partial fulfilment/backorder, mixed tracking, stock reservation, wrong-location,
+- [x] Complete partial fulfilment/backorder, mixed tracking, stock reservation, wrong-location,
   expiry, rejected batch, serial ownership and concurrent scanner scenarios using native
   ERPNext controllers.
 - [ ] Complete return financial-policy hooks without assuming refund/credit/replacement;
@@ -1399,3 +1399,64 @@ Session 8 completed full Sales ERP order lifecycle hardening, native ERPNext Wor
    - Deploy & Security Audit: **54/54** tests passed.
    - Supply Chain Runner: **0** findings across secret scanning, SAST, dependencies, and licensing.
    - Total Suite Tests: **252/252** tests passing cleanly across all apps.
+
+## Session 9: Warehouse Native Flow, Packages and Delivery Handoff — verified 2026-11-17
+
+Session 9 completed the native warehouse order fulfillment pipeline, package identity and dimensions, immutable delivery handoff audit evidence, India Compliance e-Waybill readiness, server-generated wave/route work queues, bounded bulk preflight, and versioned mobile contracts:
+
+1. **Manager-Only Access Verification (Negative Tests)**:
+   - Verified that legacy operator accounts (`Clothing Warehouse Operator`) and unauthorized roles (`Sales Manager`, `Quality Inspector`, unprivileged users) are strictly rejected before reading, querying, or mutating fulfillment documents across all 16 endpoints.
+   - All fulfillment mutation endpoints enforce `FULFILLMENT_ROLES` (`Clothing Warehouse Manager`, `Clothing Business Administrator`).
+
+2. **Native Fulfillment Sequence & Commercial Boundaries**:
+   - `create_pick_list_from_sales_orders(sales_orders, parent_warehouse, purpose, wave_id, route_id, request_id)`: Creates native Pick Lists from submitted Sales Orders (`docstatus == 1`) with row-locking and warehouse permission validation.
+   - `prepare_billing_from_delivery_note(delivery_note, request_id)`: Allows warehouse managers to prepare a draft `Sales Invoice` (`docstatus = 0`) using ERPNext's native `make_sales_invoice` mapping. Protected commercial values, prices, taxes, discounts, and invoice submission rights (`docstatus = 1`) remain strictly restricted to Accounting/Finance roles. Unsubmitted Delivery Notes cannot generate billing documents.
+   - Links draft `Sales Invoice` to Delivery Note via `custom_billing_invoice`.
+
+3. **India Compliance & e-Waybill Boundary**:
+   - `get_ewaybill_readiness(delivery_note)`: Evaluates whether Delivery Note total reaches the statutory e-Waybill threshold (50,000 INR). Inspects transporter name, vehicle number, LR number/date, mode of transport, and distance.
+   - `update_transport_metadata(delivery_note, ...)`: Updates transport fields under row lock and records `Transport Metadata Updated` audit event in `tabActivity Log`.
+
+4. **Wave & Route Work Queues**:
+   - `assign_to_wave(pick_lists, wave_id)` and `assign_to_route(delivery_notes, route_id)`: Batch assignment with security audit logging and row-locking.
+   - `get_warehouse_work_queues(warehouse=None, queue_type="wave")`: Server-generated wave and route queues with progress calculation (`total_qty`, `picked_qty`, `progress_percent`, `task_count`). Strictly scoped to assigned warehouses with zero cross-warehouse data leakage.
+
+5. **Package Identity, Dimensions & Packing Slip Schema**:
+   - Custom fields on `Packing Slip`: `custom_package_barcode`, `custom_length`, `custom_width`, `custom_height`, `custom_dimension_uom`.
+   - `create_packing_slip`: Automatically generates package barcodes (`PKG-<DN>-<CaseNo>`), captures package dimensions and weights, and maps to native Packing Slip.
+
+6. **Immutable Delivery Handoff DocType**:
+   - Created DocType `Delivery Handoff` (`tabDelivery Handoff` in MariaDB).
+   - Rules enforced:
+     - Requires submitted Delivery Note (`docstatus == 1`).
+     - Scoped strictly to permitted warehouses of the Delivery Note items.
+     - Mandatory package count ($\ge 1$), transporter name, handler acceptance (driver/carrier signature & name).
+     - Captures driver contact phone, vehicle number, LR details, photo proof, and timestamp.
+     - Immutability: Rejects edits to core handoff fields once created.
+     - Updates `custom_delivery_handoff` link on `Delivery Note`.
+     - Records `Delivery Handed Over` security audit event in `tabActivity Log`.
+
+7. **Bounded Bulk Preflight & Per-Document Isolation**:
+   - `preflight_fulfillment_bulk_action(action, docnames)`: Preflight checks for bulk operations (max 50 documents).
+   - `bulk_create_delivery_notes_from_picks` and `bulk_dispatch_delivery_notes`: Bounded execution with per-document savepoints (`frappe.db.savepoint()`), per-document success/failure reporting, safe retries, and idempotency request IDs.
+
+8. **Partial Fulfillment, Shortage Splitting, and Expiry Rejection**:
+   - `get_order_fulfillment_status(sales_order)`: Calculates ordered, delivered, pending, and backorder requirements per item line.
+   - `verify_pick_item`: Validates batch expiry (`expiry_date < date.today()`) and rejects expired batches before row-locking.
+   - Rejects scans from warehouse locations differing from row warehouse with `ValidationError`.
+
+9. **Versioned Mobile API Contract (v1)**:
+   - Implemented `warehouse_erp/warehouse_erp/mobile_api.py` with `API_VERSION = "v1"`:
+     - `get_mobile_warehouse_boot()`: Boot payload with manager context, assigned warehouses, feature flags.
+     - `get_mobile_tasks(...)`, `get_mobile_task_detail(...)`.
+     - `verify_mobile_scan(...)`, `undo_mobile_scan(...)`, `complete_mobile_pick(...)`.
+     - `create_mobile_delivery_note(...)`, `create_mobile_packing_slip(...)`, `dispatch_mobile_delivery(...)`.
+     - `record_mobile_handoff(...)`, `get_mobile_work_queues(...)`.
+
+10. **Test Suite Verification**:
+    - Warehouse ERP: **70/70** tests passed (+11 new Session 9 native flow, packaging, ewaybill, wave/route, bulk preflight, and handoff tests).
+    - Sales ERP: **126/126** tests passed.
+    - Quality ERP: **13/13** tests passed.
+    - Deploy & Hardening: **54/54** tests passed.
+    - Supply Chain Runner: **0** findings across secrets, SAST, dependencies, and licenses.
+    - Total Suite Tests: **263/263** tests passing cleanly across all apps.

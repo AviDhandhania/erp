@@ -1,0 +1,236 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-11-17 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "delivery_note",
+  "customer",
+  "customer_name",
+  "company",
+  "column_break_1",
+  "posting_date",
+  "status",
+  "section_break_carrier",
+  "transporter_name",
+  "vehicle_no",
+  "lr_no",
+  "lr_date",
+  "column_break_2",
+  "driver_name",
+  "driver_phone",
+  "packages_count",
+  "gross_weight",
+  "section_break_handoff",
+  "handed_over_by",
+  "handed_over_on",
+  "accepted_by_handler",
+  "proof_photo",
+  "notes"
+ ],
+ "fields": [
+  {
+   "default": "DHO-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "no_copy": 1,
+   "options": "DHO-.YYYY.-.#####",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "delivery_note",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Delivery Note",
+   "options": "Delivery Note",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fetch_from": "delivery_note.customer",
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Retailer / Customer",
+   "options": "Customer",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "delivery_note.customer_name",
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "delivery_note.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date",
+   "reqd": 1
+  },
+  {
+   "default": "Handed Over",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Handed Over\nIn Transit\nDelivered",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_carrier",
+   "fieldtype": "Section Break",
+   "label": "Carrier & Transport"
+  },
+  {
+   "fieldname": "transporter_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Transporter Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_no",
+   "fieldtype": "Data",
+   "label": "Vehicle Number"
+  },
+  {
+   "fieldname": "lr_no",
+   "fieldtype": "Data",
+   "label": "LR / Consignment No"
+  },
+  {
+   "fieldname": "lr_date",
+   "fieldtype": "Date",
+   "label": "LR Date"
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "driver_name",
+   "fieldtype": "Data",
+   "label": "Driver Name"
+  },
+  {
+   "fieldname": "driver_phone",
+   "fieldtype": "Data",
+   "label": "Driver Phone"
+  },
+  {
+   "default": "1",
+   "fieldname": "packages_count",
+   "fieldtype": "Int",
+   "label": "Number of Packages",
+   "reqd": 1
+  },
+  {
+   "fieldname": "gross_weight",
+   "fieldtype": "Float",
+   "label": "Gross Weight (Kg)"
+  },
+  {
+   "fieldname": "section_break_handoff",
+   "fieldtype": "Section Break",
+   "label": "Handoff & Chain of Custody"
+  },
+  {
+   "fieldname": "handed_over_by",
+   "fieldtype": "Link",
+   "label": "Handed Over By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "handed_over_on",
+   "fieldtype": "Datetime",
+   "label": "Handed Over Timestamp",
+   "read_only": 1
+  },
+  {
+   "fieldname": "accepted_by_handler",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Accepted By (Carrier Handler / Driver)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "proof_photo",
+   "fieldtype": "Attach Image",
+   "label": "Handoff Proof Photo / Gate Pass"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Handoff Notes"
+  }
+ ],
+ "modified": "2026-11-17 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Warehouse ERP",
+ "name": "Delivery Handoff",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Warehouse Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Business Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

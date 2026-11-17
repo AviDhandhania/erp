@@ -38,6 +38,10 @@ class TestWarehouseERP(FrappeTestCase):
         seed_warehouse_data()
         self.manager = SEED_WAREHOUSE_MANAGER
 
+    def tearDown(self):
+        frappe.set_user("Administrator")
+        super().tearDown()
+
     def test_warehouse_user_app_isolation(self):
         """Warehouse manager must only see Warehouse ERP on the apps screen."""
         frappe.set_user(self.manager)

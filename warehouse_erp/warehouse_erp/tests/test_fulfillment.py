@@ -11,6 +11,14 @@ from warehouse_erp import fulfillment
 
 
 class TestFulfillment(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        frappe.set_user("Administrator")
+
+    def tearDown(self):
+        frappe.set_user("Administrator")
+        super().tearDown()
+
     def pick_document(self, picked_qty=0, stock_qty=3, docstatus=0):
         row = frappe._dict(
             name="TEST-LOCATION-1",

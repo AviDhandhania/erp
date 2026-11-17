@@ -43,6 +43,7 @@ has_permission = {
 	"Warehouse": "warehouse_erp.security.warehouse_has_permission",
 	"Pick List": "warehouse_erp.security.pick_list_has_permission",
 	"Delivery Note": "warehouse_erp.security.delivery_note_has_permission",
+	"Delivery Handoff": "warehouse_erp.security.delivery_handoff_has_permission",
 	"Serial and Batch Bundle": "warehouse_erp.security.serial_batch_bundle_has_permission",
 }
 
@@ -50,4 +51,5 @@ permission_query_conditions = {
 	"Warehouse": "warehouse_erp.security.get_warehouse_conditions",
 	"Pick List": "warehouse_erp.security.get_pick_list_conditions",
 	"Delivery Note": "warehouse_erp.security.get_delivery_note_conditions",
+	"Delivery Handoff": "warehouse_erp.security.get_delivery_handoff_conditions",
 }
