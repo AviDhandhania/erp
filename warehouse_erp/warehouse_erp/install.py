@@ -4,9 +4,9 @@ import os
 import frappe
 from warehouse_erp.roles import (
     ALL_ROLES,
+    LEGACY_ROLE_WAREHOUSE_OPERATOR,
     ROLE_BUSINESS_ADMIN,
     ROLE_WAREHOUSE_MANAGER,
-    ROLE_WAREHOUSE_OPERATOR,
 )
 
 
@@ -73,33 +73,61 @@ def after_install():
         for dt in ("Warehouse", "Pick List", "Delivery Note", "Stock Entry", "Packing Slip"):
             _ensure_custom_docperm(dt, name, ["read"])
 
-        if name in {ROLE_WAREHOUSE_OPERATOR, ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN}:
-            _ensure_custom_docperm("Serial and Batch Bundle", name, ["read", "write", "create", "submit"])
+        _ensure_custom_docperm("Serial and Batch Bundle", name, ["read", "write", "create", "submit"])
+        _ensure_custom_docperm("Packing Slip", name, ["read", "write", "create", "submit"])
 
-        if name in {ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN}:
-            _ensure_custom_docperm("Packing Slip", name, ["read", "write", "create", "submit"])
-
+    remove_legacy_operator_permissions()
     ensure_warehouse_erp_sidebar()
     frappe.clear_cache()
 
 
+def remove_legacy_operator_permissions():
+    """Remove active custom permissions and role records for the legacy Clothing Warehouse Operator."""
+    for dt in ("Warehouse", "Pick List", "Delivery Note", "Stock Entry", "Packing Slip", "Serial and Batch Bundle"):
+        perm_names = frappe.get_all(
+            "Custom DocPerm",
+            filters={"parent": dt, "role": LEGACY_ROLE_WAREHOUSE_OPERATOR},
+            pluck="name",
+        )
+        for perm in perm_names:
+            frappe.delete_doc("Custom DocPerm", perm, ignore_permissions=True, force=True)
+
+    for has_role_name in frappe.get_all(
+        "Has Role",
+        filters={"role": LEGACY_ROLE_WAREHOUSE_OPERATOR},
+        pluck="name",
+    ):
+        frappe.delete_doc("Has Role", has_role_name, ignore_permissions=True, force=True)
+
+    if frappe.db.exists("Role", LEGACY_ROLE_WAREHOUSE_OPERATOR):
+        frappe.delete_doc("Role", LEGACY_ROLE_WAREHOUSE_OPERATOR, ignore_permissions=True, force=True)
+
+
 def migrate_warehouse_operators_to_managers():
-    """Migrate legacy Clothing Warehouse Operator users to Clothing Warehouse Manager preserving auditability."""
+    """Migrate legacy Clothing Warehouse Operator users to Clothing Warehouse Manager and revoke operator role."""
     operator_users = frappe.get_all(
         "Has Role",
-        filters={"role": ROLE_WAREHOUSE_OPERATOR, "parenttype": "User"},
+        filters={"role": LEGACY_ROLE_WAREHOUSE_OPERATOR, "parenttype": "User"},
         pluck="parent",
     )
     for user in set(operator_users):
         if user in {"Administrator", "Guest"} or not frappe.db.exists("User", user):
             continue
         user_roles = set(frappe.get_roles(user))
+        user_doc = frappe.get_doc("User", user)
         if ROLE_WAREHOUSE_MANAGER not in user_roles:
-            user_doc = frappe.get_doc("User", user)
             user_doc.add_roles(ROLE_WAREHOUSE_MANAGER)
             frappe.logger("warehouse_erp").info(
-                f"Migrated user {user} from {ROLE_WAREHOUSE_OPERATOR} to {ROLE_WAREHOUSE_MANAGER}."
+                f"Migrated user {user} from {LEGACY_ROLE_WAREHOUSE_OPERATOR} to {ROLE_WAREHOUSE_MANAGER}."
             )
+        if LEGACY_ROLE_WAREHOUSE_OPERATOR in user_roles:
+            user_doc.remove_roles(LEGACY_ROLE_WAREHOUSE_OPERATOR)
+            frappe.logger("warehouse_erp").info(
+                f"Removed legacy role {LEGACY_ROLE_WAREHOUSE_OPERATOR} from user {user}."
+            )
+
+    remove_legacy_operator_permissions()
+    frappe.clear_cache()
 
 
 def after_migrate():

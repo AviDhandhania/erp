@@ -2,7 +2,7 @@
 import frappe
 from sales_erp import __version__
 from frappe.utils import cint, today, get_first_day
-from sales_erp.roles import ALL_ROLES, ROLE_BUSINESS_ADMIN, ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_WAREHOUSE_MANAGER, ROLE_WAREHOUSE_OPERATOR
+from sales_erp.roles import ALL_ROLES, ROLE_BUSINESS_ADMIN, ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_WAREHOUSE_MANAGER
 from sales_erp.security import assigned_sales_territories, get_current_user, get_user_roles, get_active_operational_role, require_role, is_salesperson, is_warehouse_operator, is_clothing_admin, has_retailer_access
 from sales_erp.erpnext_client import get_pick_lists, get_delivery_notes
 
@@ -98,7 +98,7 @@ def get_salesperson_dashboard():
 
 @frappe.whitelist()
 def get_warehouse_dashboard():
-    require_role({ROLE_WAREHOUSE_OPERATOR, ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN})
+    require_role({ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN})
     return {"metrics": {"open_pick_lists": _count("Pick List", {"docstatus": ["!=", 2], "status": ["!=", "Completed"]}), "draft_delivery_notes": _count("Delivery Note", {"docstatus": 0})},
             "pick_tasks": get_pick_lists(), "delivery_notes": get_delivery_notes(),
             "shortcuts": [{"label": "Pick Lists", "url": "/desk/pick-list"}, {"label": "Delivery Notes", "url": "/desk/delivery-note"}]}

@@ -53,17 +53,17 @@ def _ensure_user_permission(user, allow, for_value, is_default=False):
 
 
 def seed_warehouse_data():
-    """Provision seed warehouse operator and manager users with warehouse permissions."""
-    operator = _ensure_seed_user(SEED_WAREHOUSE_OPERATOR, "TEST Warehouse Operator", ROLE_WAREHOUSE_OPERATOR)
+    """Provision seed warehouse manager user with warehouse permissions."""
     manager = _ensure_seed_user(SEED_WAREHOUSE_MANAGER, "TEST Warehouse Manager", ROLE_WAREHOUSE_MANAGER)
+
+    if frappe.db.exists("User", SEED_WAREHOUSE_OPERATOR):
+        frappe.delete_doc("User", SEED_WAREHOUSE_OPERATOR, ignore_permissions=True, force=True)
 
     warehouses = frappe.get_all("Warehouse", filters={"is_group": 0}, pluck="name")
     if warehouses:
         for wh in warehouses:
-            _ensure_user_permission(operator["email"], "Warehouse", wh)
             _ensure_user_permission(manager["email"], "Warehouse", wh)
 
     return {
-        "operator": operator,
         "manager": manager,
     }

@@ -20,7 +20,7 @@ def get_user_operational_permitted_apps(user=None):
         return None
 
     sales_roles = {"Clothing Area Sales Manager", "Clothing Regional Sales Manager"}
-    wh_roles = {"Clothing Warehouse Operator", "Clothing Warehouse Manager"}
+    wh_roles = {"Clothing Warehouse Manager"}
     quality_roles = {"Clothing Quality Inspector", "Clothing Quality Manager"}
 
     permitted = set()
@@ -144,3 +144,7 @@ def restrict_warehouse_app_visibility(bootinfo):
                 w for w in bootinfo["allowed_workspaces"]
                 if w.get("module") == "Warehouse ERP" or w.get("app") == "warehouse_erp"
             ]
+    elif not is_admin:
+        for app in bootinfo.get("app_data") or []:
+            if app.get("app_name") == "warehouse_erp":
+                app["on_apps_screen"] = False

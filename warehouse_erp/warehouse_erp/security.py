@@ -16,7 +16,11 @@ def get_current_user(user=None):
 
 def get_user_roles(user=None):
     user = get_current_user(user)
-    return set(frappe.get_roles(user)) if user and user != "Guest" else set()
+    if not user or user == "Guest":
+        return set()
+    if user != "Administrator" and not frappe.db.get_value("User", user, "enabled"):
+        return set()
+    return set(frappe.get_roles(user))
 
 
 def has_any_role(required_roles, user=None):
@@ -41,7 +45,9 @@ def is_warehouse_manager(user=None):
 
 
 def is_warehouse_operator(user=None):
-    return has_any_role({ROLE_WAREHOUSE_OPERATOR, ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN}, user)
+    # Deprecated: alias to is_warehouse_manager for backward compatibility;
+    # Clothing Warehouse Operator role is retired and no longer grants access.
+    return is_warehouse_manager(user)
 
 
 def has_warehouse_app_access():
@@ -76,7 +82,7 @@ def warehouse_has_permission(doc, ptype="read", user=None, **kwargs):
     user = get_current_user(user)
     if is_warehouse_admin(user):
         return True
-    if not is_warehouse_operator(user):
+    if not is_warehouse_manager(user):
         return False
     allowed = assigned_warehouses(user)
     doc_name = doc if isinstance(doc, str) else getattr(doc, "name", None)
@@ -87,7 +93,7 @@ def pick_list_has_permission(doc, ptype="read", user=None, **kwargs):
     user = get_current_user(user)
     if is_warehouse_admin(user):
         return True
-    if not is_warehouse_operator(user):
+    if not is_warehouse_manager(user):
         return False
     doc_obj = frappe.get_doc("Pick List", doc) if isinstance(doc, str) else doc
     allowed = assigned_warehouses(user)
@@ -108,7 +114,7 @@ def delivery_note_has_permission(doc, ptype="read", user=None, **kwargs):
     user = get_current_user(user)
     if is_warehouse_admin(user):
         return True
-    if not is_warehouse_operator(user):
+    if not is_warehouse_manager(user):
         return False
     doc_obj = frappe.get_doc("Delivery Note", doc) if isinstance(doc, str) else doc
     allowed = assigned_warehouses(user)
@@ -132,18 +138,20 @@ def serial_batch_bundle_has_permission(doc, user=None, ptype=None, **kwargs):
         doc_obj = frappe.get_doc("Serial and Batch Bundle", doc) if isinstance(doc, str) else doc
         return bool(
             pick_list
-            and is_warehouse_operator(user)
+            and is_warehouse_manager(user)
             and doc_obj
             and doc_obj.get("voucher_type") == "Pick List"
             and doc_obj.get("voucher_no") == pick_list
         )
-    return is_warehouse_operator(user)
+    return is_warehouse_manager(user)
 
 
 def get_warehouse_conditions(user=None):
     user = get_current_user(user)
     if is_warehouse_admin(user):
         return ""
+    if not is_warehouse_manager(user):
+        return "1=0"
     allowed = assigned_warehouses(user)
     if not allowed:
         return "1=0"
@@ -155,6 +163,8 @@ def get_pick_list_conditions(user=None):
     user = get_current_user(user)
     if is_warehouse_admin(user):
         return ""
+    if not is_warehouse_manager(user):
+        return "1=0"
     allowed = assigned_warehouses(user)
     if not allowed:
         return "1=0"
@@ -169,6 +179,8 @@ def get_delivery_note_conditions(user=None):
     user = get_current_user(user)
     if is_warehouse_admin(user):
         return ""
+    if not is_warehouse_manager(user):
+        return "1=0"
     allowed = assigned_warehouses(user)
     if not allowed:
         return "1=0"

@@ -8,7 +8,6 @@
  "owner": "Administrator",
  "page_name": "fulfillment-tasks",
  "roles": [
-  {"role": "Clothing Warehouse Operator"},
   {"role": "Clothing Warehouse Manager"},
   {"role": "Clothing Business Administrator"},
   {"role": "System Manager"}

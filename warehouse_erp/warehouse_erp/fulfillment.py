@@ -8,12 +8,10 @@ from frappe.utils import cint, escape_html, flt
 from warehouse_erp.roles import (
     ROLE_BUSINESS_ADMIN,
     ROLE_WAREHOUSE_MANAGER,
-    ROLE_WAREHOUSE_OPERATOR,
 )
 from warehouse_erp.security import is_warehouse_manager, require_role
 
 FULFILLMENT_ROLES = {
-    ROLE_WAREHOUSE_OPERATOR,
     ROLE_WAREHOUSE_MANAGER,
     ROLE_BUSINESS_ADMIN,
 }

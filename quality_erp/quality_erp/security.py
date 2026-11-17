@@ -18,7 +18,11 @@ def get_current_user(user=None):
 
 def get_user_roles(user=None):
     user = get_current_user(user)
-    return set(frappe.get_roles(user)) if user and user != "Guest" else set()
+    if not user or user == "Guest":
+        return set()
+    if user != "Administrator" and not frappe.db.get_value("User", user, "enabled"):
+        return set()
+    return set(frappe.get_roles(user))
 
 
 def has_any_role(required_roles, user=None):

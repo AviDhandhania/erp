@@ -21,7 +21,7 @@ def get_user_operational_permitted_apps(user=None):
         return None
 
     sales_roles = {"Clothing Area Sales Manager", "Clothing Regional Sales Manager"}
-    wh_roles = {"Clothing Warehouse Operator", "Clothing Warehouse Manager"}
+    wh_roles = {"Clothing Warehouse Manager"}
     quality_roles = {"Clothing Quality Inspector", "Clothing Quality Manager"}
 
     permitted = set()

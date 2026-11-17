@@ -11,12 +11,24 @@ from warehouse_erp.roles import (
 
 
 class TestWarehouseSecurity(unittest.TestCase):
+    def test_legacy_warehouse_operator_role_is_denied_all_access(self):
+        """Clothing Warehouse Operator is retired and must be denied all document and condition access."""
+        doc = frappe._dict(doctype="Pick List", name="TEST-PICK", locations=[frappe._dict(warehouse="TEST-A")])
+        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_OPERATOR}), patch.object(security, "assigned_warehouses", return_value=["TEST-A"]):
+            self.assertFalse(security.warehouse_has_permission("TEST-A", user="op@example.invalid"))
+            self.assertFalse(security.pick_list_has_permission(doc, user="op@example.invalid"))
+            self.assertFalse(security.delivery_note_has_permission(doc, user="op@example.invalid"))
+            self.assertFalse(security.serial_batch_bundle_has_permission(frappe._dict(), user="op@example.invalid"))
+            self.assertEqual(security.get_warehouse_conditions("op@example.invalid"), "1=0")
+            self.assertEqual(security.get_pick_list_conditions("op@example.invalid"), "1=0")
+            self.assertEqual(security.get_delivery_note_conditions("op@example.invalid"), "1=0")
+
     def test_serial_batch_bundle_mutation_is_limited_to_pick_submit_context(self):
         document = frappe._dict(
             voucher_type="Pick List", voucher_no="TEST-PICK-1"
         )
         with patch.object(
-            security, "get_user_roles", return_value={ROLE_WAREHOUSE_OPERATOR}
+            security, "get_user_roles", return_value={ROLE_WAREHOUSE_MANAGER}
         ):
             self.assertFalse(
                 security.serial_batch_bundle_has_permission(
@@ -40,7 +52,7 @@ class TestWarehouseSecurity(unittest.TestCase):
                 frappe.flags.pop("clothing_pick_bundle", None)
 
     def test_no_assignments_denies_warehouse_data(self):
-        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_OPERATOR}), patch.object(security, "assigned_warehouses", return_value=[]):
+        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_MANAGER}), patch.object(security, "assigned_warehouses", return_value=[]):
             self.assertFalse(security.warehouse_has_permission("TEST-WAREHOUSE", user="test@example.invalid"))
             self.assertEqual(security.get_warehouse_conditions("test@example.invalid"), "1=0")
             self.assertEqual(security.get_pick_list_conditions("test@example.invalid"), "1=0")
@@ -48,14 +60,14 @@ class TestWarehouseSecurity(unittest.TestCase):
 
     def test_mixed_warehouse_document_is_denied(self):
         doc = frappe._dict(doctype="Delivery Note", items=[frappe._dict(warehouse="TEST-A"), frappe._dict(warehouse="TEST-B")])
-        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_OPERATOR}), patch.object(security, "assigned_warehouses", return_value=["TEST-A"]):
+        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_MANAGER}), patch.object(security, "assigned_warehouses", return_value=["TEST-A"]):
             self.assertFalse(security.delivery_note_has_permission(doc, user="test@example.invalid"))
 
     def test_assigned_pick_list_requires_allowed_warehouses(self):
         doc = frappe._dict(doctype="Pick List", name="TEST-PICK", locations=[frappe._dict(warehouse="TEST-A")])
-        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_OPERATOR}), patch.object(security, "assigned_warehouses", return_value=["TEST-A"]):
+        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_MANAGER}), patch.object(security, "assigned_warehouses", return_value=["TEST-A"]):
             self.assertTrue(security.pick_list_has_permission(doc, user="test@example.invalid"))
-        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_OPERATOR}), patch.object(security, "assigned_warehouses", return_value=["TEST-B"]):
+        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_MANAGER}), patch.object(security, "assigned_warehouses", return_value=["TEST-B"]):
             self.assertFalse(security.pick_list_has_permission(doc, user="test@example.invalid"))
 
     def test_pick_list_checks_nested_parent_warehouse(self):
@@ -65,11 +77,11 @@ class TestWarehouseSecurity(unittest.TestCase):
             parent_warehouse="PARENT-WH",
             locations=[frappe._dict(warehouse="CHILD-WH")],
         )
-        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_OPERATOR}), patch.object(security, "assigned_warehouses", return_value=["CHILD-WH"]):
+        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_MANAGER}), patch.object(security, "assigned_warehouses", return_value=["CHILD-WH"]):
             # Allowed locations, but parent warehouse not in allowed -> rejected
             self.assertFalse(security.pick_list_has_permission(doc, user="test@example.invalid"))
 
-        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_OPERATOR}), patch.object(security, "assigned_warehouses", return_value=["PARENT-WH", "CHILD-WH"]):
+        with patch.object(security, "get_user_roles", return_value={ROLE_WAREHOUSE_MANAGER}), patch.object(security, "assigned_warehouses", return_value=["PARENT-WH", "CHILD-WH"]):
             self.assertTrue(security.pick_list_has_permission(doc, user="test@example.invalid"))
 
     def test_lock_pick_bundles_locks_bundles_for_update(self):

@@ -3,7 +3,7 @@ import frappe
 from frappe.utils import getdate, nowdate
 from sales_erp.roles import (
     ALL_ROLES, ROLE_BUSINESS_ADMIN, ROLE_SALESPERSON, ROLE_SALES_MANAGER,
-    ROLE_WAREHOUSE_MANAGER, ROLE_WAREHOUSE_OPERATOR, SUPER_USER_ROLES,
+    ROLE_WAREHOUSE_MANAGER, SUPER_USER_ROLES,
 )
 ClothingPermissionError = frappe.PermissionError
 
@@ -12,7 +12,11 @@ def get_current_user(user=None):
 
 def get_user_roles(user=None):
     user = get_current_user(user)
-    return set(frappe.get_roles(user)) if user and user != "Guest" else set()
+    if not user or user == "Guest":
+        return set()
+    if user != "Administrator" and not frappe.db.get_value("User", user, "enabled"):
+        return set()
+    return set(frappe.get_roles(user))
 
 def has_any_role(required_roles, user=None):
     if get_current_user(user) == "Administrator":
@@ -38,7 +42,7 @@ def is_salesperson(user=None):
     return has_any_role({ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN}, user)
 
 def is_warehouse_operator(user=None):
-    return has_any_role({ROLE_WAREHOUSE_OPERATOR, ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN}, user)
+    return has_any_role({ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN}, user)
 
 def has_app_access():
     return has_any_role({r["role_name"] for r in ALL_ROLES})
@@ -108,17 +112,12 @@ def customer_has_permission(doc, user=None, ptype=None, **kwargs):
     return has_retailer_access(doc.name, user)
 
 def warehouse_has_permission(doc, user=None, ptype=None, **kwargs):
-    if ROLE_WAREHOUSE_OPERATOR not in get_user_roles(user) or is_warehouse_manager(user):
-        return True
-    return has_warehouse_access(doc.name, user)
+    return is_warehouse_manager(user)
 
 def _assignment_conditions(doctype, role, manager_check, user):
-    if role not in get_user_roles(user) or manager_check(user):
+    if manager_check(user):
         return ""
-    names = assigned_documents(doctype, user)
-    if not names:
-        return "1=0"
-    return f"`tab{doctype}`.`name` in ({', '.join(frappe.db.escape(n) for n in names)})"
+    return "1=0"
 
 def get_salesperson_customer_conditions(user=None):
     if not (get_user_roles(user) & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}) or is_clothing_admin(user):
@@ -130,7 +129,7 @@ def get_salesperson_customer_conditions(user=None):
     return f"`tabCustomer`.`territory` in ({allowed})"
 
 def get_operator_warehouse_conditions(user=None):
-    return _assignment_conditions("Warehouse", ROLE_WAREHOUSE_OPERATOR, is_warehouse_manager, user)
+    return "" if is_warehouse_manager(user) else "1=0"
 
 
 def _sales_document_conditions(doctype, user=None):
@@ -147,12 +146,7 @@ def _sales_document_conditions(doctype, user=None):
 
 
 def _warehouse_document_conditions(doctype, user=None):
-    if ROLE_WAREHOUSE_OPERATOR not in get_user_roles(user) or is_warehouse_manager(user):
-        return ""
-    names = assigned_documents("Warehouse", user)
-    if not names:
-        return "1=0"
-    allowed = ', '.join(frappe.db.escape(n) for n in names)
+    return "" if is_warehouse_manager(user) else "1=0"
     child, field = ("Pick List Item", "locations") if doctype == "Pick List" else ("Delivery Note Item", "items")
     relation = f"clothing_line.parent = `tab{doctype}`.name AND clothing_line.parenttype = {frappe.db.escape(doctype)} AND clothing_line.parentfield = {frappe.db.escape(field)}"
     # Reject mixed-warehouse documents as well as documents without a warehouse.
@@ -358,12 +352,8 @@ def operational_document_has_permission(doc, user=None, ptype=None, **kwargs):
         customer = doc.get("customer")
         if customer and not has_retailer_access(customer, user):
             return False
-    if doc.doctype in ("Pick List", "Delivery Note") and ROLE_WAREHOUSE_OPERATOR in roles and not is_warehouse_manager(user):
-        rows = doc.get("locations" if doc.doctype == "Pick List" else "items") or []
-        if not rows or not all(has_warehouse_access(row.warehouse, user) for row in rows):
-            return False
-        if doc.doctype == "Pick List":
-            return bool(frappe.db.exists("ToDo", {"reference_type": "Pick List", "reference_name": doc.name, "allocated_to": get_current_user(user), "status": "Open"}))
+    if doc.doctype in ("Pick List", "Delivery Note") and not is_warehouse_manager(user) and not is_clothing_admin(user):
+        return False
     return True
 
 
@@ -373,7 +363,7 @@ def serial_batch_bundle_has_permission(doc, user=None, ptype=None, **kwargs):
         pick_list = frappe.flags.get("clothing_pick_bundle")
         return bool(
             pick_list
-            and is_warehouse_operator(user)
+            and is_warehouse_manager(user)
             and doc.get("voucher_type") == "Pick List"
             and doc.get("voucher_no") == pick_list
         )
@@ -390,7 +380,7 @@ def user_has_permission(doc, user=None, ptype=None, **kwargs):
         return True
     if roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}:
         return False
-    if ROLE_WAREHOUSE_OPERATOR in roles and not is_warehouse_manager(user):
+    if ROLE_WAREHOUSE_MANAGER in roles and not is_clothing_admin(user):
         return False
     return True
 
@@ -405,6 +395,6 @@ def user_query_conditions(user=None):
         return ""
     if roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}:
         return "1=0"
-    if ROLE_WAREHOUSE_OPERATOR in roles and not is_warehouse_manager(user):
+    if ROLE_WAREHOUSE_MANAGER in roles and not is_clothing_admin(user):
         return "1=0"
     return ""

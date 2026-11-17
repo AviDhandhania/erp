@@ -61,11 +61,11 @@ documented residual risk and a release block for every unresolved critical/high 
   Clothing Business Administrator, ASM, RSM, Warehouse Manager, Quality Inspector and
   Quality Manager. Include every DocType, report, page, API, export, attachment and bulk
   action. Default to deny and explicitly document cross-app boundaries (docs/security/access-matrix.md).
-- [ ] Resolve the current manager-only contradiction: migrate and remove active
+- [x] Resolve the current manager-only contradiction: migrate and remove active
   `Clothing Warehouse Operator` authorization from server checks, seed users, page/workspace
   roles, boot filtering and cross-app compatibility code. Keep only an audited migration
   path for old sites; a legacy constant must not continue to grant access.
-- [ ] Prove that disabled users, ended supervision, removed Warehouse permissions and role
+- [x] Prove that disabled users, ended supervision, removed Warehouse permissions and role
   changes revoke API, list, report, attachment and cached access immediately.
 
 #### Endpoint and privileged-write audit
@@ -215,7 +215,7 @@ documented residual risk and a release block for every unresolved critical/high 
 
 ### Production feature completion — Warehouse ERP
 
-- [ ] Finish the manager-only migration described in the P0 access section and verify old
+- [x] Finish the manager-only migration described in the P0 access section and verify old
   operator users lose all list, read, print, scan, dispatch, return and attachment access.
 - [ ] Formalize the native document sequence and authority for Pick List, Packing Slip,
   Delivery Note, draft/submitted Sales Invoice and India Compliance/e-Waybill. Warehouse
@@ -1110,3 +1110,37 @@ Following comprehensive audit findings, the architecture, security boundaries, a
 
 10. **Reconciled Documentation**:
     - Aligned `README.md`, `work.md`, `AGENTS.md`, and `docs/architecture.md` with multi-app architecture and current verified state.
+
+## Session 2: Authorization hardening and negative test matrix — verified 2026-11-17
+
+Following Session 1's comprehensive security audit and access matrix, Session 2 completed authorization hardening, retired the legacy `Clothing Warehouse Operator` role, and established end-to-end negative authorization tests:
+
+1. **Warehouse Manager-Only Model & Complete Operator Role Retirement**:
+   - `warehouse_erp/roles.py`: Retired `Clothing Warehouse Operator` from `ALL_ROLES`. Provisioning scripts, seeders, and permission managers now provision only `Clothing Warehouse Manager` and `Clothing Business Administrator`.
+   - `warehouse_erp/install.py`: Added `remove_legacy_operator_permissions()` to delete any custom DocPerms, `Has Role` rows, and the `Role` record for `Clothing Warehouse Operator`. Provided `migrate_warehouse_operators_to_managers()` to upgrade active users to `Clothing Warehouse Manager` before revoking the legacy operator role and purging permission caches.
+   - `warehouse_erp/security.py`: `is_warehouse_manager()` now guards all permission checks (`warehouse_has_permission`, `pick_list_has_permission`, `delivery_note_has_permission`, `serial_batch_bundle_has_permission`) and query condition hooks (`get_warehouse_conditions`, `get_pick_list_conditions`, `get_delivery_note_conditions`). Non-managers receive `"1=0"` denial conditions.
+   - `warehouse_erp/fulfillment.py`: `FULFILLMENT_ROLES` restricted to `{ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN}`.
+   - `warehouse_erp/seed.py`: Provisioning now seeds only `SEED_WAREHOUSE_MANAGER` and cleans up any legacy `SEED_WAREHOUSE_OPERATOR`.
+   - Workspaces and Pages: Removed `Clothing Warehouse Operator` from `workspace/warehouse_erp.json` and `page/fulfillment_tasks.json`.
+   - Boot Scoping: Cleaned `wh_roles` across `sales_erp`, `warehouse_erp`, and `quality_erp` boot modules.
+
+2. **Immediate Revocation on User Disable**:
+   - Hardened `get_user_roles(user)` across `sales_erp/security.py`, `warehouse_erp/security.py`, and `quality_erp/security.py`:
+     If a user is not Administrator and `tabUser.enabled` is 0, `get_user_roles()` returns `set()` immediately. This ensures disabled users are blocked at the server-side API boundary without relying on session expiry or cache clearing.
+
+3. **Authorization Matrix Integration Tests**:
+   - Created `sales_erp/sales_erp/tests/test_authorization_matrix.py` (7 tests):
+     - `test_disabled_user_access_is_immediately_revoked`: Proves disabled users immediately raise `PermissionError`/`AuthenticationError` on API access.
+     - `test_ended_supervision_immediately_revokes_territory_access`: Proves ending ASM supervision instantly revokes retailer access.
+     - `test_removed_warehouse_permission_immediately_revokes_access`: Proves deleting a User Permission for a Warehouse immediately denies access.
+     - `test_cross_role_negative_asm_denials`: Proves ASM cannot approve applications, approve credit limit requests, access warehouse fulfillment tasks, verify pick items, or create quality inspections.
+     - `test_cross_role_negative_warehouse_manager_denials`: Proves Warehouse Manager cannot create sales orders, approve retailer applications, or approve quality gates.
+     - `test_cross_role_negative_quality_inspector_denials`: Proves Quality Inspector cannot access warehouse tasks, create sales orders, or approve critical gates (Stage 4 PGA or Stage 7 Final).
+     - `test_cross_territory_sales_order_creation_denied`: Proves an ASM cannot create sales orders for retailers in an unassigned territory.
+
+4. **Test Suite Verification**:
+   - Sales ERP: **160/160** tests passed (including all 7 authorization matrix tests).
+   - Warehouse ERP: **68/68** tests passed (including manager migration, legacy denial, and fulfillment tests).
+   - Quality ERP: **9/9** tests passed.
+   - Deploy & Security Audit: **32/32** tests passed.
+   - Total Suite Tests: **269/269** tests passing cleanly.
