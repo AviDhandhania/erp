@@ -296,6 +296,14 @@ def after_install():
     frappe.clear_cache()
 
 
+def configure_launcher():
+    """Explicit initial deployment setting; migrations preserve subsequent admin choices."""
+    frappe.db.set_single_value("Website Settings", "home_page", "clothing")
+    if frappe.get_meta("Desktop Settings").has_field("desktop_page"):
+        frappe.db.set_single_value("Desktop Settings", "desktop_page", "Apps")
+    frappe.clear_cache()
+
+
 def after_migrate():
     after_install()
     ensure_sales_erp_sidebar()

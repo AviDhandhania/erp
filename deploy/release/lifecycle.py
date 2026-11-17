@@ -37,7 +37,6 @@ MANAGED_APPS = (
     "erpnext",
     "insights",
     "india_compliance",
-    "clothing_erp",
     "sales_erp",
     "warehouse_erp",
     "quality_erp",
@@ -46,11 +45,11 @@ OPTIONAL_LEGACY_APPS = ("insights", "india_compliance")
 REQUIRED_SITE_EXTENSIONS = (
     "insights",
     "india_compliance",
-    "clothing_erp",
     "sales_erp",
     "warehouse_erp",
     "quality_erp",
 )
+DEPRECATED_SITE_APPS = ("clothing_erp",)
 
 
 def atomic_json(path, value):
@@ -604,6 +603,11 @@ class Manager:
             target, "list-apps", "--format", "json", capture_output=True, text=True
         )
         installed = set(json.loads(result.stdout).get("clothing.local", []))
+        for deprecated in DEPRECATED_SITE_APPS:
+            if deprecated in installed:
+                print(f"Uninstalling deprecated site app: {deprecated}", flush=True)
+                self.bench(target, "uninstall-app", deprecated, "--yes")
+                installed.remove(deprecated)
         for app in REQUIRED_SITE_EXTENSIONS:
             if app not in installed:
                 print(f"Installing required site app: {app}", flush=True)

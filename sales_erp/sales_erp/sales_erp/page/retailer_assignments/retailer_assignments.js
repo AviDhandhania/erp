@@ -140,7 +140,7 @@ class SalesTerritoryAssignments {
 			`<div class="assignment-loading text-muted">${__("Loading territory assignments…")}</div>`
 		);
 		const { message } = await frappe.call({
-			method: "clothing_erp.supervision.get_asm_supervision_directory",
+			method: "sales_erp.supervision.get_asm_supervision_directory",
 			args: {
 				page: this.state.page,
 				page_size: this.state.page_size,
@@ -263,7 +263,7 @@ class SalesTerritoryAssignments {
 					options: "User",
 					get_query() {
 						return {
-							query: "clothing_erp.supervision.sales_role_user_query",
+							query: "sales_erp.supervision.sales_role_user_query",
 							filters: { role: "Clothing Area Sales Manager" },
 						};
 					},
@@ -276,7 +276,7 @@ class SalesTerritoryAssignments {
 					options: "User",
 					get_query() {
 						return {
-							query: "clothing_erp.supervision.sales_role_user_query",
+							query: "sales_erp.supervision.sales_role_user_query",
 							filters: { role: "Clothing Regional Sales Manager" },
 						};
 					},
@@ -298,7 +298,7 @@ class SalesTerritoryAssignments {
 			primary_action_label: __("Assign Territory"),
 			primary_action: async (values) => {
 				await frappe.call({
-					method: "clothing_erp.supervision.assign_asm_supervision",
+					method: "sales_erp.supervision.assign_asm_supervision",
 					type: "POST",
 					args: {
 						territory: values.territory,
@@ -352,7 +352,7 @@ class SalesTerritoryAssignments {
 					options: "User",
 					get_query() {
 						return {
-							query: "clothing_erp.supervision.sales_role_user_query",
+							query: "sales_erp.supervision.sales_role_user_query",
 							filters: { role: "Clothing Regional Sales Manager" },
 						};
 					},
@@ -375,7 +375,7 @@ class SalesTerritoryAssignments {
 			primary_action_label: __("Reassign RSM"),
 			primary_action: async (values) => {
 				await frappe.call({
-					method: "clothing_erp.supervision.assign_asm_supervision",
+					method: "sales_erp.supervision.assign_asm_supervision",
 					type: "POST",
 					args: {
 						territory: record.territory,
@@ -432,7 +432,7 @@ class SalesTerritoryAssignments {
 			primary_action_label: __("End Assignment"),
 			primary_action: async (values) => {
 				await frappe.call({
-					method: "clothing_erp.supervision.end_asm_supervision",
+					method: "sales_erp.supervision.end_asm_supervision",
 					type: "POST",
 					args: {
 						name: record.name,
@@ -505,7 +505,7 @@ class SalesTerritoryAssignments {
 		});
 
 		frappe.call({
-			method: "clothing_erp.supervision.get_territory_assignment_history",
+			method: "sales_erp.supervision.get_territory_assignment_history",
 			args: { territory: record.territory },
 			callback: (r) => {
 				const history = r.message || [];

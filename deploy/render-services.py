@@ -6,7 +6,7 @@ import argparse
 
 BENCH = "/home/frappe/frappe-bench"
 COMMANDS = {
-    "web": f"{BENCH}/env/bin/gunicorn --chdir {BENCH}/sites --bind 127.0.0.1:8000 --workers 2 --threads 4 --timeout 120 clothing_erp.wsgi:application",
+    "web": f"{BENCH}/env/bin/gunicorn --chdir {BENCH}/sites --bind 127.0.0.1:8000 --workers 2 --threads 4 --timeout 120 deploy.wsgi:application",
     "socketio": f"{BENCH}/.platform/node/bin/node apps/frappe/socketio.js",
     "worker": f"{BENCH}/.platform/tools/bin/bench worker --queue short,default,long",
     "schedule": f"{BENCH}/.platform/tools/bin/bench schedule",

@@ -629,3 +629,19 @@ def seed_catalogue():
         "stock_entry": stock_entry,
         "catalogue_url": "/desk/clothing-catalogue",
     }
+
+
+def seed_all():
+    """Seed all installed Clothing ERP Suite apps (sales, warehouse, quality)."""
+    res = {"sales": seed_catalogue()}
+    try:
+        from warehouse_erp.seed import seed_warehouse_data
+        res["warehouse"] = seed_warehouse_data()
+    except Exception:
+        pass
+    try:
+        from quality_erp.seed import seed_quality_data
+        res["quality"] = seed_quality_data()
+    except Exception:
+        pass
+    return res

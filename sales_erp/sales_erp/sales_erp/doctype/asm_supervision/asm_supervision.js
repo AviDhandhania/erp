@@ -5,7 +5,7 @@ frappe.ui.form.on("ASM Supervision", {
 		});
 		frm.set_query("asm", function() {
 			return {
-				query: "clothing_erp.supervision.sales_role_user_query",
+				query: "sales_erp.supervision.sales_role_user_query",
 				filters: {
 					role: "Clothing Area Sales Manager"
 				}
@@ -14,7 +14,7 @@ frappe.ui.form.on("ASM Supervision", {
 
 		frm.set_query("rsm", function() {
 			return {
-				query: "clothing_erp.supervision.sales_role_user_query",
+				query: "sales_erp.supervision.sales_role_user_query",
 				filters: {
 					role: "Clothing Regional Sales Manager"
 				}
@@ -55,7 +55,7 @@ frappe.ui.form.on("ASM Supervision", {
 							reqd: 1,
 							get_query: function() {
 								return {
-									query: "clothing_erp.supervision.sales_role_user_query",
+									query: "sales_erp.supervision.sales_role_user_query",
 									filters: {
 										role: "Clothing Regional Sales Manager"
 									}
@@ -80,7 +80,7 @@ frappe.ui.form.on("ASM Supervision", {
 					primary_action(values) {
 						dialog.hide();
 						frappe.call({
-							method: "clothing_erp.supervision.assign_asm_supervision",
+							method: "sales_erp.supervision.assign_asm_supervision",
 							args: {
 								asm: frm.doc.asm,
 								rsm: values.new_rsm,
@@ -124,7 +124,7 @@ frappe.ui.form.on("ASM Supervision", {
 					],
 					function(values) {
 						frappe.call({
-							method: "clothing_erp.supervision.end_asm_supervision",
+							method: "sales_erp.supervision.end_asm_supervision",
 							args: {
 								name: frm.doc.name,
 								reason: values.reason,

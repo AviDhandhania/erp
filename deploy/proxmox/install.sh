@@ -54,7 +54,7 @@ TEMPLATE="$(pveam available --section system | awk '$2 ~ /^debian-13-standard_.*
 [[ -n $TEMPLATE ]] || fail 'No Debian 13 amd64 standard template is available from pveam.'
 pveam download "$TEMPLATE_STORAGE" "$TEMPLATE"
 # Include only app source, never the development bench, services, data or credentials.
-tar -C "$SOURCE_DIR" --exclude=__pycache__ --exclude='*.pyc' -czf "$WORK/app.tar.gz" clothing_erp sales_erp warehouse_erp quality_erp deploy pyproject.toml README.md AGENTS.md license.txt work.md release.json
+tar -C "$SOURCE_DIR" --exclude=__pycache__ --exclude='*.pyc' -czf "$WORK/app.tar.gz" sales_erp warehouse_erp quality_erp deploy pyproject.toml VERSION README.md AGENTS.md license.txt work.md release.json
 pct create "$CTID" "$TEMPLATE_STORAGE:vztmpl/$TEMPLATE" \
     --hostname "$CT_HOSTNAME" --ostype debian --unprivileged 1 \
     --cores "$CORES" --memory "$MEMORY" --swap 1024 \

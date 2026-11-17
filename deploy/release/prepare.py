@@ -36,11 +36,18 @@ def main():
     version_tuple(args.version)
     if subprocess.check_output(["git", "status", "--porcelain"], text=True).strip():
         raise SystemExit("Release preparation requires a clean checkout")
-    path = Path("clothing_erp/__init__.py")
-    old, updated = replace_version(path.read_text(), args.version)
-    if version_tuple(args.version) < version_tuple("v" + old):
-        raise SystemExit("Cannot release an older version")
-    path.write_text(updated)
+    version_file = Path("VERSION")
+    if version_file.exists():
+        old = version_file.read_text().strip()
+        if version_tuple(args.version) < version_tuple("v" + old):
+            raise SystemExit("Cannot release an older version")
+        version_file.write_text(f"{args.version.lstrip('v')}\n")
+    else:
+        path = Path("clothing_erp/__init__.py")
+        old, updated = replace_version(path.read_text(), args.version)
+        if version_tuple(args.version) < version_tuple("v" + old):
+            raise SystemExit("Cannot release an older version")
+        path.write_text(updated)
     pins = Path("deploy/versions.env")
     text = pins.read_text()
     for name, value in (

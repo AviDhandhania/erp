@@ -65,8 +65,15 @@ def build(version, output, *, locks=None, resolve_for_ci=False):
         )
     if git("status", "--porcelain", "--untracked-files=no"):
         raise ValueError("Release build requires clean tracked source")
-    if app_version(ROOT / "clothing_erp/__init__.py") != version[1:]:
-        raise ValueError("Release version and clothing_erp/__init__.py must match")
+    version_file = ROOT / "VERSION"
+    if version_file.exists():
+        expected_version = version_file.read_text().strip()
+    else:
+        expected_version = app_version(ROOT / "clothing_erp/__init__.py")
+    if expected_version != version[1:]:
+        raise ValueError(
+            f"Release version and VERSION file must match: {version[1:]} != {expected_version}"
+        )
     pins = dict(
         line.split("=", 1)
         for line in (ROOT / "deploy/versions.env").read_text().splitlines()

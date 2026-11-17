@@ -37,7 +37,7 @@ trap 'kill "$SOCKET_PID" "$WORKER_PID" "$SCHEDULER_PID" 2>/dev/null || true' EXI
 # The development WSGI wrapper serves the app and its assets directly. Local
 # testing deliberately has no reverse proxy or system service dependency.
 . "$ROOT/.venv/bin/activate"
-gunicorn --chdir "$ROOT/frappe-bench/sites" --bind 127.0.0.1:8000 --workers 2 --threads 4 --timeout 120 --reload 'clothing_erp.wsgi:create_development_application()' &
+gunicorn --chdir "$ROOT/frappe-bench/sites" --bind 127.0.0.1:8000 --workers 2 --threads 4 --timeout 120 --reload 'deploy.wsgi:create_development_application()' &
 WEB_PID=$!
 trap 'kill "$WEB_PID" "$SOCKET_PID" "$WORKER_PID" "$SCHEDULER_PID" 2>/dev/null || true' EXIT
 trap 'exit 0' TERM INT

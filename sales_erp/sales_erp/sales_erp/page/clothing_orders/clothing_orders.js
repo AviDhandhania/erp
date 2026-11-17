@@ -86,7 +86,7 @@ class ClothingOrders {
 	async refresh() {
 		this.$root.find(".orders-rows").html(`<div class="orders-message text-muted">${__("Loading orders…")}</div>`);
 		const { message } = await frappe.call({
-			method: "clothing_erp.ordering.get_clothing_orders",
+			method: "sales_erp.ordering.get_clothing_orders",
 			args: {
 				search: this.state.search,
 				state: this.state.status,
@@ -139,7 +139,7 @@ class ClothingOrders {
 
 	async open_order(name) {
 		const { message: order } = await frappe.call({
-			method: "clothing_erp.ordering.get_clothing_order",
+			method: "sales_erp.ordering.get_clothing_order",
 			args: { name },
 			freeze: true,
 			freeze_message: __("Loading order…"),
@@ -192,7 +192,7 @@ class ClothingOrders {
 		});
 		if (!confirmed) return;
 		const { message } = await frappe.call({
-			method: "clothing_erp.ordering.submit_clothing_order",
+			method: "sales_erp.ordering.submit_clothing_order",
 			type: "POST",
 			args: { name },
 			freeze: true,
@@ -213,7 +213,7 @@ class ClothingOrders {
 		});
 		if (!confirmed) return;
 		const { message } = await frappe.call({
-			method: "clothing_erp.ordering.cancel_clothing_order",
+			method: "sales_erp.ordering.cancel_clothing_order",
 			type: "POST",
 			args: { name },
 			freeze: true,

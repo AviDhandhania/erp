@@ -14,7 +14,7 @@ key or customer credential is required. If main is later protected, explicitly
 permit the release bot's version commit or prepare the bump/tag in a PR instead.
 
 The workflow supports an ordinary pushed tag too. In that case, commit the matching
-`clothing_erp/__init__.py` version first. It refuses tag/version mismatches. Published
+`VERSION` file version first. It refuses tag/version mismatches. Published
 assets are never replaced: use a new version for a correction. A failed draft may
 be retried, using the same tagged source. Serialized publication prevents two
 releases racing to become latest.

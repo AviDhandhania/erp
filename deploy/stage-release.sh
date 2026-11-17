@@ -63,10 +63,13 @@ bench get-app --branch "$INSIGHTS_REF" --skip-assets https://github.com/frappe/i
 [[ $(git -C apps/insights rev-parse HEAD) == "$INSIGHTS_COMMIT" ]] || { echo 'Insights tag no longer matches the release manifest.' >&2; exit 1; }
 bench get-app --branch "$INDIA_COMPLIANCE_REF" --skip-assets https://github.com/resilient-tech/india-compliance.git
 [[ $(git -C apps/india_compliance rev-parse HEAD) == "$INDIA_COMPLIANCE_COMMIT" ]] || { echo 'India Compliance tag no longer matches the release manifest.' >&2; exit 1; }
-bench get-app --skip-assets "$DESTINATION/source"
+"$DESTINATION/bench/env/bin/pip" install -e "$DESTINATION/source"
 ln -s "$DESTINATION/source/sales_erp/sales_erp" apps/sales_erp
 ln -s "$DESTINATION/source/warehouse_erp/warehouse_erp" apps/warehouse_erp
 ln -s "$DESTINATION/source/quality_erp/quality_erp" apps/quality_erp
+for app in sales_erp warehouse_erp quality_erp; do
+    grep -qx "$app" sites/apps.txt || echo "$app" >> sites/apps.txt
+done
 if [[ $LOCKED == 1 ]]; then
     # Reconcile any seeded installer packages, then prove the complete runtime matches CI.
     uv pip install --python env/bin/python --requirement "$SOURCE/deploy/locks/python.txt"
@@ -79,13 +82,13 @@ ln -s "$DESTINATION/.runtime" .platform
 cp "$SOURCE/release.json" .clothing-release.json
 (cd sites && "$DESTINATION/bench/env/bin/python" "$SOURCE/deploy/build_assets.py")
 # nginx can traverse and read public assets, never private site files.
-STAGED_APPS=(frappe erpnext insights india_compliance clothing_erp)
+STAGED_APPS=(frappe erpnext insights india_compliance)
 INSIGHTS_PERMS=(apps/insights apps/insights/insights)
 INDIA_COMPLIANCE_PERMS=(apps/india_compliance apps/india_compliance/india_compliance)
 SALES_PERMS=(apps/sales_erp apps/sales_erp/sales_erp)
 WAREHOUSE_PERMS=(apps/warehouse_erp apps/warehouse_erp/warehouse_erp)
 QUALITY_PERMS=(apps/quality_erp apps/quality_erp/quality_erp)
-chmod o+x "$DESTINATION" "$DESTINATION/bench" sites apps apps/frappe apps/frappe/frappe apps/erpnext apps/erpnext/erpnext apps/clothing_erp apps/clothing_erp/clothing_erp "${INSIGHTS_PERMS[@]}" "${INDIA_COMPLIANCE_PERMS[@]}" "${SALES_PERMS[@]}" "${WAREHOUSE_PERMS[@]}" "${QUALITY_PERMS[@]}"
+chmod o+x "$DESTINATION" "$DESTINATION/bench" sites apps apps/frappe apps/frappe/frappe apps/erpnext apps/erpnext/erpnext "${INSIGHTS_PERMS[@]}" "${INDIA_COMPLIANCE_PERMS[@]}" "${SALES_PERMS[@]}" "${WAREHOUSE_PERMS[@]}" "${QUALITY_PERMS[@]}"
 find -L sites/assets -type d -exec chmod o+rx {} +
 find -L sites/assets -type f -exec chmod o+r {} +
 for app in "${STAGED_APPS[@]}"; do

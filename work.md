@@ -517,11 +517,12 @@ Previously published v0.3.0 release evidence (before the India Compliance work):
 - Isolated native MariaDB schema/data/config/attachment recovery and queue RDB integrity checks passed.
 
 Current unreleased validation evidence:
-- All 10 audit findings resolved, tested, and verified across all four applications.
+- All 10 audit findings resolved, tested, and verified across all applications.
+- Architectural migration complete: `clothing_erp` application fully uninstalled, decoupled, and removed.
+- The product consists strictly of 3 domain apps: `sales_erp`, `warehouse_erp`, and `quality_erp`.
 - Double migration runs cleanly and idempotently on local site `clothing.local`.
-- Complete test suites passing across all 4 apps and deploy suite:
-  - `clothing_erp`: 53/53 tests pass (10 integration + 43 unit).
-  - `sales_erp`: 116/116 tests pass (23 integration + 93 unit).
+- Complete test suites passing across all 3 domain apps and deploy suite:
+  - `sales_erp`: 135/135 tests pass (23 integration + 112 unit).
   - `warehouse_erp`: 34/34 tests pass (7 integration + 27 unit).
   - `quality_erp`: 7/7 tests pass.
   - `deploy`: 29/29 tests pass.
@@ -529,6 +530,32 @@ Current unreleased validation evidence:
 - The next stable release must pass the fresh two-stage native compatibility gate
   before its installer is published; v0.3.0 does not retroactively contain this work.
 - Physical Proxmox guest creation, real systemd cutover, reboot and end-to-end guest rollback remain a deployment trial, not a completed claim.
+
+## Three-App Architecture Migration: Complete Decoupling and Removal of `clothing_erp` Application — implemented 2026-11-17
+
+Completed architectural migration away from the installed Frappe application named `clothing_erp`:
+1. The final product consists strictly of three user-facing, installed custom Frappe applications:
+   - `sales_erp` (wholesale apparel sales, interactive catalogue, draft ordering, product gallery lifecycle, portal routing, territory supervision, visits, credit limit approvals, and cadence obligations)
+   - `warehouse_erp` (warehouse operations, scan-based fulfillment, Pick List shortage resolution, nested warehouse permissions, and serial/batch bundle locking)
+   - `quality_erp` (7-stage supplier quality lifecycle, versioned inspection reports, and return quarantine)
+2. `clothing_erp` application directory is completely removed. It is no longer an installed Frappe app, launcher tile, workspace, compatibility dependency, or owner of business functionality.
+3. Decoupled web server and runtime:
+   - Created neutral WSGI entry point `deploy/wsgi.py` (`deploy.wsgi:application` and `deploy.wsgi:create_development_application()`) for IP-based access without virtual host header requirement.
+   - Migrated portal root and redirect routing into `sales_erp` (`sales_erp/www/clothing.py` and `clothing.html`), routing `/`, `/clothing-erp`, `/sales-erp`, `/salesperson`, `/warehouse`, and `/quality` to `/login?redirect-to=%2Fdesk%2Fdesktop` (for Guests) or `/desk/desktop`.
+   - Seed data unified under `sales_erp.seed.seed_all()`.
+   - Updated suite packaging in `pyproject.toml` to distribution `clothing-erp-suite` (version `0.3.1`) packaging `sales_erp`, `warehouse_erp`, `quality_erp`, and `deploy`.
+4. Release lifecycle, installer, and CI parity:
+   - Updated `deploy/release/lifecycle.py`: removed `clothing_erp` from `MANAGED_APPS` and `REQUIRED_SITE_EXTENSIONS`, registered `DEPRECATED_SITE_APPS = ("clothing_erp",)` so existing sites upgrading safely uninstall `clothing_erp` with data preserved.
+   - Updated `deploy/stage-release.sh`, `deploy/install-debian.sh`, and `deploy/ci-integration.sh` to install and test only `erpnext`, `india_compliance`, `insights`, `sales_erp`, `warehouse_erp`, and `quality_erp`.
+   - Updated `deploy/release/build.py` and `deploy/release/prepare.py` to use root `VERSION` file (`0.3.1`).
+5. Verification:
+   - Uninstalled `clothing_erp` from `clothing.local`.
+   - Successfully executed double migrations (`bench --site clothing.local migrate` twice) with 0 errors.
+   - Verified `bench --site clothing.local list-apps` shows strictly: `frappe`, `erpnext`, `insights`, `india_compliance`, `sales_erp`, `warehouse_erp`, `quality_erp`.
+   - Ran all 135 tests in `sales_erp` (all passed).
+   - Ran all 34 tests in `warehouse_erp` (all passed).
+   - Ran all 7 tests in `quality_erp` (all passed).
+   - Ran all 29 tests in `deploy/tests` (all passed).
 
 ## Architecture, security, and release stabilization — implemented 2026-11-17
 

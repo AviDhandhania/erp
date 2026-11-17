@@ -94,7 +94,7 @@ class ClothingCatalogue {
 	}
 
 	async load_filters() {
-		const { message } = await frappe.call("clothing_erp.catalogue.get_catalogue_filters");
+		const { message } = await frappe.call("sales_erp.catalogue.get_catalogue_filters");
 		this.fill_select(".catalogue-group", message.item_groups);
 		this.fill_select(".catalogue-brand", message.brands);
 		["collection", "fabric", "fit", "season"].forEach((field) => {
@@ -116,7 +116,7 @@ class ClothingCatalogue {
 		this.$root.find(".catalogue-status").text(__("Loading catalogue…"));
 		this.$root.find(".catalogue-grid").attr("aria-busy", "true");
 		try {
-			const { message } = await frappe.call({ method: "clothing_erp.catalogue.get_catalogue", args: this.state });
+			const { message } = await frappe.call({ method: "sales_erp.catalogue.get_catalogue", args: this.state });
 			this.render(message);
 		} finally {
 			this.$root.find(".catalogue-grid").removeAttr("aria-busy");
@@ -201,7 +201,7 @@ class ClothingCatalogue {
 			qty: row.quantity,
 		}));
 		const { message } = await frappe.call({
-			method: "clothing_erp.ordering.create_draft_sales_order",
+			method: "sales_erp.ordering.create_draft_sales_order",
 			type: "POST",
 			args: {
 				customer: this.state.customer,

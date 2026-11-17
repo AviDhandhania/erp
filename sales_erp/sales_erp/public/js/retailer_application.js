@@ -1,11 +1,11 @@
-function clothing_erp_is_asm_only() {
+function sales_erp_is_asm_only() {
 	const roles = new Set(frappe.user_roles || []);
 	return roles.has("Clothing Area Sales Manager")
 		&& !["Administrator", "System Manager", "Clothing Regional Sales Manager", "Clothing Business Administrator"]
 			.some((role) => roles.has(role));
 }
 
-function clothing_erp_disable_link_navigation(frm, fieldname) {
+function sales_erp_disable_link_navigation(frm, fieldname) {
 	const field = frm.get_field(fieldname);
 	if (!field || !field.$wrapper) return;
 	field.$wrapper.find("a").removeAttr("href").attr("href", "javascript:void(0)").css({
@@ -22,7 +22,7 @@ function clothing_erp_disable_link_navigation(frm, fieldname) {
 	});
 }
 
-function clothing_erp_inject_security_styles() {
+function sales_erp_inject_security_styles() {
 	frappe.dom.set_style(`
 		[data-fieldname="salesperson"] a,
 		[data-fieldname="rsm"] a,
@@ -43,17 +43,17 @@ function clothing_erp_inject_security_styles() {
 		[data-fieldname="reviewed_by"] .octicon-link-external {
 			display: none !important;
 		}
-	`, "clothing_erp_retailer_application_salesperson_style");
+	`, "sales_erp_retailer_application_salesperson_style");
 }
 
 frappe.ui.form.on("Retailer Application", {
 	setup(frm) {
-		clothing_erp_inject_security_styles();
-		clothing_erp_scope_retailer_application(frm);
+		sales_erp_inject_security_styles();
+		sales_erp_scope_retailer_application(frm);
 	},
 	refresh(frm) {
-		clothing_erp_inject_security_styles();
-		clothing_erp_scope_retailer_application(frm);
+		sales_erp_inject_security_styles();
+		sales_erp_scope_retailer_application(frm);
 
 		if (frm.is_new()) return;
 
@@ -191,24 +191,24 @@ frappe.ui.form.on("Retailer Application", {
 	}
 });
 
-function clothing_erp_scope_retailer_application(frm) {
+function sales_erp_scope_retailer_application(frm) {
 	frm.set_query("customer_group", () => ({
 		filters: { parent_customer_group: "Clothing ERP Retailer Types", is_group: 0 },
 	}));
 
 	frm.set_df_property("salesperson", "read_only", 1);
 	frm.set_df_property("rsm", "read_only", 1);
-	clothing_erp_disable_link_navigation(frm, "salesperson");
-	clothing_erp_disable_link_navigation(frm, "rsm");
-	clothing_erp_disable_link_navigation(frm, "reviewed_by");
+	sales_erp_disable_link_navigation(frm, "salesperson");
+	sales_erp_disable_link_navigation(frm, "rsm");
+	sales_erp_disable_link_navigation(frm, "reviewed_by");
 
 	setTimeout(() => {
-		clothing_erp_disable_link_navigation(frm, "salesperson");
-		clothing_erp_disable_link_navigation(frm, "rsm");
-		clothing_erp_disable_link_navigation(frm, "reviewed_by");
+		sales_erp_disable_link_navigation(frm, "salesperson");
+		sales_erp_disable_link_navigation(frm, "rsm");
+		sales_erp_disable_link_navigation(frm, "reviewed_by");
 	}, 100);
 
-	if (clothing_erp_is_asm_only()) {
+	if (sales_erp_is_asm_only()) {
 		if (frm.is_new() && !frm.doc.territory) {
 			frappe.db.get_value("User Permission", {
 				user: frappe.session.user,

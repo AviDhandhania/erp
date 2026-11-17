@@ -69,12 +69,11 @@ trap - EXIT
 run_frappe bench --site clothing.local install-app erpnext
 run_frappe bench --site clothing.local install-app india_compliance
 run_frappe bench --site clothing.local install-app insights
-run_frappe bench --site clothing.local install-app clothing_erp
 run_frappe bench --site clothing.local install-app sales_erp
 run_frappe bench --site clothing.local install-app warehouse_erp
 run_frappe bench --site clothing.local install-app quality_erp
 run_frappe bench --site clothing.local set-config host_name "http://$SITE_ADDRESS"
-run_frappe bench --site clothing.local execute clothing_erp.install.configure_launcher
+run_frappe bench --site clothing.local execute sales_erp.install.configure_launcher
 run_frappe bench --site clothing.local enable-scheduler
 mv sites/clothing.local /home/frappe/shared/clothing.local
 runuser -u frappe -- ln -s /home/frappe/shared/clothing.local sites/clothing.local
@@ -93,7 +92,7 @@ systemctl restart nginx
 for ((attempt=0; attempt<60; attempt++)); do
     if systemctl is-active --quiet clothing-erp-{web,socketio,worker,schedule}.service \
         && curl -fsS http://127.0.0.1/api/method/ping | grep -q pong \
-        && curl -fsS http://127.0.0.1/assets/clothing_erp/images/clothing_erp_logo.svg >/dev/null \
+        && curl -fsS http://127.0.0.1/assets/sales_erp/images/sales_erp_logo.svg >/dev/null \
         && curl -fsS 'http://127.0.0.1/socket.io/?EIO=4&transport=polling' | grep -q sid; then
         echo 'Ready. Updates: clothing-erp update. Password: /root/clothing-erp-credentials'
         exit 0

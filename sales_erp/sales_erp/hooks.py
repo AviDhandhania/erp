@@ -31,8 +31,11 @@ home_page = "clothing"
 
 website_route_rules = [
 	{"from_route": "/", "to_route": "clothing"},
+	{"from_route": "/clothing-erp", "to_route": "clothing"},
 	{"from_route": "/sales-erp", "to_route": "clothing"},
 	{"from_route": "/salesperson", "to_route": "clothing"},
+	{"from_route": "/warehouse", "to_route": "clothing"},
+	{"from_route": "/quality", "to_route": "clothing"},
 ]
 
 # Lifecycle Installation & Migrations
@@ -42,10 +45,24 @@ after_migrate = "sales_erp.install.after_migrate"
 extend_bootinfo = "sales_erp.boot.restrict_sales_app_visibility"
 boot_session = "sales_erp.boot.restrict_sales_app_visibility"
 
-before_request = []
+before_request = [
+	"sales_erp.boot.apply_runtime_patches",
+	"sales_erp.insights_compat.enforce_insights_admin_access",
+]
+
+override_whitelisted_methods = {
+	"insights.setup.setup_wizard.setup_demo_data": "sales_erp.insights_compat.setup_demo_data",
+}
+
+doc_events = {
+	"Item": {
+		"on_update": "sales_erp.gallery.cleanup_removed_gallery_files",
+	},
+}
 
 scheduler_events = {
 	"daily": ["sales_erp.cadence.evaluate_rsm_visit_cadence"],
+	"daily_long": ["sales_erp.gallery.cleanup_orphan_gallery_files"],
 }
 
 # Document Permission Hooks (Document-level access control)

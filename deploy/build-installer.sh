@@ -19,7 +19,7 @@ PYTHON
 EXTRA=(release.json)
 # Explicit allowlist excludes local bench, databases, credentials and history.
 tar -C "$ROOT" --exclude=__pycache__ --exclude='*.pyc' -czf "$WORK/source.tar.gz" \
-    clothing_erp deploy pyproject.toml README.md AGENTS.md license.txt work.md "${EXTRA[@]}"
+    sales_erp warehouse_erp quality_erp deploy pyproject.toml VERSION README.md AGENTS.md license.txt work.md "${EXTRA[@]}"
 DIGEST="$(sha256sum "$WORK/source.tar.gz" | awk '{print $1}')"
 cat > "$OUT" <<'HEADER'
 #!/usr/bin/env bash

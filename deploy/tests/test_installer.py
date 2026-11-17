@@ -184,8 +184,8 @@ class TestPackage(unittest.TestCase):
                 capture_output=True,
             )
             self.assertEqual(
-                (extracted / "clothing_erp/security.py").read_bytes(),
-                (ROOT / "clothing_erp/security.py").read_bytes(),
+                (extracted / "sales_erp/sales_erp/security.py").read_bytes(),
+                (ROOT / "sales_erp/sales_erp/security.py").read_bytes(),
             )
             self.assertTrue((extracted / "deploy/proxmox/install.sh").exists())
             for forbidden in (

@@ -1,6 +1,6 @@
 # AGENTS.md — Development Guidelines for AI Agents and Contributors
 
-This document defines the strict operating boundaries and development rules for developing the `clothing_erp` application.
+This document defines the strict operating boundaries and development rules for developing the Clothing ERP Suite applications (`sales_erp`, `warehouse_erp`, and `quality_erp`).
 
 ---
 
@@ -8,11 +8,11 @@ This document defines the strict operating boundaries and development rules for 
 
 1. **Zero Core Modifications**:
    - **NEVER** edit files in `apps/frappe` or `apps/erpnext` (or the upstream `erpnext` repository).
-   - Any feature, override, or hook must reside completely inside the `clothing_erp` application.
+   - Any feature, override, or hook must reside completely inside the project applications (`sales_erp`, `warehouse_erp`, or `quality_erp`).
 
 2. **Repository Isolation**:
-   - `clothing_erp` maintains its own Git repository and version history.
-   - Do not commit `clothing_erp` code into upstream ERPNext or Frappe repositories.
+   - The Clothing ERP repository maintains its own Git repository and version history.
+   - Do not commit code into upstream ERPNext or Frappe repositories.
    - Do not delete or overwrite existing repositories.
 
 3. **Data Integrity & Fictional Data**:
@@ -31,8 +31,7 @@ This document defines the strict operating boundaries and development rules for 
 ## 2. Architecture & Design Principles
 
 - **Canonical Application and DocType Ownership**:
-  - `clothing_erp`: Minimal launcher, desk routing, workspace navigation, product gallery asset lifecycle, and legacy API forwarding.
-  - `sales_erp`: Exclusively owns Sales DocTypes (`ASM Supervision`, `Retailer Application`, `Retailer Visit`, `RSM Visit Obligation`, `Retailer Credit Limit Request`, `Retailer Assignment History`, `Clothing Product Image`) and Territory $\rightarrow$ ASM $\rightarrow$ RSM supervisory enforcement.
+  - `sales_erp`: Exclusively owns Sales DocTypes (`ASM Supervision`, `Retailer Application`, `Retailer Visit`, `RSM Visit Obligation`, `Retailer Credit Limit Request`, `Retailer Assignment History`, `Clothing Product Image`), product gallery asset lifecycle, portal routing, and Territory $\rightarrow$ ASM $\rightarrow$ RSM supervisory enforcement.
   - `warehouse_erp`: Exclusively owns warehouse fulfillment, scan verification, Pick List shortage resolution, nested warehouse permissions, and serial/batch bundle locking.
   - `quality_erp`: Exclusively owns `Supplier Quality Inspection`, `Return Quarantine`, the 7-stage quality lifecycle ordering, versioned inspection reports, and administrative review bundles.
   - Never duplicate DocType schemas, hooks, or schedulers across apps.
@@ -71,10 +70,10 @@ foundations are not completion of catalogue, ordering or warehouse workflows.
 
 ## 4. Verification Checklist Before Finishing Any Task
 
-- [ ] All new files belong strictly to `clothing_erp`.
+- [ ] All new files belong strictly to `sales_erp`, `warehouse_erp`, `quality_erp`, or `deploy`.
 - [ ] Upstream `erpnext` and `frappe` repositories remain untouched (`git status` is clean).
-- [ ] Standalone unit tests pass (`python -m unittest discover -s clothing_erp/tests` (using a Frappe-capable Python environment)).
-- [ ] Site tests pass (`bench --site <site-name> run-tests --app clothing_erp --test-category all`).
+- [ ] Standalone unit tests pass (`sales_erp`, `warehouse_erp`, and `quality_erp` test suites).
+- [ ] Site tests pass (`bench --site <site-name> run-tests --app sales_erp`, `warehouse_erp`, `quality_erp`).
 - [ ] The native launcher and app workspace render properly in the browser.
 - [ ] No secrets or temporary credentials committed.
 

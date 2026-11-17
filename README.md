@@ -1,9 +1,8 @@
-# Clothing ERP
+# Clothing ERP Suite
 
 Clothing ERP is an integrated application suite alongside **ERPNext**, **India
-Compliance**, **Insights**, and **Frappe Framework**:
-- **`clothing_erp`**: Central suite launcher, desk routing, workspace navigation, and gallery management.
-- **`sales_erp`**: Wholesale catalogue, Sales Territory Assignments, ASM/RSM supervision, retailer visits, credit limit approvals, and cadence obligations.
+Compliance**, **Insights**, and **Frappe Framework**, packaged as three purpose-built Frappe applications:
+- **`sales_erp`**: Wholesale catalogue, Sales Territory Assignments, ASM/RSM supervision, retailer visits, credit limit approvals, gallery lifecycle, and cadence obligations.
 - **`warehouse_erp`**: Warehouse fulfillment, Pick List scanning, shortage resolution, nested warehouse permissions, and serial/batch bundle row locking.
 - **`quality_erp`**: 7-stage supplier quality lifecycle, versioned inspection reports, critical gate review bundles, and return quarantine.
 It has its own source, version history and GitHub releases. Upstream ERPNext/Frappe
@@ -192,7 +191,7 @@ idempotent development-only command:
 
 ```bash
 cd /home/avi/GitHub/erp/frappe-bench
-../bench --site clothing.local execute clothing_erp.seed.seed_catalogue
+../bench --site clothing.local execute sales_erp.seed.seed_all
 ```
 
 It refuses non-developer sites and only uses clearly labelled `TEST` data. It creates two
@@ -208,7 +207,7 @@ ordered image rows with optional captions. Save the Item. The catalogue shows a
 Uploaded gallery files are stored in the standard site `public/files` or
 `private/files` directory and are included in site backups. Removing a gallery row
 deletes its local upload only when no Item or other gallery still references it; a
-daily conservative sweep handles abandoned uploads. Packaged `/assets/clothing_erp/`
+daily conservative sweep handles abandoned uploads. Packaged `/assets/sales_erp/`
 demo images remain release-managed and are never removed by this cleanup.
 
 The catalogue's retailer selector only lists Customers permitted by native User

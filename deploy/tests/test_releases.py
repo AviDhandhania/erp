@@ -451,9 +451,8 @@ class TestReleaseBuilder(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "repository"
             root.mkdir()
-            (root / "clothing_erp").mkdir()
             (root / "deploy").mkdir()
-            (root / "clothing_erp/__init__.py").write_text('__version__ = "0.3.0"\n')
+            (root / "VERSION").write_text("0.3.0\n")
             (root / "deploy/versions.env").write_text(
                 "FRAPPE_REF=v16.55.2\nERPNEXT_REF=v16.54.0\nINSIGHTS_REF=v3.15.1\nINDIA_COMPLIANCE_REF=v16.10.0\nPYTHON_VERSION=3.14.9\nNODE_VERSION=24.22.2\nBENCH_VERSION=5.31.1\nUV_VERSION=0.13.7\n"
             )
@@ -518,7 +517,7 @@ class TestReleaseBuilder(unittest.TestCase):
                 Path(directory) / "first" / first["archive"]["name"]
             ) as source:
                 self.assertNotIn("site_config.json", source.getnames())
-                self.assertIn("clothing_erp/__init__.py", source.getnames())
+                self.assertIn("VERSION", source.getnames())
             self.assertEqual(len(first["source_commit"]), 40)
 
     def test_annotated_core_tag_uses_peeled_commit(self):

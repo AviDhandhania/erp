@@ -24,17 +24,13 @@ A second fake ERP service or duplicated stock/accounting database is not involve
 
 ### Authoritative App and DocType Ownership
 
-1. **`clothing_erp` (Suite Launcher & Home)**:
-   - Canonical Desk entry point, workspace navigation, launcher tile scoping.
-   - Product gallery asset management and orphan cleanup.
-   - Compatibility forwarding for legacy endpoints.
-2. **`sales_erp` (Field Sales & Distribution)**:
+1. **`sales_erp` (Field Sales & Distribution)**:
    - Authoritative Sales DocTypes: `ASM Supervision` (Sales Territory Assignment), `Retailer Application`, `Retailer Visit`, `RSM Visit Obligation`, `Retailer Credit Limit Request`, `Retailer Assignment History`, `Clothing Product Image`.
-   - Authoritative services: Territory-based order placement, catalogue matrices, credit limit approval workflow with live customer limit validation, 80-day RSM visit cadence & obligations.
-3. **`warehouse_erp` (Fulfilment & Warehouse Operations)**:
+   - Authoritative services: Territory-based order placement, catalogue matrices, product gallery lifecycle and sweeps, credit limit approval workflow with live customer limit validation, 80-day RSM visit cadence & obligations.
+2. **`warehouse_erp` (Fulfilment & Warehouse Operations)**:
    - Authoritative services: Scan verification, Pick List shortage resolution, Pick List completion, Delivery Note validation, nested warehouse tree scoping, and Serial and Batch Bundle row locking.
    - Canonical roles: `Clothing Warehouse Manager` (mutation authority), `Clothing Business Administrator` (global oversight), with audited migration path for legacy operator accounts.
-4. **`quality_erp` (Supplier Quality & Returns Quarantine)**:
+3. **`quality_erp` (Supplier Quality & Returns Quarantine)**:
    - Authoritative Quality DocTypes: `Supplier Quality Inspection`, `Return Quarantine`.
    - Authoritative services: 7-stage sequential quality lifecycle enforcement (Fit Sample $\rightarrow$ Refit Sample $\rightarrow$ Size Set $\rightarrow$ Production Go Ahead $\rightarrow$ Inline Visits $\rightarrow$ Mid-line Visits $\rightarrow$ Final Inspection), versioned inspection reports, and administrative review bundle retrieval.
 
@@ -47,7 +43,7 @@ GitHub's HTTPS release-asset endpoints. Local clients do not currently verify th
 Sigstore attestation; checksums alone are not an independent publisher signature.
 
 The update manager prepares a new native bench under `/home/frappe/releases/`.
-Each bench owns all five app checkouts, Python environment, Node runtime and built
+Each bench owns all suite app checkouts (`sales_erp`, `warehouse_erp`, `quality_erp`), upstream apps, Python environment, Node runtime and built
 assets. The common site files are shared; a single symlink selects the active bench.
 Native systemd services and nginx use that stable symlink. Core updates therefore
 need no merges into the clothing repository and no dependency replacement inside

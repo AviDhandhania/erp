@@ -36,7 +36,7 @@ class ProductPricing {
 
 	async refresh() {
 		this.$root.find(".pricing-products").html(`<div class="pricing-message text-muted">${__("Loading products…")}</div>`);
-		const { message } = await frappe.call({ method: "clothing_erp.pricing.get_product_pricing", args: this.state });
+		const { message } = await frappe.call({ method: "sales_erp.pricing.get_product_pricing", args: this.state });
 		this.state.price_list = message.price_list;
 		const $list = this.$root.find(".pricing-price-list").empty();
 		message.price_lists.forEach((name) => $list.append($("<option>", { value: name, text: name, selected: name === message.price_list })));
@@ -62,7 +62,7 @@ class ProductPricing {
 		if (!Number.isFinite(rate) || rate <= 0) { frappe.msgprint(__("Enter a positive price.")); return; }
 		const confirmed = await new Promise((resolve) => frappe.confirm(__("Set {0} for every enabled size of {1} in {2}?", [format_currency(rate, this.$root.find(".pricing-currency").text()), this.escape(template), this.escape(this.state.price_list)]), () => resolve(true), () => resolve(false)));
 		if (!confirmed) return;
-		const { message } = await frappe.call({ method: "clothing_erp.pricing.set_template_price", type: "POST", args: { template, price_list: this.state.price_list, rate }, freeze: true, freeze_message: __("Updating native Item Prices…") });
+		const { message } = await frappe.call({ method: "sales_erp.pricing.set_template_price", type: "POST", args: { template, price_list: this.state.price_list, rate }, freeze: true, freeze_message: __("Updating native Item Prices…") });
 		frappe.show_alert({ message: __("Updated {0} size prices", [message.changed.length]), indicator: "green" });
 		this.refresh();
 	}

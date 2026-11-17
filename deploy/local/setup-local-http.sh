@@ -96,7 +96,7 @@ for entry in Path("/proc").iterdir():
     try:
         args = (entry / "cmdline").read_bytes()
         cwd = (entry / "cwd").resolve()
-        if cwd == root / "frappe-bench/sites" and b"clothing_erp.wsgi:" in args and b"gunicorn" in args:
+        if cwd == root / "frappe-bench/sites" and (b"clothing_erp.wsgi:" in args or b"deploy.wsgi:" in args) and b"gunicorn" in args:
             os.kill(int(entry.name), signal.SIGTERM)
     except (OSError, ProcessLookupError):
         continue

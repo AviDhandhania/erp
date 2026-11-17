@@ -14,9 +14,9 @@ SEED_WAREHOUSE_MANAGER = "test-warehouse-manager@example.invalid"
 def _ensure_seed_user(email, first_name, role):
     if frappe.db.exists("User", email):
         user = frappe.get_doc("User", email)
-        current_roles = set(frappe.get_roles(email))
-        if role not in current_roles:
-            user.add_roles(role)
+        other_role = ROLE_WAREHOUSE_MANAGER if role == ROLE_WAREHOUSE_OPERATOR else ROLE_WAREHOUSE_OPERATOR
+        user.remove_roles(other_role)
+        user.add_roles(role)
     else:
         user = frappe.get_doc(
             {

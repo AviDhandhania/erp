@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "clothing_erp"
-version = "1.0.0"
+name = "clothing-erp-suite"
+version = "0.3.1"
 authors = [
     { name = "Clothing ERP Contributors", email = "team@clothing-erp.invalid" }
 ]
@@ -18,5 +18,5 @@ Homepage = "https://github.com/AviDhandhania/erp"
 Repository = "https://github.com/AviDhandhania/erp"
 
 [tool.setuptools]
-package-dir = { "sales_erp" = "sales_erp/sales_erp", "warehouse_erp" = "warehouse_erp/warehouse_erp", "quality_erp" = "quality_erp/quality_erp", "clothing_erp" = "clothing_erp" }
-packages = ["sales_erp", "warehouse_erp", "quality_erp", "clothing_erp"]
+package-dir = { "sales_erp" = "sales_erp/sales_erp", "warehouse_erp" = "warehouse_erp/warehouse_erp", "quality_erp" = "quality_erp/quality_erp", "deploy" = "deploy" }
+packages = ["sales_erp", "warehouse_erp", "quality_erp", "deploy"]

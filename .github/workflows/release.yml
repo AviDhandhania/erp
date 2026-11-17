@@ -55,7 +55,7 @@ jobs:
               git checkout "refs/tags/$VERSION"
             else
               python3 deploy/release/prepare.py "$VERSION" --frappe "$FRAPPE" --erpnext "$ERPNEXT" --insights "$INSIGHTS" --india-compliance "$INDIA_COMPLIANCE"
-              git add clothing_erp/__init__.py deploy/versions.env
+              git add VERSION deploy/versions.env
               if ! git diff --cached --quiet; then git commit -m "chore: release $VERSION"; fi
               git tag "$VERSION"
               git push origin HEAD:main "refs/tags/$VERSION"
