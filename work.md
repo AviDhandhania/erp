@@ -485,13 +485,13 @@ commit. Do not attempt this entire programme in one context window.
   - Deliverables:
     - `warehouse_erp/roles.py`, `warehouse_erp/install.py`: Retired `Clothing Warehouse Operator` from active roles, custom DocPerms, and `Has Role` records; added idempotent `migrate_warehouse_operators_to_managers()` and `remove_legacy_operator_permissions()`.
     - Server-side immediate revocation: Hardened `get_user_roles(user)` across `sales_erp`, `warehouse_erp`, and `quality_erp` security modules to immediately return empty role set when `tabUser.enabled = 0`.
-    - `sales_erp/sales_erp/tests/test_authorization_matrix.py`: Added 7 comprehensive cross-role, cross-territory, and immediate-revocation negative tests.
+    - `sales_erp/sales_erp/tests/test_authorization_matrix.py`: Added 7 comprehensive cross-role, cross-territory, and immediate-revocation negative tests with self-healing module map setup.
   - Verified Test Results:
-    - Sales ERP: 160/160 passed
-    - Warehouse ERP: 68/68 passed
-    - Quality ERP: 9/9 passed
+    - Sales ERP: 178/178 passed (including all 7 authorization matrix negative tests)
+    - Warehouse ERP: 68/68 passed (including manager-only migration and operator denial tests)
+    - Quality ERP: 13/13 passed (including cross-app denial and critical gate admin tests)
     - Deploy & Security Audit: 32/32 passed
-    - Total: 269/269 tests passed
+    - Total: 291/291 tests passed
 
 - [x] **Session 3 — API and transaction security (Completed 2026-11-17)**:
   - Deliverables:
