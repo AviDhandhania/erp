@@ -13,6 +13,7 @@ class FulfillmentTasks {
 	}
 
 	setup() {
+		this.page.set_secondary_action(__("Intake Return"), () => this.prompt_return_intake());
 		this.page.main.html(`<div class="fulfillment-tasks"><section class="fulfillment-panel">
 			<div class="fulfillment-toolbar">
 				<input class="form-control fulfillment-search" type="search" placeholder="${__("Search task or retailer")}" aria-label="${__("Search task or retailer")}">
@@ -84,13 +85,19 @@ class FulfillmentTasks {
 		const completeAction = task.can_complete_pick ? `<button type="button" class="btn btn-primary complete-pick-list">${__("Complete picking")}</button>` : "";
 		const createDnAction = task.can_create_delivery_note ? `<button type="button" class="btn btn-primary create-delivery-note">${__("Create Delivery Note")}</button>` : "";
 		const dispatchAction = task.can_dispatch_delivery ? `<button type="button" class="btn btn-primary dispatch-delivery-note">${__("Dispatch Delivery")}</button>` : "";
-		const footerActions = shortageAction || completeAction || createDnAction || dispatchAction ? `<div class="text-right">${shortageAction} ${completeAction} ${createDnAction} ${dispatchAction}</div>` : "";
+		const returnAction = task.task_type === "delivery" && Number(task.docstatus) === 1 ? `<button type="button" class="btn btn-default intake-delivery-return">${__("Intake Return")}</button>` : "";
+		const footerActions = shortageAction || completeAction || createDnAction || dispatchAction || returnAction ? `<div class="text-right">${shortageAction} ${completeAction} ${createDnAction} ${dispatchAction} ${returnAction}</div>` : "";
 		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div>${task.transporter_name ? `<div><span>${__("Transporter")}</span><strong>${this.escape(task.transporter_name)}</strong></div>` : ""}${task.lr_no ? `<div><span>${__("LR No")}</span><strong>${this.escape(task.lr_no)}</strong></div>` : ""}</div>${task.can_verify_items ? `<div class="alert alert-info">${__("Scan the SKU/item barcode, Batch No, or Serial No required by the exact Pick List row. ERPNext validates tracked stock when each scan is saved.")}</div>` : ""}${workflowNotice}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${task.can_verify_items ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}${footerActions}`);
 		dialog.$body.on("click", ".verify-pick-item", (event) => this.verify_item(task, event.currentTarget, dialog));
 		dialog.$body.on("click", ".resolve-pick-shortage", () => this.resolve_shortage(task, dialog));
 		dialog.$body.on("click", ".complete-pick-list", () => this.complete_pick(task, dialog));
 		dialog.$body.on("click", ".create-delivery-note", () => this.create_delivery_note(task, dialog));
 		dialog.$body.on("click", ".dispatch-delivery-note", () => this.dispatch_delivery(task, dialog));
+		dialog.$body.on("click", ".intake-delivery-return", () => {
+			dialog.hide();
+			const firstItem = task.rows && task.rows.length ? task.rows[0].item_code : "";
+			this.prompt_return_intake(task.name, firstItem);
+		});
 		dialog.show();
 	}
 
@@ -196,6 +203,34 @@ class FulfillmentTasks {
 		});
 		dialog.hide();
 		frappe.show_alert({ message: __("Delivery Note {0} dispatched ({1})", [message.delivery_note, message.status]), indicator: "green" });
+		this.refresh();
+	}
+
+	async prompt_return_intake(delivery_note, default_item) {
+		const values = await new Promise((resolve) => {
+			frappe.prompt([
+				{ fieldname: "delivery_note", fieldtype: "Link", options: "Delivery Note", label: __("Original Delivery Note"), default: delivery_note || "", reqd: 1 },
+				{ fieldname: "item_code", fieldtype: "Link", options: "Item", label: __("Item Code"), default: default_item || "", reqd: 1 },
+				{ fieldname: "quantity", fieldtype: "Float", label: __("Quantity"), default: 1, reqd: 1 },
+				{ fieldname: "quarantine_warehouse", fieldtype: "Link", options: "Warehouse", label: __("Quarantine Warehouse"), reqd: 1 },
+				{ fieldname: "return_reason", fieldtype: "Select", label: __("Return Reason"), options: "Customer Return\nDefective Stitching\nFabric Fault\nSize Mismatch\nOther Quality Issue", default: "Customer Return", reqd: 1 },
+				{ fieldname: "serial_no", fieldtype: "Data", label: __("Serial No (if serialized)") },
+				{ fieldname: "batch_no", fieldtype: "Data", label: __("Batch No (if batched)") },
+				{ fieldname: "notes", fieldtype: "Small Text", label: __("Condition / Defect Notes") },
+			], resolve, __("Customer Return Intake"), __("Record Return Intake"));
+		});
+		if (!values) return;
+		const { message } = await frappe.call({
+			method: "warehouse_erp.returns.intake_customer_return",
+			type: "POST",
+			args: values,
+			freeze: true,
+			freeze_message: __("Recording return into quarantine…"),
+		});
+		frappe.show_alert({
+			message: __("Return {0} received into quarantine {1} ({2})", [message.return_delivery_note, message.quarantine_warehouse, message.return_quarantine]),
+			indicator: "green",
+		});
 		this.refresh();
 	}
 }
