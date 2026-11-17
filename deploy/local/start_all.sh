@@ -5,6 +5,7 @@ ROOT="${CLOTHING_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pw
 export FRAPPE_BENCH_ROOT="$ROOT/frappe-bench"
 export LD_LIBRARY_PATH="$ROOT/.services/usr/lib:${LD_LIBRARY_PATH:-}"
 export PATH="$ROOT/.venv/bin:$ROOT/.services/usr/bin:$PATH"
+export PYTHONPATH="$ROOT/clothing_erp:${PYTHONPATH:-}"
 mkdir -p "$ROOT/.services/pids"
 if ! mariadb-admin --defaults-file="$ROOT/.services/my.cnf" ping --silent >/dev/null 2>&1; then
     "$ROOT/.services/usr/bin/mariadbd" --defaults-file="$ROOT/.services/my.cnf" > "$ROOT/.services/mariadb.log" 2>&1 &

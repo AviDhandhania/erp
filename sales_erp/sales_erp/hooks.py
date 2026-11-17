@@ -64,7 +64,10 @@ doc_events = {
 }
 
 scheduler_events = {
-	"daily": ["sales_erp.cadence.evaluate_rsm_visit_cadence"],
+	"daily": [
+		"sales_erp.cadence.evaluate_rsm_visit_cadence",
+		"sales_erp.cadence.evaluate_asm_visit_cadence",
+	],
 	"daily_long": ["sales_erp.gallery.cleanup_orphan_gallery_files"],
 }
 
@@ -76,6 +79,7 @@ has_permission = {
 	"Retailer Visit": "sales_erp.security.retailer_record_has_permission",
 	"Retailer Credit Limit Request": "sales_erp.security.retailer_credit_limit_request_has_permission",
 	"RSM Visit Obligation": "sales_erp.sales_erp.doctype.rsm_visit_obligation.rsm_visit_obligation.rsm_visit_obligation_has_permission",
+	"ASM Visit Obligation": "sales_erp.sales_erp.doctype.asm_visit_obligation.asm_visit_obligation.asm_visit_obligation_has_permission",
 	"Delivery Follow-Up Obligation": "sales_erp.delivery_follow_up.delivery_follow_up_has_permission",
 	"ASM Supervision": "sales_erp.security.asm_supervision_has_permission",
 	"Retailer Assignment History": "sales_erp.security.retailer_assignment_history_has_permission",
@@ -89,6 +93,7 @@ permission_query_conditions = {
 	"Retailer Visit": "sales_erp.security.retailer_visit_conditions",
 	"Retailer Credit Limit Request": "sales_erp.security.retailer_credit_limit_request_conditions",
 	"RSM Visit Obligation": "sales_erp.sales_erp.doctype.rsm_visit_obligation.rsm_visit_obligation.rsm_visit_obligation_query_conditions",
+	"ASM Visit Obligation": "sales_erp.sales_erp.doctype.asm_visit_obligation.asm_visit_obligation.asm_visit_obligation_query_conditions",
 	"Delivery Follow-Up Obligation": "sales_erp.delivery_follow_up.delivery_follow_up_query_conditions",
 	"ASM Supervision": "sales_erp.security.asm_supervision_conditions",
 	"Retailer Assignment History": "sales_erp.security.retailer_assignment_history_conditions",

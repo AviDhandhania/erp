@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, getdate, now_datetime, nowdate
+from frappe.utils import add_days, cint, flt, getdate, now_datetime, nowdate
 
 from sales_erp.roles import ROLE_ASM, ROLE_BUSINESS_ADMIN, ROLE_RSM, ROLE_SALESPERSON, ROLE_SALES_MANAGER
 from sales_erp.security import (
@@ -35,6 +35,24 @@ RSM_VISIT_CYCLE_DAYS = 80
 RSM_ADVANCE_WARNING_DAYS = 70
 RSM_GRACE_PERIOD_DAYS = 5
 RSM_ESCALATION_THRESHOLD_DAYS = 85  # 80 + 5
+
+SIS_STOCK_REVIEW_CYCLE_DAYS = 90
+SIS_STOCK_REVIEW_WARNING_DAYS = 80
+SIS_STOCK_REVIEW_GRACE_DAYS = 5
+SIS_STOCK_REVIEW_ESCALATION_DAYS = 95
+
+SIS_GENERAL_VISIT_CYCLE_DAYS = 30
+SIS_GENERAL_VISIT_WARNING_DAYS = 25
+SIS_GENERAL_VISIT_GRACE_DAYS = 5
+SIS_GENERAL_VISIT_ESCALATION_DAYS = 35
+
+BUY_SELL_VISIT_CYCLE_DAYS = 30
+BUY_SELL_VISIT_WARNING_DAYS = 25
+BUY_SELL_VISIT_GRACE_DAYS = 5
+BUY_SELL_VISIT_ESCALATION_DAYS = 35
+
+COLLECTION_WINDOW_START_DAYS = 90
+COLLECTION_WINDOW_ESCALATION_DAYS = 120
 
 STATUS_COMPLIANT = "Compliant"
 STATUS_APPROACHING = "Approaching Deadline"
@@ -507,3 +525,466 @@ def get_rsm_visit_cadence_report(
         "summary": summary,
         "user_scope": scope,
     }
+
+
+def get_customer_asm_visit_status(customer: str, target_date: str | None = None) -> list[dict]:
+    """Calculate the ASM cadence obligations (SIS quarterly/monthly, Buy & Sell monthly & collections) for a customer."""
+    target_dt = getdate(target_date or nowdate())
+    customer_doc = frappe.db.get_value(
+        "Customer",
+        customer,
+        ["name", "customer_name", "customer_group", "territory", "creation", "disabled"],
+        as_dict=True,
+    )
+    if not customer_doc:
+        frappe.throw(_("Customer {0} does not exist.").format(customer), frappe.DoesNotExistError)
+
+    territory = customer_doc.territory
+    supervision = get_territory_supervision(territory, on_date=target_dt) if territory else None
+    asm = supervision.asm if supervision else None
+    rsm = supervision.rsm if supervision else None
+    retailer_type = customer_doc.customer_group or "Buy & Sell"
+
+    items = []
+
+    # 1. SIS Retailer Cadence
+    if retailer_type == "SIS (Shop-in-Shop)":
+        # A. Quarterly Stock Review (90 days)
+        last_stock_review = frappe.db.sql(
+            """
+            SELECT name, visit_date, visit_type, salesperson
+            FROM `tabRetailer Visit`
+            WHERE customer = %s
+              AND docstatus != 2
+              AND visit_type = 'Stock Review'
+              AND DATE(visit_date) <= %s
+            ORDER BY visit_date DESC, creation DESC
+            LIMIT 1
+            """,
+            (customer, target_dt),
+            as_dict=True,
+        )
+        base_stock_date = getdate(last_stock_review[0].visit_date) if last_stock_review else (getdate(customer_doc.creation) if customer_doc.creation else target_dt)
+        elapsed_stock = max(0, (target_dt - base_stock_date).days)
+        due_stock = add_days(base_stock_date, SIS_STOCK_REVIEW_CYCLE_DAYS)
+        grace_stock = add_days(base_stock_date, SIS_STOCK_REVIEW_ESCALATION_DAYS)
+
+        if elapsed_stock <= SIS_STOCK_REVIEW_WARNING_DAYS:
+            stk_status = STATUS_COMPLIANT
+            stk_esc = "None"
+        elif elapsed_stock <= SIS_STOCK_REVIEW_CYCLE_DAYS:
+            stk_status = STATUS_APPROACHING
+            stk_esc = "Approaching"
+        elif elapsed_stock <= SIS_STOCK_REVIEW_ESCALATION_DAYS:
+            stk_status = STATUS_GRACE
+            stk_esc = "Grace"
+        else:
+            stk_status = STATUS_OVERDUE
+            stk_esc = "Escalated"
+
+        items.append({
+            "obligation_type": "Quarterly Stock Review",
+            "cycle_id": f"{customer}-Quarterly Stock Review-{base_stock_date}",
+            "customer": customer_doc.name,
+            "customer_name": customer_doc.customer_name or customer_doc.name,
+            "retailer_type": retailer_type,
+            "territory": territory,
+            "asm": asm,
+            "rsm": rsm,
+            "base_date": str(base_stock_date),
+            "last_visit": last_stock_review[0].name if last_stock_review else None,
+            "days_elapsed": elapsed_stock,
+            "due_date": str(due_stock),
+            "grace_end_date": str(grace_stock),
+            "status": stk_status,
+            "escalation_state": stk_esc,
+        })
+
+        # B. Monthly General Visit (30 days)
+        last_gen_visit = frappe.db.sql(
+            """
+            SELECT name, visit_date, visit_type, salesperson
+            FROM `tabRetailer Visit`
+            WHERE customer = %s
+              AND docstatus != 2
+              AND visit_type = 'General Visit'
+              AND DATE(visit_date) <= %s
+            ORDER BY visit_date DESC, creation DESC
+            LIMIT 1
+            """,
+            (customer, target_dt),
+            as_dict=True,
+        )
+        base_gen_date = getdate(last_gen_visit[0].visit_date) if last_gen_visit else (getdate(customer_doc.creation) if customer_doc.creation else target_dt)
+        elapsed_gen = max(0, (target_dt - base_gen_date).days)
+        due_gen = add_days(base_gen_date, SIS_GENERAL_VISIT_CYCLE_DAYS)
+        grace_gen = add_days(base_gen_date, SIS_GENERAL_VISIT_ESCALATION_DAYS)
+
+        if elapsed_gen <= SIS_GENERAL_VISIT_WARNING_DAYS:
+            gen_status = STATUS_COMPLIANT
+            gen_esc = "None"
+        elif elapsed_gen <= SIS_GENERAL_VISIT_CYCLE_DAYS:
+            gen_status = STATUS_APPROACHING
+            gen_esc = "Approaching"
+        elif elapsed_gen <= SIS_GENERAL_VISIT_ESCALATION_DAYS:
+            gen_status = STATUS_GRACE
+            gen_esc = "Grace"
+        else:
+            gen_status = STATUS_OVERDUE
+            gen_esc = "Escalated"
+
+        items.append({
+            "obligation_type": "Monthly General Visit",
+            "cycle_id": f"{customer}-Monthly General Visit-{base_gen_date}",
+            "customer": customer_doc.name,
+            "customer_name": customer_doc.customer_name or customer_doc.name,
+            "retailer_type": retailer_type,
+            "territory": territory,
+            "asm": asm,
+            "rsm": rsm,
+            "base_date": str(base_gen_date),
+            "last_visit": last_gen_visit[0].name if last_gen_visit else None,
+            "days_elapsed": elapsed_gen,
+            "due_date": str(due_gen),
+            "grace_end_date": str(grace_gen),
+            "status": gen_status,
+            "escalation_state": gen_esc,
+        })
+
+    # 2. Buy & Sell Retailer Cadence
+    elif retailer_type in ("Buy & Sell", "Buy & Sell - Stock Correction"):
+        # A. Monthly Sample & Order Visit (30 days)
+        last_so_visit = frappe.db.sql(
+            """
+            SELECT name, visit_date, visit_type, salesperson
+            FROM `tabRetailer Visit`
+            WHERE customer = %s
+              AND docstatus != 2
+              AND visit_type IN ('Sample & Order Taking', 'General Visit')
+              AND DATE(visit_date) <= %s
+            ORDER BY visit_date DESC, creation DESC
+            LIMIT 1
+            """,
+            (customer, target_dt),
+            as_dict=True,
+        )
+        base_so_date = getdate(last_so_visit[0].visit_date) if last_so_visit else (getdate(customer_doc.creation) if customer_doc.creation else target_dt)
+        elapsed_so = max(0, (target_dt - base_so_date).days)
+        due_so = add_days(base_so_date, BUY_SELL_VISIT_CYCLE_DAYS)
+        grace_so = add_days(base_so_date, BUY_SELL_VISIT_ESCALATION_DAYS)
+
+        if elapsed_so <= BUY_SELL_VISIT_WARNING_DAYS:
+            so_status = STATUS_COMPLIANT
+            so_esc = "None"
+        elif elapsed_so <= BUY_SELL_VISIT_CYCLE_DAYS:
+            so_status = STATUS_APPROACHING
+            so_esc = "Approaching"
+        elif elapsed_so <= BUY_SELL_VISIT_ESCALATION_DAYS:
+            so_status = STATUS_GRACE
+            so_esc = "Grace"
+        else:
+            so_status = STATUS_OVERDUE
+            so_esc = "Escalated"
+
+        items.append({
+            "obligation_type": "Monthly Sample & Order",
+            "cycle_id": f"{customer}-Monthly Sample & Order-{base_so_date}",
+            "customer": customer_doc.name,
+            "customer_name": customer_doc.customer_name or customer_doc.name,
+            "retailer_type": retailer_type,
+            "territory": territory,
+            "asm": asm,
+            "rsm": rsm,
+            "base_date": str(base_so_date),
+            "last_visit": last_so_visit[0].name if last_so_visit else None,
+            "days_elapsed": elapsed_so,
+            "due_date": str(due_so),
+            "grace_end_date": str(grace_so),
+            "status": so_status,
+            "escalation_state": so_esc,
+        })
+
+        # B. Outstanding Collections in 90-120 days from Delivery Date / Invoice Posting
+        unpaid_invoices = frappe.db.sql(
+            """
+            SELECT name, posting_date, outstanding_amount, grand_total
+            FROM `tabSales Invoice`
+            WHERE customer = %s
+              AND docstatus = 1
+              AND outstanding_amount > 0
+              AND DATE(posting_date) <= %s
+            ORDER BY posting_date ASC
+            """,
+            (customer, target_dt),
+            as_dict=True,
+        )
+        for inv in unpaid_invoices:
+            inv_date = getdate(inv.posting_date)
+            elapsed_inv = max(0, (target_dt - inv_date).days)
+            if elapsed_inv >= COLLECTION_WINDOW_START_DAYS:
+                due_col = add_days(inv_date, COLLECTION_WINDOW_START_DAYS)
+                grace_col = add_days(inv_date, COLLECTION_WINDOW_ESCALATION_DAYS)
+                if elapsed_inv <= COLLECTION_WINDOW_ESCALATION_DAYS:
+                    col_status = STATUS_GRACE
+                    col_esc = "Grace"
+                else:
+                    col_status = STATUS_OVERDUE
+                    col_esc = "Escalated"
+
+                items.append({
+                    "obligation_type": "Payment Collection Follow-up",
+                    "cycle_id": f"{customer}-Payment Collection Follow-up-{inv.name}",
+                    "customer": customer_doc.name,
+                    "customer_name": customer_doc.customer_name or customer_doc.name,
+                    "retailer_type": retailer_type,
+                    "territory": territory,
+                    "asm": asm,
+                    "rsm": rsm,
+                    "base_date": str(inv_date),
+                    "invoice_no": inv.name,
+                    "outstanding_amount": float(inv.outstanding_amount),
+                    "days_elapsed": elapsed_inv,
+                    "due_date": str(due_col),
+                    "grace_end_date": str(grace_col),
+                    "status": col_status,
+                    "escalation_state": col_esc,
+                    "notes": f"Invoice {inv.name} has outstanding balance of {inv.outstanding_amount} ({elapsed_inv} days since invoice).",
+                })
+
+    return items
+
+
+def sync_asm_visit_obligation(item: dict, target_date: str | None = None) -> str | None:
+    """Create or synchronize an ASM Visit Obligation record idempotently."""
+    cycle_id = item.get("cycle_id")
+    customer = item.get("customer")
+    if not cycle_id or not customer:
+        return None
+
+    # Only create/sync structured obligation if it is approaching, grace, or overdue
+    if item.get("status") == STATUS_COMPLIANT:
+        return None
+
+    existing = frappe.db.get_value(
+        "ASM Visit Obligation",
+        {"cycle_id": cycle_id},
+        ["name", "status", "escalation_state"],
+        as_dict=True,
+    )
+
+    new_status = "Overdue / Escalated" if item.get("status") == STATUS_OVERDUE else ("Grace Period" if item.get("status") == STATUS_GRACE else "Open")
+    escalation_state = item.get("escalation_state", "None")
+
+    if existing:
+        if existing.status in ("Open", "Grace Period", "Overdue / Escalated"):
+            if existing.status != new_status or existing.escalation_state != escalation_state:
+                update_vals = {
+                    "status": new_status,
+                    "escalation_state": escalation_state,
+                    "assigned_asm": item.get("asm"),
+                    "supervising_rsm": item.get("rsm"),
+                }
+                if item.get("outstanding_amount") is not None:
+                    update_vals["outstanding_amount"] = flt(item.get("outstanding_amount"))
+                frappe.db.set_value(
+                    "ASM Visit Obligation",
+                    existing.name,
+                    update_vals,
+                )
+        return existing.name
+
+    doc = frappe.get_doc({
+        "doctype": "ASM Visit Obligation",
+        "obligation_type": item.get("obligation_type"),
+        "cycle_id": cycle_id,
+        "customer": customer,
+        "retailer_type": item.get("retailer_type"),
+        "territory": item.get("territory"),
+        "assigned_asm": item.get("asm"),
+        "supervising_rsm": item.get("rsm"),
+        "cycle_start": item.get("base_date"),
+        "due_date": item.get("due_date"),
+        "grace_end_date": item.get("grace_end_date"),
+        "status": new_status,
+        "escalation_state": escalation_state,
+        "invoice_no": item.get("invoice_no"),
+        "outstanding_amount": flt(item.get("outstanding_amount", 0.0)),
+        "notes": item.get("notes"),
+    })
+    doc.flags.ignore_permissions = True
+    doc.insert()
+    return doc.name
+
+
+def close_asm_visit_obligation(customer: str, visit_doc=None, obligation_type: str | None = None) -> int:
+    """Fulfill open/grace/escalated ASM obligations upon qualifying visit completion."""
+    filters = {
+        "customer": customer,
+        "status": ["in", ["Open", "Grace Period", "Overdue / Escalated"]],
+    }
+    if obligation_type:
+        filters["obligation_type"] = obligation_type
+
+    obligations = frappe.get_all("ASM Visit Obligation", filters=filters, pluck="name")
+    closed = 0
+    now = now_datetime()
+    user = get_current_user()
+    for name in obligations:
+        frappe.db.set_value(
+            "ASM Visit Obligation",
+            name,
+            {
+                "status": "Satisfied",
+                "qualifying_visit": visit_doc.name if visit_doc else None,
+                "satisfied_on": now,
+                "satisfied_by": user,
+            },
+        )
+        closed += 1
+    return closed
+
+
+def evaluate_asm_visit_cadence(target_date: str | None = None) -> dict:
+    """Daily scheduler job evaluating ASM visit obligations across all active retailers."""
+    target_dt = getdate(target_date or nowdate())
+    customers = frappe.get_all(
+        "Customer",
+        filters={"disabled": 0},
+        fields=["name", "customer_name", "territory", "customer_group"],
+    )
+    results = {
+        "evaluated": len(customers),
+        "created_or_updated": 0,
+        "obligations": [],
+    }
+    for cust in customers:
+        items = get_customer_asm_visit_status(cust.name, target_date=target_dt)
+        for item in items:
+            obl_name = sync_asm_visit_obligation(item, target_date=target_dt)
+            if obl_name:
+                results["created_or_updated"] += 1
+                results["obligations"].append(obl_name)
+    return results
+
+
+@frappe.whitelist()
+def get_asm_cadence_directory(
+    obligation_type=None,
+    status=None,
+    territory=None,
+    asm=None,
+    page=1,
+    page_size=20,
+):
+    """List ASM visit obligations scoped strictly to user's assigned territories."""
+    require_role({ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+    user = get_current_user()
+    admin = is_clothing_admin(user)
+
+    page = max(cint(page), 1)
+    page_size = min(max(cint(page_size), 1), 50)
+
+    filters = {}
+    if not admin:
+        user_territories = assigned_sales_territories(user)
+        if not user_territories:
+            return {"obligations": [], "pagination": {"page": page, "page_size": page_size, "has_more": False}}
+        if territory:
+            if territory not in user_territories:
+                frappe.throw(_("Access denied to territory {0}").format(territory), frappe.PermissionError)
+            filters["territory"] = territory
+        else:
+            filters["territory"] = ["in", user_territories]
+    else:
+        if territory:
+            filters["territory"] = territory
+
+    if obligation_type:
+        filters["obligation_type"] = obligation_type
+    if status:
+        filters["status"] = status
+    if asm:
+        filters["assigned_asm"] = asm
+
+    rows = frappe.get_all(
+        "ASM Visit Obligation",
+        filters=filters,
+        fields=[
+            "name",
+            "obligation_type",
+            "cycle_id",
+            "customer",
+            "customer_name",
+            "retailer_type",
+            "territory",
+            "assigned_asm",
+            "supervising_rsm",
+            "cycle_start",
+            "due_date",
+            "grace_end_date",
+            "status",
+            "escalation_state",
+            "invoice_no",
+            "outstanding_amount",
+            "qualifying_visit",
+            "satisfied_on",
+            "satisfied_by",
+        ],
+        order_by="due_date asc, creation desc",
+        start=(page - 1) * page_size,
+        limit=page_size + 1,
+    )
+
+    has_more = len(rows) > page_size
+    return {
+        "obligations": rows[:page_size],
+        "pagination": {"page": page, "page_size": page_size, "has_more": has_more},
+    }
+
+
+@frappe.whitelist()
+def get_collection_obligations(customer=None, target_date=None, page=1, page_size=20):
+    """Retrieve unpaid invoices in the 90-120 day collection window scoped to user's assigned territories."""
+    require_role({ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+    user = get_current_user()
+    admin = is_clothing_admin(user)
+
+    page = max(cint(page), 1)
+    page_size = min(max(cint(page_size), 1), 50)
+    target_dt = getdate(target_date or nowdate())
+
+    allowed_territories = None if admin else assigned_sales_territories(user)
+    if not admin and not allowed_territories:
+        return {"collections": [], "pagination": {"page": page, "page_size": page_size, "has_more": False}}
+
+    conditions = ["si.docstatus = 1", "si.outstanding_amount > 0", "DATE(si.posting_date) <= %s"]
+    params = [target_dt]
+
+    if customer:
+        if not admin and not has_retailer_access(customer, user):
+            frappe.throw(_("Access denied to retailer {0}").format(customer), frappe.PermissionError)
+        conditions.append("si.customer = %s")
+        params.append(customer)
+    elif allowed_territories is not None:
+        conditions.append("c.territory IN ({})".format(", ".join("%s" for _ in allowed_territories)))
+        params.extend(allowed_territories)
+
+    query = f"""
+        SELECT si.name, si.customer, si.customer_name, si.posting_date, si.due_date,
+               si.outstanding_amount, si.grand_total, si.currency, c.territory,
+               DATEDIFF(%s, si.posting_date) AS days_elapsed
+        FROM `tabSales Invoice` si
+        JOIN `tabCustomer` c ON c.name = si.customer
+        WHERE {' AND '.join(conditions)}
+          AND DATEDIFF(%s, si.posting_date) >= 90
+        ORDER BY days_elapsed DESC, si.posting_date ASC
+        LIMIT %s OFFSET %s
+    """
+    all_params = [target_dt, *params, target_dt, page_size + 1, (page - 1) * page_size]
+    rows = frappe.db.sql(query, all_params, as_dict=True)
+    has_more = len(rows) > page_size
+    return {
+        "collections": rows[:page_size],
+        "pagination": {"page": page, "page_size": page_size, "has_more": has_more},
+    }
+

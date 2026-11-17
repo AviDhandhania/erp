@@ -23,9 +23,9 @@ Confirmed requirements now governing the next stages:
   User Permissions, including permitted descendant Territories.
 - [x] Model the RSM-to-ASM supervisory relationship explicitly; an RSM normally handles
   3–4 ASMs and 200–250 shops.
-- [ ] For SIS, automatically assign quarterly stock-review obligations, require separate
+- [x] For SIS, automatically assign quarterly stock-review obligations, require separate
   monthly general visits and support seasonal order-taking.
-- [ ] For Buy & Sell, require a monthly sample/order visit and a collection workflow based
+- [x] For Buy & Sell, require a monthly sample/order visit and a collection workflow based
   on ERPNext outstanding data in the stated 90–120 days from Delivery Date.
 - [x] Route ASM-created retailer applications to that ASM's RSM. Support request-for-more-
   information, RSM completion of further details, RSM decision and initial limit setting.

@@ -117,6 +117,26 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "ASM Visit Obligations",
+   "link_count": 0,
+   "link_to": "ASM Visit Obligation",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "RSM Visit Obligations",
+   "link_count": 0,
+   "link_to": "RSM Visit Obligation",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Sales Territory Assignments",
    "link_count": 0,
    "link_to": "retailer-assignments",

@@ -56,14 +56,17 @@ class ProductPricing {
 		this.$root.find(".pricing-pagination").html(`<button class="btn btn-default" data-pricing-page="${p.page - 1}" ${p.page === 1 ? "disabled" : ""}>${__("Previous")}</button><span>${__("Page {0}", [p.page])}</span><button class="btn btn-default" data-pricing-page="${p.page + 1}" ${p.has_more ? "" : "disabled"}>${__("Next")}</button>`);
 	}
 
-	async apply_price(template) {
+	apply_price(template) {
 		const $card = this.$root.find(`.apply-template-price[data-template="${CSS.escape(template)}"]`).closest(".pricing-card");
 		const rate = Number($card.find(".template-rate").val());
 		if (!Number.isFinite(rate) || rate <= 0) { frappe.msgprint(__("Enter a positive price.")); return; }
-		const confirmed = await new Promise((resolve) => frappe.confirm(__("Set {0} for every enabled size of {1} in {2}?", [format_currency(rate, this.$root.find(".pricing-currency").text()), this.escape(template), this.escape(this.state.price_list)]), () => resolve(true), () => resolve(false)));
-		if (!confirmed) return;
-		const { message } = await frappe.call({ method: "sales_erp.pricing.set_template_price", type: "POST", args: { template, price_list: this.state.price_list, rate }, freeze: true, freeze_message: __("Updating native Item Prices…") });
-		frappe.show_alert({ message: __("Updated {0} size prices", [message.changed.length]), indicator: "green" });
-		this.refresh();
+		frappe.confirm(
+			__("Set {0} for every enabled size of {1} in {2}?", [format_currency(rate, this.$root.find(".pricing-currency").text()), this.escape(template), this.escape(this.state.price_list)]),
+			async () => {
+				const { message } = await frappe.call({ method: "sales_erp.pricing.set_template_price", type: "POST", args: { template, price_list: this.state.price_list, rate }, freeze: true, freeze_message: __("Updating native Item Prices…") });
+				frappe.show_alert({ message: __("Updated {0} size prices", [message.changed.length]), indicator: "green" });
+				this.refresh();
+			}
+		);
 	}
 }

@@ -184,52 +184,51 @@ class ClothingCatalogue {
 			</div>` : "");
 	}
 
-	async create_sales_order() {
+	create_sales_order() {
 		if (!this.state.customer || !this.selection.size) return;
-		const delivery_date = await new Promise((resolve) => {
-			frappe.prompt([{
-				fieldname: "delivery_date",
-				fieldtype: "Date",
-				label: __("Delivery Date"),
-				default: frappe.datetime.now_date(),
-				reqd: 1,
-			}], ({ delivery_date: value }) => resolve(value), __("Create Draft Sales Order"), __("Create Draft"));
-		});
-		this.order_request_id ||= frappe.utils.get_random(40);
-		const items = [...this.selection.entries()].map(([item_code, row]) => ({
-			item_code,
-			qty: row.quantity,
-		}));
-		const { message } = await frappe.call({
-			method: "sales_erp.ordering.create_draft_sales_order",
-			type: "POST",
-			args: {
-				customer: this.state.customer,
-				items: JSON.stringify(items),
-				request_id: this.order_request_id,
-				delivery_date,
-			},
-			freeze: true,
-			freeze_message: __("Creating Sales Order with current ERPNext pricing…"),
-		});
-		this.selection.clear();
-		this.order_request_id = null;
-		this.$root.find(".variant-qty").val("");
-		this.render_selection();
-		frappe.show_alert({ message: __("Draft Sales Order {0} created", [message.name]), indicator: "green" });
-		const roles = new Set(frappe.user_roles || []);
-		const can_open_erpnext = frappe.session.user === "Administrator"
-			|| roles.has("System Manager")
-			|| roles.has("Clothing Business Administrator");
-		if (can_open_erpnext) {
-			frappe.set_route("Form", "Sales Order", message.name);
-		} else {
-			frappe.msgprint({
-				title: __("Draft order created"),
-				message: __("Order {0} was sent for administrator review.", [frappe.utils.escape_html(message.name)]),
-				indicator: "green",
+		frappe.prompt([{
+			fieldname: "delivery_date",
+			fieldtype: "Date",
+			label: __("Delivery Date"),
+			default: frappe.datetime.now_date(),
+			reqd: 1,
+		}], async ({ delivery_date }) => {
+			this.order_request_id ||= frappe.utils.get_random(40);
+			const items = [...this.selection.entries()].map(([item_code, row]) => ({
+				item_code,
+				qty: row.quantity,
+			}));
+			const { message } = await frappe.call({
+				method: "sales_erp.ordering.create_draft_sales_order",
+				type: "POST",
+				args: {
+					customer: this.state.customer,
+					items: JSON.stringify(items),
+					request_id: this.order_request_id,
+					delivery_date,
+				},
+				freeze: true,
+				freeze_message: __("Creating Sales Order with current ERPNext pricing…"),
 			});
-		}
+			this.selection.clear();
+			this.order_request_id = null;
+			this.$root.find(".variant-qty").val("");
+			this.render_selection();
+			frappe.show_alert({ message: __("Draft Sales Order {0} created", [message.name]), indicator: "green" });
+			const roles = new Set(frappe.user_roles || []);
+			const can_open_erpnext = frappe.session.user === "Administrator"
+				|| roles.has("System Manager")
+				|| roles.has("Clothing Business Administrator");
+			if (can_open_erpnext) {
+				frappe.set_route("Form", "Sales Order", message.name);
+			} else {
+				frappe.msgprint({
+					title: __("Draft order created"),
+					message: __("Order {0} was sent for administrator review.", [frappe.utils.escape_html(message.name)]),
+					indicator: "green",
+				});
+			}
+		}, __("Create Draft Sales Order"), __("Create Draft"));
 	}
 
 	product_card(product) {

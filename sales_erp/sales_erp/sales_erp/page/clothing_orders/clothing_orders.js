@@ -182,45 +182,39 @@ class ClothingOrders {
 		dialog.show();
 	}
 
-	async submit_order(name, dialog) {
-		const confirmed = await new Promise((resolve) => {
-			frappe.confirm(
-				__("Submit order {0}? ERPNext will apply current credit, authorization, commission and stock-reservation settings.", [this.escape(name)]),
-				() => resolve(true),
-				() => resolve(false)
-			);
-		});
-		if (!confirmed) return;
-		const { message } = await frappe.call({
-			method: "sales_erp.ordering.submit_clothing_order",
-			type: "POST",
-			args: { name },
-			freeze: true,
-			freeze_message: __("Submitting with ERPNext validations…"),
-		});
-		dialog.hide();
-		frappe.show_alert({ message: __("Order {0} submitted", [message.name]), indicator: "green" });
-		this.refresh();
+	submit_order(name, dialog) {
+		frappe.confirm(
+			__("Submit order {0}? ERPNext will apply current credit, authorization, commission and stock-reservation settings.", [this.escape(name)]),
+			async () => {
+				const { message } = await frappe.call({
+					method: "sales_erp.ordering.submit_clothing_order",
+					type: "POST",
+					args: { name },
+					freeze: true,
+					freeze_message: __("Submitting with ERPNext validations…"),
+				});
+				dialog.hide();
+				frappe.show_alert({ message: __("Order {0} submitted", [message.name]), indicator: "green" });
+				this.refresh();
+			}
+		);
 	}
 
-	async cancel_order(name, dialog) {
-		const confirmed = await new Promise((resolve) => {
-			frappe.confirm(
-				__("Cancel order {0}? ERPNext will validate linked deliveries and release reservations where allowed.", [this.escape(name)]),
-				() => resolve(true),
-				() => resolve(false)
-			);
-		});
-		if (!confirmed) return;
-		const { message } = await frappe.call({
-			method: "sales_erp.ordering.cancel_clothing_order",
-			type: "POST",
-			args: { name },
-			freeze: true,
-			freeze_message: __("Cancelling with ERPNext validations…"),
-		});
-		dialog.hide();
-		frappe.show_alert({ message: __("Order {0} cancelled", [message.name]), indicator: "orange" });
-		this.refresh();
+	cancel_order(name, dialog) {
+		frappe.confirm(
+			__("Cancel order {0}? ERPNext will validate linked deliveries and release reservations where allowed.", [this.escape(name)]),
+			async () => {
+				const { message } = await frappe.call({
+					method: "sales_erp.ordering.cancel_clothing_order",
+					type: "POST",
+					args: { name },
+					freeze: true,
+					freeze_message: __("Cancelling with ERPNext validations…"),
+				});
+				dialog.hide();
+				frappe.show_alert({ message: __("Order {0} cancelled", [message.name]), indicator: "orange" });
+				this.refresh();
+			}
+		);
 	}
 }

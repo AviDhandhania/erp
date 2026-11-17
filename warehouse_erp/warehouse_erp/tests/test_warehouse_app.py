@@ -33,6 +33,7 @@ class TestWarehouseERP(FrappeTestCase):
         super().setUp()
         from collections import defaultdict
         frappe.local.request_cache = defaultdict(dict)
+        frappe.setup_module_map()
         frappe.set_user("Administrator")
         seed_warehouse_data()
         self.operator = SEED_WAREHOUSE_OPERATOR

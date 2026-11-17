@@ -103,109 +103,112 @@ class FulfillmentTasks {
 		dialog.show();
 	}
 
-	async verify_item(task, button, dialog) {
-		const values = await new Promise((resolve) => {
-			frappe.prompt([
-				{ fieldname: "barcode", fieldtype: "Data", label: __("SKU, item barcode, Batch No, or Serial No"), reqd: 1 },
-				{ fieldname: "quantity", fieldtype: "Int", label: __("Quantity"), default: 1, reqd: 1 },
-			], resolve, __("Verify {0}", [button.dataset.itemCode]), __("Verify item"));
-		});
-		const { message } = await frappe.call({
-			method: "warehouse_erp.fulfillment.verify_pick_item",
-			type: "POST",
-			args: { pick_list: task.name, location: button.dataset.location, barcode: values.barcode, quantity: values.quantity },
-			freeze: true,
-			freeze_message: __("Verifying item with ERPNext…"),
-		});
-		dialog.hide();
-		const scanned = message.serial_no || message.batch_no || message.item_code;
-		frappe.show_alert({ message: __("{0} verified — {1}: {2} of {3} picked", [scanned, message.item_code, message.picked_qty, message.required_qty]), indicator: message.complete ? "green" : "blue" });
-		this.open_task(task.name);
+	verify_item(task, button, dialog) {
+		frappe.prompt([
+			{ fieldname: "barcode", fieldtype: "Data", label: __("SKU, item barcode, Batch No, or Serial No"), reqd: 1 },
+			{ fieldname: "quantity", fieldtype: "Int", label: __("Quantity"), default: 1, reqd: 1 },
+		], async (values) => {
+			const { message } = await frappe.call({
+				method: "warehouse_erp.fulfillment.verify_pick_item",
+				type: "POST",
+				args: { pick_list: task.name, location: button.dataset.location, barcode: values.barcode, quantity: values.quantity },
+				freeze: true,
+				freeze_message: __("Verifying item with ERPNext…"),
+			});
+			dialog.hide();
+			const scanned = message.serial_no || message.batch_no || message.item_code;
+			frappe.show_alert({ message: __("{0} verified — {1}: {2} of {3} picked", [scanned, message.item_code, message.picked_qty, message.required_qty]), indicator: message.complete ? "green" : "blue" });
+			this.open_task(task.name);
+		}, __("Verify {0}", [button.dataset.itemCode]), __("Verify item"));
 	}
 
-	async complete_pick(task, dialog) {
-		const confirmed = await new Promise((resolve) => {
-			frappe.confirm(__("Submit Pick List {0}? ERPNext will run its stock and serial/batch validations.", [task.name]), () => resolve(true), () => resolve(false));
-		});
-		if (!confirmed) return;
-		const { message } = await frappe.call({
-			method: "warehouse_erp.fulfillment.complete_pick_list",
-			type: "POST",
-			args: { pick_list: task.name },
-			freeze: true,
-			freeze_message: __("Completing Pick List with ERPNext…"),
-		});
-		dialog.hide();
-		frappe.show_alert({ message: __("{0} completed: {1}", [message.pick_list, message.status]), indicator: "green" });
-		this.refresh();
+	complete_pick(task, dialog) {
+		frappe.confirm(
+			__("Submit Pick List {0}? ERPNext will run its stock and serial/batch validations.", [task.name]),
+			async () => {
+				const { message } = await frappe.call({
+					method: "warehouse_erp.fulfillment.complete_pick_list",
+					type: "POST",
+					args: { pick_list: task.name },
+					freeze: true,
+					freeze_message: __("Completing Pick List with ERPNext…"),
+				});
+				dialog.hide();
+				frappe.show_alert({ message: __("{0} completed: {1}", [message.pick_list, message.status]), indicator: "green" });
+				this.refresh();
+			}
+		);
 	}
 
-	async resolve_shortage(task, dialog) {
-		const values = await new Promise((resolve) => {
-			frappe.prompt([{ fieldname: "reason", fieldtype: "Small Text", label: __("Shortage reason and resolution note"), reqd: 1 }], resolve, __("Resolve shortage"), __("Reallocate unpicked rows"));
-		});
-		const { message } = await frappe.call({
-			method: "warehouse_erp.fulfillment.resolve_pick_shortage",
-			type: "POST",
-			args: { pick_list: task.name, reason: values.reason },
-			freeze: true,
-			freeze_message: __("Reallocating available stock with ERPNext…"),
-		});
-		dialog.hide();
-		frappe.show_alert({
-			message: message.unallocated_qty ? __("Stock refreshed; {0} units remain unallocated.", [message.unallocated_qty]) : __("All unpicked quantities were reallocated."),
-			indicator: message.unallocated_qty ? "orange" : "green",
-		});
-		await this.refresh();
-		this.open_task(task.name);
-	}
-
-	async create_delivery_note(task, dialog) {
-		const confirmed = await new Promise((resolve) => {
-			frappe.confirm(__("Create native Delivery Note from Pick List {0}?", [task.name]), () => resolve(true), () => resolve(false));
-		});
-		if (!confirmed) return;
-		const { message } = await frappe.call({
-			method: "warehouse_erp.fulfillment.create_delivery_note_from_pick",
-			type: "POST",
-			args: { pick_list: task.name },
-			freeze: true,
-			freeze_message: __("Creating Delivery Note with ERPNext…"),
-		});
-		dialog.hide();
-		frappe.show_alert({ message: __("Delivery Note {0} created for {1}", [message.delivery_note, message.customer]), indicator: "green" });
-		this.state.task_type = "delivery";
-		this.$root.find(".fulfillment-type").val("delivery");
-		await this.refresh();
-		this.open_task(message.delivery_note);
-	}
-
-	async dispatch_delivery(task, dialog) {
-		const values = await new Promise((resolve) => {
-			frappe.prompt([
-				{ fieldname: "transporter_name", fieldtype: "Data", label: __("Transporter / Carrier"), default: task.transporter_name || "" },
-				{ fieldname: "vehicle_no", fieldtype: "Data", label: __("Vehicle Number"), default: task.vehicle_no || "" },
-				{ fieldname: "lr_no", fieldtype: "Data", label: __("LR / Tracking Number"), default: task.lr_no || "" },
-				{ fieldname: "lr_date", fieldtype: "Date", label: __("LR / Dispatch Date"), default: task.lr_date || frappe.datetime.nowdate() },
-			], resolve, __("Dispatch Delivery Note {0}", [task.name]), __("Submit & Hand Off"));
-		});
-		if (!values) return;
-		const { message } = await frappe.call({
-			method: "warehouse_erp.fulfillment.dispatch_delivery_note",
-			type: "POST",
-			args: {
-				delivery_note: task.name,
-				transporter_name: values.transporter_name,
-				vehicle_no: values.vehicle_no,
-				lr_no: values.lr_no,
-				lr_date: values.lr_date,
+	resolve_shortage(task, dialog) {
+		frappe.prompt(
+			[{ fieldname: "reason", fieldtype: "Small Text", label: __("Shortage reason and resolution note"), reqd: 1 }],
+			async (values) => {
+				const { message } = await frappe.call({
+					method: "warehouse_erp.fulfillment.resolve_pick_shortage",
+					type: "POST",
+					args: { pick_list: task.name, reason: values.reason },
+					freeze: true,
+					freeze_message: __("Reallocating available stock with ERPNext…"),
+				});
+				dialog.hide();
+				frappe.show_alert({
+					message: message.unallocated_qty ? __("Stock refreshed; {0} units remain unallocated.", [message.unallocated_qty]) : __("All unpicked quantities were reallocated."),
+					indicator: message.unallocated_qty ? "orange" : "green",
+				});
+				await this.refresh();
+				this.open_task(task.name);
 			},
-			freeze: true,
-			freeze_message: __("Dispatching delivery with ERPNext…"),
-		});
-		dialog.hide();
-		frappe.show_alert({ message: __("Delivery Note {0} dispatched ({1})", [message.delivery_note, message.status]), indicator: "green" });
-		this.refresh();
+			__("Resolve shortage"),
+			__("Reallocate unpicked rows")
+		);
+	}
+
+	create_delivery_note(task, dialog) {
+		frappe.confirm(
+			__("Create native Delivery Note from Pick List {0}?", [task.name]),
+			async () => {
+				const { message } = await frappe.call({
+					method: "warehouse_erp.fulfillment.create_delivery_note_from_pick",
+					type: "POST",
+					args: { pick_list: task.name },
+					freeze: true,
+					freeze_message: __("Creating Delivery Note with ERPNext…"),
+				});
+				dialog.hide();
+				frappe.show_alert({ message: __("Delivery Note {0} created for {1}", [message.delivery_note, message.customer]), indicator: "green" });
+				this.state.task_type = "delivery";
+				this.$root.find(".fulfillment-type").val("delivery");
+				await this.refresh();
+				this.open_task(message.delivery_note);
+			}
+		);
+	}
+
+	dispatch_delivery(task, dialog) {
+		frappe.prompt([
+			{ fieldname: "transporter_name", fieldtype: "Data", label: __("Transporter / Carrier"), default: task.transporter_name || "" },
+			{ fieldname: "vehicle_no", fieldtype: "Data", label: __("Vehicle Number"), default: task.vehicle_no || "" },
+			{ fieldname: "lr_no", fieldtype: "Data", label: __("LR / Tracking Number"), default: task.lr_no || "" },
+			{ fieldname: "lr_date", fieldtype: "Date", label: __("LR / Dispatch Date"), default: task.lr_date || frappe.datetime.nowdate() },
+		], async (values) => {
+			const { message } = await frappe.call({
+				method: "warehouse_erp.fulfillment.dispatch_delivery_note",
+				type: "POST",
+				args: {
+					delivery_note: task.name,
+					transporter_name: values.transporter_name,
+					vehicle_no: values.vehicle_no,
+					lr_no: values.lr_no,
+					lr_date: values.lr_date,
+				},
+				freeze: true,
+				freeze_message: __("Dispatching delivery with ERPNext…"),
+			});
+			dialog.hide();
+			frappe.show_alert({ message: __("Delivery Note {0} dispatched ({1})", [message.delivery_note, message.status]), indicator: "green" });
+			this.refresh();
+		}, __("Dispatch Delivery Note {0}", [task.name]), __("Submit & Hand Off"));
 	}
 
 	prompt_return_intake(delivery_note, default_item) {

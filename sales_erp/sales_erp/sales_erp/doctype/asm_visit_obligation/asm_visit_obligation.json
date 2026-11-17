@@ -1,0 +1,221 @@
+{
+ "autoname": "format:AVO-{YYYY}-{#####}",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "obligation_type",
+  "cycle_id",
+  "customer",
+  "customer_name",
+  "retailer_type",
+  "territory",
+  "assigned_asm",
+  "supervising_rsm",
+  "col_break_1",
+  "cycle_start",
+  "due_date",
+  "grace_end_date",
+  "status",
+  "escalation_state",
+  "invoice_section",
+  "invoice_no",
+  "outstanding_amount",
+  "fulfillment_section",
+  "qualifying_visit",
+  "satisfied_on",
+  "satisfied_by",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "obligation_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Obligation Type",
+   "options": "Quarterly Stock Review\nMonthly General Visit\nMonthly Sample & Order\nPayment Collection Follow-up",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "cycle_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Cycle ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Retailer",
+   "options": "Customer",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "customer.customer_name",
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Retailer Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "customer.customer_group",
+   "fieldname": "retailer_type",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Retailer Type",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "customer.territory",
+   "fieldname": "territory",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Territory",
+   "options": "Territory",
+   "read_only": 1
+  },
+  {
+   "fieldname": "assigned_asm",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Assigned Area Sales Manager",
+   "options": "User",
+   "search_index": 1
+  },
+  {
+   "fieldname": "supervising_rsm",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Supervising Regional Sales Manager",
+   "options": "User",
+   "search_index": 1
+  },
+  {
+   "fieldname": "col_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cycle_start",
+   "fieldtype": "Date",
+   "label": "Cycle Start",
+   "reqd": 1
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Due Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "grace_end_date",
+   "fieldtype": "Date",
+   "label": "Grace End Date"
+  },
+  {
+   "default": "Open",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Obligation Status",
+   "options": "Open\nSatisfied\nGrace Period\nOverdue / Escalated\nCancelled",
+   "reqd": 1
+  },
+  {
+   "default": "None",
+   "fieldname": "escalation_state",
+   "fieldtype": "Select",
+   "label": "Escalation State",
+   "options": "None\nApproaching\nGrace\nEscalated"
+  },
+  {
+   "fieldname": "invoice_section",
+   "fieldtype": "Section Break",
+   "label": "Invoice & Outstanding (for Collections)"
+  },
+  {
+   "fieldname": "invoice_no",
+   "fieldtype": "Link",
+   "label": "Sales Invoice",
+   "options": "Sales Invoice"
+  },
+  {
+   "fieldname": "outstanding_amount",
+   "fieldtype": "Currency",
+   "label": "Outstanding Amount"
+  },
+  {
+   "fieldname": "fulfillment_section",
+   "fieldtype": "Section Break",
+   "label": "Satisfaction Evidence"
+  },
+  {
+   "fieldname": "qualifying_visit",
+   "fieldtype": "Link",
+   "label": "Qualifying Retailer Visit",
+   "options": "Retailer Visit",
+   "read_only": 1
+  },
+  {
+   "fieldname": "satisfied_on",
+   "fieldtype": "Datetime",
+   "label": "Satisfied On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "satisfied_by",
+   "fieldtype": "Link",
+   "label": "Satisfied By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "module": "Sales ERP",
+ "name": "ASM Visit Obligation",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Business Administrator",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Regional Sales Manager",
+   "write": 1
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Area Sales Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "due_date",
+ "sort_order": "ASC",
+ "track_changes": 1
+}

@@ -166,6 +166,23 @@ class RetailerVisit(Document):
             frappe.throw(_("Follow-up Date cannot be in the past."))
 
     def on_update(self):
+        # Fulfill/close ASM visit obligation if this is an ASM visit
+        if self.visitor_role == "Area Sales Manager":
+            try:
+                from sales_erp.cadence import close_asm_visit_obligation
+                obligation_type = None
+                if self.visit_type == "Stock Review":
+                    obligation_type = "Quarterly Stock Review"
+                elif self.visit_type == "General Visit":
+                    obligation_type = "Monthly General Visit"
+                elif self.visit_type == "Sample & Order Taking":
+                    obligation_type = "Monthly Sample & Order"
+
+                if obligation_type:
+                    close_asm_visit_obligation(self.customer, visit_doc=self, obligation_type=obligation_type)
+            except Exception:
+                pass
+
         # Fulfill/close RSM visit obligation if this is a genuine qualifying RSM visit
         if (
             self.visitor_role == "Regional Sales Manager"

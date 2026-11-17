@@ -31,6 +31,7 @@ class TestQualityERP(FrappeTestCase):
         super().setUp()
         from collections import defaultdict
         frappe.local.request_cache = defaultdict(dict)
+        frappe.setup_module_map()
         frappe.set_user("Administrator")
         frappe.db.sql("DELETE FROM `tabSupplier Quality Inspection`")
         frappe.db.commit()
