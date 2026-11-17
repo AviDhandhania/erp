@@ -17,6 +17,10 @@ from quality_erp.seed import seed_quality_data
 class TestQualityEvidence(FrappeTestCase):
     def setUp(self):
         super().setUp()
+        frappe.setup_module_map()
+        if not hasattr(frappe.local, "module_app") or not frappe.local.module_app:
+            frappe.local.module_app = {}
+        frappe.local.module_app["quality_erp"] = "quality_erp"
         frappe.set_user("Administrator")
         seed_quality_data()
         self.supplier = "TEST Fabric & Stitch Mills"

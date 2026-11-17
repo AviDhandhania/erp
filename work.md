@@ -1622,3 +1622,62 @@ Session 12 implemented structured stage reports, versioned checklist templates w
 
 11. **Boundary Enforcement**:
     - Stopped strictly before critical gate UI / approval review screens as instructed. Session 13 will address the Production Go Ahead and Final Inspection review screens and gate approval bundles.
+
+## Session 13: Quality Gates, Corrections, Dispositions and Report Bundles — verified 2026-11-17
+
+Session 13 completed the critical gate approval architecture, exact revision locking, desk review screens, controlled PDF bundles, return dispositions, and supplier quality claims:
+
+1. **Gate Review Desk & Review Screens (Desk Page & Controller Actions)**:
+   - Built dedicated Desk review page `quality_gate_review` (`Desk Page`) with full-width responsive CSS, dynamic stage grouping, checklist counters, measurement comparison, defect cards, photo evidence gallery, and modal decision dialogues.
+   - Integrated "Gate Review Desk", "Export Report Bundle", "Decide Production Go Ahead", and "Decide Final Inspection" directly into `Production Quality Cycle` and `Supplier Quality Inspection` views.
+
+2. **Gate 4 (Production Go Ahead) Review Screen & Prerequisites**:
+   - `get_production_go_ahead_review_bundle`: Evaluates pre-production stages (Fit Sample, Refit Sample, Size Set). Validates report presence and approvals, collects open corrective actions, computes cryptographic bundle hash, and reports blocking reasons.
+   - `decide_production_go_ahead`: Restricts authority exclusively to `Clothing Business Admin` and `System Manager`.
+   - **Native Authorization Definition**: Approving Gate 4 authorizes bulk fabric cutting and production commencement under the Purchase Order. Does not post stock, purchasing, or GL ledger transactions.
+
+3. **Gate 7 (Final Inspection) Review Screen & 7-Stage Aggregation**:
+   - `get_final_inspection_review_bundle`: Evaluates full quality lifecycle across all seven stages: Stages 1-3 (pre-production), Gate 4 decision, Stage 5 (Inline Visits, including multiple visits 1, 2, ...), Stage 6 (Mid-line Visits, including multiple visits 1, 2, ...), and Stage 7 (Final Inspection AQL 2.5 Level II).
+   - Validates that Gate 4 was approved, all intermediate inline/mid-line visits are approved/passed, Stage 7 report is submitted, and zero unresolved CAPAs remain.
+   - `decide_final_inspection`: Restricts authority to authorized administrators (`Clothing Business Admin` and `System Manager`).
+   - **Native Authorization Definition**: Approving Gate 7 authorizes shipment receipt clearance for native ERPNext `Purchase Receipt` linking (`clearance_status = "Cleared for Receipt"`). Native `link_native_purchase_receipt` is strictly blocked until Gate 7 is approved. Neither gate silently creates or submits stock or GL transactions.
+
+4. **Exact Reviewed-Revision Locking & Concurrency Protection**:
+   - Serializes exact reviewed revisions into `Production Quality Cycle.go_ahead_reviewed_revisions` and `Production Quality Cycle.final_inspection_reviewed_revisions`.
+   - Locks referenced `Supplier Quality Inspection` reports (`gate_locked = 1`, `locked_gate_decision`), preventing revision or modification under `SELECT ... FOR UPDATE`.
+   - Rejects gate approval if any inspection report was revised concurrently (`is_latest = 0` or revision mismatch) or if the gate was already decided.
+
+5. **Correction Requests & Resubmission Flow**:
+   - `request_inspection_correction`: Authorized administrators or quality managers can return an inspection report for corrections with a mandatory reason (`status = "Correction Requested"`).
+   - `resubmit_inspection_correction`: Quality inspector supplies revised measurements, defect observations, and resubmission notes; automatically creates a new revision tagged `Resubmitted`.
+
+6. **Conditional Approval & Rejection Policies**:
+   - Both Gate 4 and Gate 7 enforce mandatory conditions and resolution terms for `Conditionally Approved`.
+   - Mandatory rejection notes required when rejecting a gate.
+
+7. **Controlled PDF Report Bundles & Security Audit**:
+   - `export_quality_report_bundle`: Quality Managers and Business Administrators can generate a watermarked HTML/PDF report bundle.
+   - Watermarked diagonally: `CONTROLLED QUALITY RECORD - <cycle_name>`.
+   - Cryptographic SHA-256 revision hash computed from the bundle payload.
+   - Security export audit logging (`Quality Report Bundle Exported`) recording cycle, user, timestamp, format, and bundle hash.
+
+8. **Failed-Return Dispositions & Two-Step Business Governance**:
+   - Supports four return dispositions on `Return Quarantine`: `Scrap`, `Seconds Sale`, `Supplier Claim`, and `On Hold`.
+   - **Separation of Duty**: Quality Inspector recommends disposition with inspection notes (`recommend_return_disposition`); Business Admin authorizes disposition with mandatory approval notes and target warehouse (`approve_return_disposition`).
+   - Post-refurbishment reinspection flow integration: Restocking into saleable inventory strictly requires a passing post-refurbishment inspection.
+
+9. **Supplier Quality Claims (`Supplier Quality Claim`)**:
+   - New DocType `Supplier Quality Claim` automatically generated upon Business Admin approval of a `Supplier Claim` return disposition (or created independently).
+   - Captures Supplier, Company, Item, Claim Quantity, Claim Amount, Return Quarantine link, and settlement resolution (`Debit Note` or `Replacement`).
+   - Server-side multi-company and supplier isolation hooks (`supplier_quality_claim_has_permission`, `get_supplier_quality_claim_conditions`).
+
+10. **Test Suite Verification**:
+    - Quality ERP: **59/59** tests passed (+14 comprehensive Session 13 tests in `test_quality_gates_and_dispositions.py` covering Gate 4 bundle prerequisites, exact revision locking, revision mismatch detection, conditional approval/rejection, Gate 7 bundle 7-stage aggregation, receipt clearance authorization, purchase receipt linking guard, inspection corrections and resubmission, watermarked PDF export and SHA-256 hash, return disposition recommendation and business approval, supplier claim creation and settlement, complete stage history timeline, multi-company/supplier isolation, and unauthorized user denial).
+    - Warehouse ERP: **105/105** tests passed.
+    - Sales ERP: **126/126** tests passed.
+    - Deploy & Hardening: **54/54** tests passed.
+    - Supply Chain Runner: **0** findings across secrets, SAST, dependencies, and licenses.
+    - Total Suite Tests: **344/344** clean test executions across all apps.
+
+11. **Boundary Enforcement**:
+    - Completed strictly within Session 13 scope. Stopped cleanly before Session 14 (Barcodes, QR, labels, scanner).

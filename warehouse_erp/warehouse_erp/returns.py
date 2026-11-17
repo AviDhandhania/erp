@@ -1006,3 +1006,35 @@ def get_returns_operational_dashboard(warehouse: str | None = None) -> dict:
         },
         "reason_breakdown": reason_breakdown,
     }
+
+
+@frappe.whitelist(methods=["POST"])
+def recommend_return_disposition(
+    quarantine_name: str,
+    disposition: str,
+    notes: str | None = None,
+    photo_evidence: str | None = None,
+) -> dict:
+    """Recommend return disposition (Restock, Refurbish, Seconds, Scrap, Claim, On Hold)."""
+    from quality_erp.quality import recommend_return_disposition as _rec
+    return _rec(quarantine_name=quarantine_name, disposition=disposition, notes=notes, photo_evidence=photo_evidence)
+
+
+@frappe.whitelist(methods=["POST"])
+def approve_return_disposition(
+    quarantine_name: str,
+    decision: str,
+    approval_notes: str | None = None,
+    target_warehouse: str | None = None,
+    supplier_claim_amount: float | None = None,
+) -> dict:
+    """Authorize a return disposition (Scrap, Seconds Sale, Supplier Claim, On Hold). Business Admin only."""
+    from quality_erp.quality import approve_return_disposition as _appr
+    return _appr(
+        quarantine_name=quarantine_name,
+        decision=decision,
+        approval_notes=approval_notes,
+        target_warehouse=target_warehouse,
+        supplier_claim_amount=supplier_claim_amount,
+    )
+

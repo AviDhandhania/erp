@@ -122,16 +122,25 @@ inspector, inspection time, notes and appropriate photographs with captions. Nat
 ERPNext Quality Inspection should be reused where its reference and readings fit; an
 app-owned return/refurbishment workflow may link it to the return and stock movements.
 
-Quality failure disposition is not yet specified. The implementation must not assume that
-failed goods are scrapped. Possible outcomes requiring confirmation include reject/return
-to retailer, supplier claim, repair/rework, seconds stock, scrap or administrator review.
+Quality failure disposition follows an explicit two-step business governance model:
+1. **Inspector Recommendation**: Quality staff evaluate the return defect and recommend one of four supported dispositions:
+   - `Scrap`: Irreparable garment defect; write off inventory.
+   - `Seconds Sale`: Cosmetic or minor defect; salvage through discounted/outlet channel.
+   - `Supplier Claim`: Factory manufacturing fault; initiate financial recovery from garment supplier.
+   - `On Hold`: Inconclusive defect; quarantine pending senior review or lab testing.
+2. **Business Administrator Authorization**: Only `Clothing Business Admin` or `System Manager` can approve dispositions. Approval is immutable and records decision, timestamp, approver, target warehouse (`scrap_warehouse`, `seconds_warehouse`), and notes.
+3. **Supplier Claims Integration (`Supplier Quality Claim`)**:
+   - Approving `Supplier Claim` automatically initiates a linked `Supplier Quality Claim` record (composite key `SQC-YYYY-#####`).
+   - Links original Return Quarantine or Supplier Quality Inspection, Item, Supplier, Claim Quantity, and Claim Amount.
+   - Tracks settlement resolution (`Pending Review`, `Approved by Business`, `Settled`, `Rejected`) via Debit Note (`PINV-DN-...`) or Replacement Shipment.
+   - Never silently posts accounting or ledger transactions.
 
 ### Refining/refurbishment
 
 A passed item moves to a refining/refurbishment queue. Work must record assignee,
 operations performed, consumed material/cost if required, start/completion times, notes
-and photos. Only completed refurbishment may move to saleable stock. A final post-refurbish
-verification is recommended but is not yet a confirmed mandatory stage.
+and photos.
+- **Post-Refurbishment Reinspection**: Restocking into saleable inventory strictly requires a passing post-refurbishment quality inspection. If reinspection fails or is pending, restocking movements are blocked. Only completed and verified refurbishment may move to saleable stock.
 
 ## Supplier-production quality cycle
 
@@ -174,32 +183,32 @@ follow reference-safe deletion. File type, size, privacy, malware handling and r
 must follow configured Frappe policy. A rejected or superseded report's evidence must not
 be silently deleted.
 
-### Production Go Ahead approval gate
+### Production Go Ahead approval gate (Gate 4)
 
-At the Production Go Ahead stage, the administrator must review the reports together and
-give approval. At minimum, the review bundle must show the First Submission, Second
-Submission and Size Set reports, their photographs, open corrections and the Production
-Go Ahead recommendation. Production must not advance through the Clothing ERP workflow
-until the administrator approves the gate.
+At the Production Go Ahead stage, the administrator must review the stage reports together through the dedicated **Gate Review Desk** (`desk#quality_gate_review`) and give approval:
+- **Review Screen & Prerequisites**: Aggregates prerequisites: Fit Sample (Stage 1), Refit Sample (Stage 2), and Size Set (Stage 3). Displays checklist pass/fail counts, measurements, defect summaries, corrective actions, and evidence photos.
+- **Authority**: Decided exclusively by `Clothing Business Admin` or `System Manager`.
+- **Exact Reviewed-Revision Locking**: Storing reviewed revisions (name, revision number, status, result) in `Production Quality Cycle.go_ahead_reviewed_revisions`. Locks referenced inspection reports (`gate_locked = 1`). Rejects approval if any report was revised concurrently (`is_latest = 0` or revision mismatch) or if Gate 4 was already decided.
+- **Corrections and Resubmissions**: Administrators can request corrections via `request_inspection_correction` with a mandatory reason. Quality inspectors revise and resubmit via `resubmit_inspection_correction`.
+- **Conditional Approval & Rejection**: Conditional approval strictly requires explicit conditions and resolution terms; rejection strictly requires notes.
+- **Native Authorization Definition**: Approving Gate 4 authorizes bulk fabric cutting and production commencement under the Purchase Order. Does not post stock, purchasing, or accounting transactions.
 
-The decision must record approver, date/time, decision, conditions/reason and the exact
-report revisions reviewed. Rejection or return-for-correction must not overwrite previous
-evidence.
+### Final Inspection approval gate (Gate 7)
 
-### Final Inspection approval gate
+At Final Inspection, the administrator reviews the comprehensive 7-stage quality lifecycle through the **Gate Review Desk**:
+- **7-Stage Timeline & Repeated Visits**: Aggregates all seven stages: Stages 1-3 (pre-production), Gate 4 decision, Stage 5 (Inline Visits, supporting repeated visits 1, 2, ...), Stage 6 (Mid-line Visits, supporting repeated visits 1, 2, ...), and Stage 7 (Final Inspection AQL 2.5 Level II sampling).
+- **Prerequisite Validation**: Enforces that Gate 4 was approved, all intermediate inline/mid-line visits are approved/passed, Stage 7 report is submitted, and zero unresolved corrective actions remain.
+- **Exact Reviewed-Revision Locking**: Stores exact reviewed revisions in `Production Quality Cycle.final_inspection_reviewed_revisions` and locks all active inspection reports.
+- **Cryptographic Bundle Hash**: Computes SHA-256 hash of the entire review payload and validates integrity at decision time.
+- **Native Authorization Definition**: Approving Gate 7 authorizes shipment receipt clearance for native ERPNext `Purchase Receipt` linking (`clearance_status = "Cleared for Receipt"`). Native Purchase Receipt linking is strictly blocked until Gate 7 is approved. Neither gate silently creates or submits stock or GL ledger transactions.
 
-At Final Inspection, the administrator must again review all reports together and approve
-or reject the final gate. The review bundle should include the full history from fit sample
-through Inline and Mid-line visits to Final Inspection, all photos, corrections and both
-gate decisions. Final approval must reference exact report revisions.
+### Controlled PDF report bundle
 
-Whether final approval authorizes Purchase Receipt, shipment from supplier, billing or
-another event is not yet confirmed. No stock or payable transaction should be submitted
-merely because a custom quality status changed.
-
-“Inline visits” and “mid-line visits” are plural in the requirement. The design must
-confirm whether each stage permits multiple reports/visits and what minimum count or
-completion rule applies.
+Quality Managers and Business Administrators can export a tamper-evident, controlled quality report bundle (`export_quality_report_bundle`):
+- Features diagonal security watermark: `CONTROLLED QUALITY RECORD - <cycle_name>`.
+- Displays cryptographic SHA-256 revision hash and verification notice.
+- Generates rendered PDF (via WeasyPrint) with comprehensive stage details, measurement tolerances, defect classifications, and photo evidence.
+- Emits immutable security audit log event (`Quality Report Bundle Exported`) recording cycle, user, timestamp, format, and bundle hash.
 
 ## Recommended warehouse quality-of-life features
 

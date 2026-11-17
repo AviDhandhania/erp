@@ -69,8 +69,8 @@ class SupplierQualityInspection(Document):
             self.resolved_date = now_datetime()
 
         # Status and Result synchronization
-        if self.status == "Approved" and self.result in ("Pending Review", "Failed"):
-            self.result = "Passed"
+        if self.status in ("Approved", "Conditionally Approved") and self.result in ("Pending Review", "Failed"):
+            self.result = "Passed" if self.status == "Approved" else "Conditionally Passed"
         elif self.status == "Rejected" and self.result in ("Pending Review", "Passed"):
             self.result = "Failed"
 
@@ -80,8 +80,16 @@ class SupplierQualityInspection(Document):
             ) or 1
 
     def validate(self):
-        # Enforce server-side security gate check if status is set to Approved
-        if self.status == "Approved" and self.has_value_changed("status"):
+        if self.gate_locked and not self.is_new() and self.has_value_changed("status"):
+            frappe.throw(
+                _("Inspection {0} is locked to gate decision '{1}' and its status cannot be modified.").format(
+                    self.name, self.locked_gate_decision or "Approved Gate"
+                ),
+                frappe.ValidationError,
+            )
+
+        # Enforce server-side security gate check if status is set to Approved or Conditionally Approved
+        if self.status in ("Approved", "Conditionally Approved") and self.has_value_changed("status"):
             assert_can_approve_quality_gate(self.stage)
 
         # Validate linked Production Quality Cycle if specified

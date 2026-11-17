@@ -232,6 +232,14 @@ def link_native_purchase_receipt(cycle_name: str, purchase_receipt: str) -> dict
     if not frappe.db.exists("Purchase Receipt", purchase_receipt):
         frappe.throw(_("Purchase Receipt {0} does not exist.").format(purchase_receipt), frappe.DoesNotExistError)
 
+    if cycle.final_inspection_status not in ("Approved", "Conditionally Approved"):
+        frappe.throw(
+            _(
+                "Cannot link Purchase Receipt {0}: Final Inspection has not been approved for Production Quality Cycle {1} (current gate status: '{2}')."
+            ).format(purchase_receipt, cycle.name, cycle.final_inspection_status),
+            frappe.ValidationError,
+        )
+
     pr = frappe.get_doc("Purchase Receipt", purchase_receipt)
     if pr.company != cycle.company:
         frappe.throw(

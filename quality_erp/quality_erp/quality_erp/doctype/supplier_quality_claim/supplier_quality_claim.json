@@ -1,0 +1,299 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-11-17 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "claim_key",
+  "supplier",
+  "company",
+  "item_code",
+  "claim_type",
+  "status",
+  "column_break_1",
+  "purchase_order",
+  "purchase_receipt",
+  "production_quality_cycle",
+  "return_quarantine",
+  "supplier_quality_inspection",
+  "section_break_financials",
+  "claim_quantity",
+  "claim_amount",
+  "column_break_financials",
+  "settlement_type",
+  "settled_amount",
+  "debit_note",
+  "section_break_details",
+  "defect_code",
+  "defect_description",
+  "section_break_approval",
+  "approved_by",
+  "approval_date",
+  "approval_notes",
+  "section_break_evidence",
+  "evidence_photos",
+  "resolution_notes"
+ ],
+ "fields": [
+  {
+   "default": "SQC-.YYYY.-.#####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "no_copy": 1,
+   "options": "SQC-.YYYY.-.#####",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "claim_key",
+   "fieldtype": "Data",
+   "in_list_view": 0,
+   "label": "Claim Key",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "supplier",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Supplier",
+   "options": "Supplier",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "default": "Manufacturing Defect",
+   "fieldname": "claim_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Claim Type",
+   "options": "Manufacturing Defect\nExcess Defect Rate (AQL Breach)\nCustomer Return (Factory Fault)\nFabric / Trim Defect\nTransit Damage (Supplier Packed)\nOther Quality Issue",
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nPending Business Approval\nApproved by Business\nSubmitted to Supplier\nSettled\nRejected\nCancelled"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "purchase_order",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Purchase Order",
+   "options": "Purchase Order"
+  },
+  {
+   "fieldname": "purchase_receipt",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Purchase Receipt",
+   "options": "Purchase Receipt"
+  },
+  {
+   "fieldname": "production_quality_cycle",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Production Quality Cycle",
+   "options": "Production Quality Cycle"
+  },
+  {
+   "fieldname": "return_quarantine",
+   "fieldtype": "Link",
+   "label": "Return Quarantine",
+   "options": "Return Quarantine"
+  },
+  {
+   "fieldname": "supplier_quality_inspection",
+   "fieldtype": "Link",
+   "label": "Supplier Quality Inspection",
+   "options": "Supplier Quality Inspection"
+  },
+  {
+   "fieldname": "section_break_financials",
+   "fieldtype": "Section Break",
+   "label": "Claim Financials & Quantities"
+  },
+  {
+   "default": "0",
+   "fieldname": "claim_quantity",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Claim Quantity",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "claim_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Claim Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_financials",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Debit Note",
+   "fieldname": "settlement_type",
+   "fieldtype": "Select",
+   "label": "Settlement Type",
+   "options": "Debit Note\nFree Replacement\nCredit Note\nDirect Refund\nDisputed\nUnresolved"
+  },
+  {
+   "default": "0",
+   "fieldname": "settled_amount",
+   "fieldtype": "Currency",
+   "label": "Settled Amount"
+  },
+  {
+   "fieldname": "debit_note",
+   "fieldtype": "Data",
+   "label": "Debit Note / Credit Reference"
+  },
+  {
+   "fieldname": "section_break_details",
+   "fieldtype": "Section Break",
+   "label": "Defect & Claim Details"
+  },
+  {
+   "fieldname": "defect_code",
+   "fieldtype": "Data",
+   "label": "Defect Code"
+  },
+  {
+   "fieldname": "defect_description",
+   "fieldtype": "Small Text",
+   "label": "Defect Description"
+  },
+  {
+   "fieldname": "section_break_approval",
+   "fieldtype": "Section Break",
+   "label": "Business Authorization"
+  },
+  {
+   "fieldname": "approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_date",
+   "fieldtype": "Datetime",
+   "label": "Approval Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "approval_notes",
+   "fieldtype": "Text",
+   "label": "Approval / Decision Notes"
+  },
+  {
+   "fieldname": "section_break_evidence",
+   "fieldtype": "Section Break",
+   "label": "Claim Evidence"
+  },
+  {
+   "fieldname": "evidence_photos",
+   "fieldtype": "Table",
+   "label": "Evidence Photographs",
+   "options": "Quality Inspection Evidence"
+  },
+  {
+   "fieldname": "resolution_notes",
+   "fieldtype": "Text",
+   "label": "Resolution Notes"
+  }
+ ],
+ "links": [],
+ "modified": "2026-11-17 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Quality ERP",
+ "name": "Supplier Quality Claim",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Quality Inspector",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Quality Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Business Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

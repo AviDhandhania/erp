@@ -123,17 +123,22 @@ class ProductionQualityCycle(Document):
 
         # Enforce server-side security gate checks
         user = get_current_user()
-        if self.has_value_changed("go_ahead_status") and self.go_ahead_status == "Approved":
+        if self.has_value_changed("go_ahead_status") and self.go_ahead_status in ("Approved", "Conditionally Approved"):
             assert_can_approve_quality_gate("Production Go Ahead", user)
             if not self.go_ahead_approved_by:
                 self.go_ahead_approved_by = user
                 self.go_ahead_date = now_datetime()
 
-        if self.has_value_changed("final_inspection_status") and self.final_inspection_status == "Approved":
+        if self.has_value_changed("final_inspection_status") and self.final_inspection_status in ("Approved", "Conditionally Approved"):
             assert_can_approve_quality_gate("Final Inspection", user)
             if not self.final_inspection_approved_by:
                 self.final_inspection_approved_by = user
                 self.final_inspection_date = now_datetime()
+            self.purchase_receipt_cleared = 1
+            self.clearance_status = "Cleared for Receipt"
+        elif self.final_inspection_status == "Rejected":
+            self.purchase_receipt_cleared = 0
+            self.clearance_status = "Receipt Blocked"
 
     def update_stage_progress(self):
         """Update cycle statistics and stage progress from linked inspection records."""
@@ -153,7 +158,9 @@ class ProductionQualityCycle(Document):
 
         self.total_inspections_count = len(inspections)
         approved_stages = {
-            i.stage for i in inspections if (i.status == "Approved" or i.get("result") == "Passed")
+            i.stage
+            for i in inspections
+            if (i.status in ("Approved", "Conditionally Approved") or i.get("result") in ("Passed", "Conditionally Passed"))
         }
         self.total_stages_passed = len(approved_stages)
 

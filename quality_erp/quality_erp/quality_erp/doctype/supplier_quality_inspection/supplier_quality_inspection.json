@@ -28,6 +28,8 @@
   "supersedes",
   "superseded_by",
   "is_latest",
+  "gate_locked",
+  "locked_gate_decision",
   "section_break_sampling",
   "sampling_plan",
   "lot_size",
@@ -60,6 +62,12 @@
   "corrective_action_status",
   "resolved_date",
   "resolution_notes",
+  "correction_requested_by",
+  "correction_requested_on",
+  "correction_request_reason",
+  "resubmitted_by",
+  "resubmitted_on",
+  "resubmission_notes",
   "section_break_approval",
   "approved_by",
   "approval_date",
@@ -168,7 +176,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Draft\nPending Review\nApproved\nRejected"
+   "options": "Draft\nPending Review\nApproved\nConditionally Approved\nCorrection Requested\nResubmitted\nRejected"
   },
   {
    "default": "Pending Review",
@@ -222,6 +230,19 @@
    "fieldname": "is_latest",
    "fieldtype": "Check",
    "label": "Is Latest Revision"
+  },
+  {
+   "default": "0",
+   "fieldname": "gate_locked",
+   "fieldtype": "Check",
+   "label": "Locked to Gate Approval",
+   "read_only": 1
+  },
+  {
+   "fieldname": "locked_gate_decision",
+   "fieldtype": "Data",
+   "label": "Locked Gate Decision",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_sampling",
@@ -403,6 +424,42 @@
    "fieldname": "resolution_notes",
    "fieldtype": "Text",
    "label": "Resolution Notes"
+  },
+  {
+   "fieldname": "correction_requested_by",
+   "fieldtype": "Link",
+   "label": "Correction Requested By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "correction_requested_on",
+   "fieldtype": "Datetime",
+   "label": "Correction Requested On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "correction_request_reason",
+   "fieldtype": "Small Text",
+   "label": "Correction Request Reason"
+  },
+  {
+   "fieldname": "resubmitted_by",
+   "fieldtype": "Link",
+   "label": "Resubmitted By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "resubmitted_on",
+   "fieldtype": "Datetime",
+   "label": "Resubmitted On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "resubmission_notes",
+   "fieldtype": "Small Text",
+   "label": "Resubmission Notes"
   },
   {
    "fieldname": "section_break_approval",

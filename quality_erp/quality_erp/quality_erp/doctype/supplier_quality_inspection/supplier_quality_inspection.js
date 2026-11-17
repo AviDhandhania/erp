@@ -10,7 +10,17 @@ frappe.ui.form.on("Supplier Quality Inspection", {
 		const is_critical = frm.doc.stage && (frm.doc.stage.includes("Production Go Ahead") || frm.doc.stage.includes("Final Inspection"));
 
 		// 1. Dashboard Status Alerts
-		if (frm.doc.status === "Approved") {
+		if (frm.doc.gate_locked) {
+			frm.dashboard.set_headline_alert(
+				__("<b>Locked to Approved Gate:</b> {0}. Report is immutable.", [frm.doc.locked_gate_decision || "Approved Gate"]),
+				"green"
+			);
+		} else if (frm.doc.status === "Correction Requested") {
+			frm.dashboard.set_headline_alert(
+				__("<b>Correction Requested</b> by {0}: {1}", [frm.doc.correction_requested_by || "Manager", frm.doc.correction_request_reason || ""]),
+				"orange"
+			);
+		} else if (frm.doc.status === "Approved") {
 			frm.dashboard.set_headline_alert(
 				__("<b>Quality Gate Approved</b> by {0} on {1}.", [frm.doc.approved_by || "Admin", frm.doc.approval_date || ""]),
 				"green"
@@ -35,7 +45,7 @@ frappe.ui.form.on("Supplier Quality Inspection", {
 		}
 
 		// 2. Action Buttons for Pending Review
-		if (frm.doc.status === "Pending Review" && is_inspector) {
+		if (frm.doc.status === "Pending Review" && is_inspector && !frm.doc.gate_locked) {
 			frm.add_custom_button(__("Approve Gate"), () => {
 				if (is_critical && !is_admin) {
 					frappe.msgprint({
@@ -71,6 +81,45 @@ frappe.ui.form.on("Supplier Quality Inspection", {
 				);
 			}, __("Actions")).addClass("btn-primary");
 
+			frm.add_custom_button(__("Request Correction"), () => {
+				frappe.prompt(
+					[
+						{
+							fieldname: "reason",
+							fieldtype: "Small Text",
+							label: __("Correction Reason"),
+							reqd: 1,
+						},
+						{
+							fieldname: "required_actions",
+							fieldtype: "Small Text",
+							label: __("Required Corrective Actions"),
+						},
+						{
+							fieldname: "due_date",
+							fieldtype: "Date",
+							label: __("Target Due Date"),
+						}
+					],
+					async ({ reason, required_actions, due_date }) => {
+						await frappe.call({
+							method: "quality_erp.quality.request_inspection_correction",
+							type: "POST",
+							args: {
+								inspection_name: frm.doc.name,
+								reason: reason,
+								required_actions: required_actions || "",
+								due_date: due_date || null,
+							},
+							freeze: true,
+						});
+						await frm.reload_doc();
+					},
+					__("Request Inspection Correction"),
+					__("Request Correction")
+				);
+			}, __("Actions")).addClass("btn-warning");
+
 			frm.add_custom_button(__("Reject Gate"), () => {
 				frappe.prompt(
 					[
@@ -97,6 +146,35 @@ frappe.ui.form.on("Supplier Quality Inspection", {
 					__("Reject")
 				);
 			}, __("Actions")).addClass("btn-danger");
+		}
+
+		if (frm.doc.status === "Correction Requested" && !frm.doc.gate_locked) {
+			frm.add_custom_button(__("Resubmit Inspection"), () => {
+				frappe.prompt(
+					[
+						{
+							fieldname: "notes",
+							fieldtype: "Small Text",
+							label: __("Resubmission Notes"),
+							reqd: 1,
+						}
+					],
+					async ({ notes }) => {
+						await frappe.call({
+							method: "quality_erp.quality.resubmit_inspection_correction",
+							type: "POST",
+							args: {
+								inspection_name: frm.doc.name,
+								notes: notes,
+							},
+							freeze: true,
+						});
+						await frm.reload_doc();
+					},
+					__("Resubmit Corrected Inspection"),
+					__("Resubmit")
+				);
+			}, __("Actions")).addClass("btn-success");
 		}
 	}
 });

@@ -56,6 +56,10 @@ class TestProductionQualityCycle(FrappeTestCase):
 
     def setUp(self):
         super().setUp()
+        frappe.setup_module_map()
+        if not hasattr(frappe.local, "module_app") or not frappe.local.module_app:
+            frappe.local.module_app = {}
+        frappe.local.module_app["quality_erp"] = "quality_erp"
         frappe.set_user("Administrator")
 
     # =========================================================================
@@ -183,6 +187,7 @@ class TestProductionQualityCycle(FrappeTestCase):
             name="PQC-2026-00001",
             company="Test Garments Ltd",
             supplier="Apex Textiles",
+            final_inspection_status="Approved",
             purchase_receipt=None,
             flags=frappe._dict(),
             save=MagicMock(),
@@ -219,6 +224,7 @@ class TestProductionQualityCycle(FrappeTestCase):
             name="PQC-2026-00001",
             company="Test Garments Ltd",
             supplier="Apex Textiles",
+            final_inspection_status="Approved",
         )
         fake_pr = frappe._dict(
             name="MAT-PR-2026-WRONG",

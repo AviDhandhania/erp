@@ -26,11 +26,15 @@
   "go_ahead_approved_by",
   "go_ahead_date",
   "go_ahead_conditions",
+  "go_ahead_reviewed_revisions",
   "column_break_gates",
   "final_inspection_status",
   "final_inspection_approved_by",
   "final_inspection_date",
   "final_inspection_notes",
+  "final_inspection_reviewed_revisions",
+  "purchase_receipt_cleared",
+  "clearance_status",
   "section_break_variants",
   "items",
   "section_break_audit",
@@ -166,7 +170,7 @@
    "fieldname": "go_ahead_status",
    "fieldtype": "Select",
    "label": "Production Go Ahead Status",
-   "options": "Pending\nApproved\nRejected"
+   "options": "Pending\nApproved\nConditionally Approved\nRejected"
   },
   {
    "fieldname": "go_ahead_approved_by",
@@ -187,6 +191,12 @@
    "label": "Go Ahead Conditions / Notes"
   },
   {
+   "fieldname": "go_ahead_reviewed_revisions",
+   "fieldtype": "Code",
+   "label": "Go Ahead Reviewed Revisions",
+   "read_only": 1
+  },
+  {
    "fieldname": "column_break_gates",
    "fieldtype": "Column Break"
   },
@@ -195,7 +205,7 @@
    "fieldname": "final_inspection_status",
    "fieldtype": "Select",
    "label": "Final Inspection Status",
-   "options": "Pending\nApproved\nRejected"
+   "options": "Pending\nApproved\nConditionally Approved\nRejected"
   },
   {
    "fieldname": "final_inspection_approved_by",
@@ -214,6 +224,27 @@
    "fieldname": "final_inspection_notes",
    "fieldtype": "Small Text",
    "label": "Final Inspection Notes"
+  },
+  {
+   "fieldname": "final_inspection_reviewed_revisions",
+   "fieldtype": "Code",
+   "label": "Final Inspection Reviewed Revisions",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "purchase_receipt_cleared",
+   "fieldtype": "Check",
+   "label": "Purchase Receipt Cleared",
+   "read_only": 1
+  },
+  {
+   "default": "Pending Clearance",
+   "fieldname": "clearance_status",
+   "fieldtype": "Select",
+   "label": "Receipt Clearance Status",
+   "options": "Pending Clearance\nCleared for Receipt\nReceipt Blocked\nNot Applicable",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_variants",

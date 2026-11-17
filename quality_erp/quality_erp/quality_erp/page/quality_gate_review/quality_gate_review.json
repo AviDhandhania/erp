@@ -1,0 +1,20 @@
+{
+ "content": null,
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "module": "Quality ERP",
+ "name": "quality-gate-review",
+ "owner": "Administrator",
+ "page_name": "quality-gate-review",
+ "roles": [
+  {"role": "Clothing Quality Inspector"},
+  {"role": "Clothing Quality Manager"},
+  {"role": "Clothing Business Administrator"},
+  {"role": "System Manager"}
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "title": "Quality Gate Review Desk"
+}

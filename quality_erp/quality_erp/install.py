@@ -94,6 +94,11 @@ def after_install():
                 name,
                 ["read", "write", "create", "delete", "export", "report"],
             )
+            _ensure_custom_docperm(
+                "Supplier Quality Claim",
+                name,
+                ["read", "write", "create", "delete", "export", "report"],
+            )
         elif name == ROLE_QUALITY_MANAGER:
             _ensure_custom_docperm(
                 "Supplier Quality Inspection",
@@ -115,6 +120,11 @@ def after_install():
                 name,
                 ["read", "write", "create", "report"],
             )
+            _ensure_custom_docperm(
+                "Supplier Quality Claim",
+                name,
+                ["read", "write", "create", "export", "report"],
+            )
         else:
             _ensure_custom_docperm(
                 "Supplier Quality Inspection",
@@ -135,6 +145,11 @@ def after_install():
                 "Quality Checklist Template",
                 name,
                 ["read", "report"],
+            )
+            _ensure_custom_docperm(
+                "Supplier Quality Claim",
+                name,
+                ["read", "write", "create", "report"],
             )
 
     ensure_quality_erp_sidebar()

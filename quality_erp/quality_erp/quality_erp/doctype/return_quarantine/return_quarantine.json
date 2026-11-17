@@ -38,6 +38,19 @@
   "post_inspected_by",
   "post_inspected_on",
   "post_inspection_notes",
+  "section_break_disposition",
+  "disposition",
+  "disposition_status",
+  "disposition_recommended_by",
+  "disposition_recommended_on",
+  "disposition_notes",
+  "column_break_disposition",
+  "disposition_approved_by",
+  "disposition_approved_on",
+  "disposition_approval_notes",
+  "supplier_claim",
+  "seconds_warehouse",
+  "scrap_warehouse",
   "section_break_stock",
   "stock_entry",
   "restock_entry"
@@ -130,7 +143,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Inspection Status",
-   "options": "Quarantined\nInspected - Passed Refurbishment\nInspected - Scrapped\nIn Refurbishment\nAwaiting Reinspection\nRestocked"
+   "options": "Quarantined\nInspected - Passed Refurbishment\nInspected - Scrapped\nInspected - Seconds Sale\nIn Refurbishment\nAwaiting Reinspection\nRestocked\nOn Hold\nDisposed - Supplier Claim"
   },
   {
    "fieldname": "section_break_inspection",
@@ -238,6 +251,86 @@
    "fieldname": "post_inspection_notes",
    "fieldtype": "Text",
    "label": "Re-inspection Notes"
+  },
+  {
+   "fieldname": "section_break_disposition",
+   "fieldtype": "Section Break",
+   "label": "Final Return Dispositions & Claims"
+  },
+  {
+   "default": "Pending Review",
+   "fieldname": "disposition",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Disposition",
+   "options": "Pending Review\nRestock (A-Grade)\nRefurbish\nSeconds Sale (B-Grade)\nScrap\nSupplier Claim\nOn Hold"
+  },
+  {
+   "default": "Pending Recommendation",
+   "fieldname": "disposition_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Disposition Status",
+   "options": "Pending Recommendation\nAwaiting Business Approval\nApproved by Business\nRejected\nCompleted"
+  },
+  {
+   "fieldname": "disposition_recommended_by",
+   "fieldtype": "Link",
+   "label": "Recommended By",
+   "options": "User"
+  },
+  {
+   "fieldname": "disposition_recommended_on",
+   "fieldtype": "Datetime",
+   "label": "Recommended On"
+  },
+  {
+   "fieldname": "disposition_notes",
+   "fieldtype": "Small Text",
+   "label": "Disposition Recommendation Notes"
+  },
+  {
+   "fieldname": "column_break_disposition",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "disposition_approved_by",
+   "fieldtype": "Link",
+   "label": "Approved By (Business Admin)",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "disposition_approved_on",
+   "fieldtype": "Datetime",
+   "label": "Approved On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "disposition_approval_notes",
+   "fieldtype": "Small Text",
+   "label": "Business Approval Notes"
+  },
+  {
+   "fieldname": "supplier_claim",
+   "fieldtype": "Link",
+   "label": "Linked Supplier Claim",
+   "options": "Supplier Quality Claim",
+   "read_only": 1
+  },
+  {
+   "fieldname": "seconds_warehouse",
+   "fieldtype": "Link",
+   "label": "Seconds Sale Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "scrap_warehouse",
+   "fieldtype": "Link",
+   "label": "Scrap Write-Off Warehouse",
+   "options": "Warehouse"
   },
   {
    "fieldname": "section_break_stock",
