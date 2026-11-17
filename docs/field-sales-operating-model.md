@@ -122,8 +122,9 @@ must receive a notice identifying the overdue RSM and shop.
 
 The eventual scheduler must be idempotent, timezone-aware and safe across retries. It must
 not emit duplicate tasks or notifications for the same retailer/cycle. A successful visit
-must close the corresponding obligation and establish the next due cycle. The exact
-advance-warning day or days are not yet specified.
+must close the corresponding obligation and establish the next due cycle. Advance warning is
+configured at day 70 (10 days prior to the 80-day target), followed by 5 grace days (days 81–85)
+and administrator escalation after day 85.
 
 ### RSM visit report
 

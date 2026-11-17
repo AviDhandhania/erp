@@ -29,7 +29,7 @@ Confirmed requirements now governing the next stages:
   on ERPNext outstanding data in the stated 90–120 days from Delivery Date.
 - [x] Route ASM-created retailer applications to that ASM's RSM. Support request-for-more-
   information, RSM completion of further details, RSM decision and initial limit setting.
-- [ ] Require an RSM visit to every in-scope shop within 80 days, notify the RSM as the
+- [x] Require an RSM visit to every in-scope shop within 80 days, notify the RSM as the
   deadline approaches, allow five grace days and notify administrators after day 85.
 - [x] Capture RSM dealer review, financial situation, customer footfall and credit/exposure
   review on every RSM visit; route the RSM report to an administrator for review.
@@ -517,9 +517,9 @@ Previously published v0.3.0 release evidence (before the India Compliance work):
 - Isolated native MariaDB schema/data/config/attachment recovery and queue RDB integrity checks passed.
 
 Current unreleased validation evidence:
-- All 150 app/site tests pass in clothing_erp, 13 tests in sales_erp, 7 tests in warehouse_erp,
-  and 8 tests in quality_erp on the real local site. Deploy tests passed 29 checks.
-- Retailer Visit supervisory review chain implemented and tested with strict territory and supervision validation.
+- All 152 app/site tests pass in clothing_erp, 15 tests in sales_erp, 7 tests in warehouse_erp,
+  and 8 tests in quality_erp on the real local site. Deploy tests passed 36 checks.
+- Retailer Visit supervisory review chain and 80-day RSM visit cadence/escalation tracking implemented and tested with strict territory and supervision validation.
 - The next stable release must pass the fresh two-stage native compatibility gate
   before its installer is published; v0.3.0 does not retroactively contain this work.
 - Physical Proxmox guest creation, real systemd cutover, reboot and end-to-end guest rollback remain a deployment trial, not a completed claim.

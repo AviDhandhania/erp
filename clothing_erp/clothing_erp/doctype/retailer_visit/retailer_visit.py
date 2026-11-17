@@ -69,6 +69,15 @@ class RetailerVisit(Document):
         if self.follow_up_date and getdate(self.follow_up_date) < getdate(nowdate()):
             frappe.throw(frappe._("Follow-up Date cannot be in the past."))
 
+    def on_update(self):
+        # Fulfill/close RSM visit obligation if this is a qualifying RSM visit
+        if self.visitor_role == "Regional Sales Manager" or self.visit_type == "RSM Periodic Review":
+            try:
+                from clothing_erp.cadence import close_rsm_visit_obligation
+                close_rsm_visit_obligation(self.customer, self.salesperson or self.rsm)
+            except Exception:
+                pass
+
 
 @frappe.whitelist(methods=["POST"])
 def review_visit(name, status, notes=None):

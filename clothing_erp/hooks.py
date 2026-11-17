@@ -57,6 +57,7 @@ doc_events = {
 }
 
 scheduler_events = {
+	"daily": ["clothing_erp.cadence.evaluate_rsm_visit_cadence"],
 	"daily_long": ["clothing_erp.gallery.cleanup_orphan_gallery_files"],
 }
 
