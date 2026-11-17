@@ -97,6 +97,7 @@ def after_install():
             )
 
     ensure_quality_erp_sidebar()
+    _ensure_custom_docperm("Return Quarantine", "Clothing Warehouse Manager", ["read", "write", "create", "report"])
     frappe.clear_cache()
 
 

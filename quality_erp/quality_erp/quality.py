@@ -276,9 +276,19 @@ def get_quality_review_bundle(supplier, item_code, purchase_order=None, gate="Pr
 
 
 @frappe.whitelist(methods=["POST"])
-def record_return_quarantine(retailer, delivery_note, item_code, quantity, return_reason, photo_evidence=None):
+def record_return_quarantine(
+    retailer,
+    delivery_note,
+    item_code,
+    quantity,
+    return_reason,
+    quarantine_warehouse=None,
+    return_delivery_note=None,
+    photo_evidence=None,
+    notes=None,
+):
     """Record an item intake into the quarantine warehouse for quality inspection."""
-    require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
+    require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN, "Clothing Warehouse Manager"})
     user = get_current_user()
 
     doc = frappe.get_doc(
@@ -286,13 +296,64 @@ def record_return_quarantine(retailer, delivery_note, item_code, quantity, retur
             "doctype": "Return Quarantine",
             "retailer": retailer,
             "delivery_note": delivery_note,
+            "return_delivery_note": return_delivery_note,
             "item_code": item_code,
             "quantity": float(quantity),
+            "quarantine_warehouse": quarantine_warehouse,
             "return_reason": return_reason,
             "inspection_status": "Quarantined",
             "photo_evidence": photo_evidence,
             "inspected_by": user,
             "inspected_on": now_datetime(),
+            "inspection_notes": notes,
         }
     ).insert()
+    return doc.as_dict()
+
+
+@frappe.whitelist(methods=["POST"])
+def inspect_return_quarantine(quarantine_name, decision, notes=None, photo_evidence=None):
+    """Quality department inspection decision on returned quarantined garments."""
+    require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
+    user = get_current_user()
+
+    valid_decisions = {
+        "Passed Refurbishment": "Inspected - Passed Refurbishment",
+        "Scrapped": "Inspected - Scrapped",
+    }
+    decision = str(decision or "").strip()
+    if decision not in valid_decisions:
+        frappe.throw(
+            _("Invalid inspection decision. Must be one of: {0}").format(", ".join(valid_decisions.keys())),
+            frappe.ValidationError,
+        )
+
+    quarantine_name = str(quarantine_name or "").strip()
+    rows = frappe.db.sql(
+        "SELECT name, inspection_status FROM `tabReturn Quarantine` WHERE name = %s FOR UPDATE",
+        (quarantine_name,),
+        as_dict=True,
+    )
+    if not rows:
+        frappe.throw(_("Return Quarantine {0} not found.").format(quarantine_name), frappe.DoesNotExistError)
+
+    curr = rows[0]
+    if curr.inspection_status != "Quarantined":
+        frappe.throw(
+            _("Return Quarantine {0} has already been inspected (current status: {1}).").format(
+                quarantine_name, curr.inspection_status
+            ),
+            frappe.ValidationError,
+        )
+
+    doc = frappe.get_doc("Return Quarantine", quarantine_name)
+    doc.check_permission("write")
+    doc.inspection_status = valid_decisions[decision]
+    doc.inspected_by = user
+    doc.inspected_on = now_datetime()
+    if notes:
+        doc.inspection_notes = (doc.inspection_notes or "") + f"\nInspection ({user}): {notes.strip()}"
+    if photo_evidence:
+        doc.photo_evidence = photo_evidence
+    doc.save()
     return doc.as_dict()

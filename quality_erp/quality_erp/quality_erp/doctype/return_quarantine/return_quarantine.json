@@ -9,17 +9,23 @@
   "naming_series",
   "retailer",
   "delivery_note",
+  "return_delivery_note",
   "item_code",
   "quantity",
   "column_break_1",
   "quarantine_warehouse",
+  "refurbishment_warehouse",
+  "target_warehouse",
   "return_reason",
   "inspection_status",
   "section_break_inspection",
   "inspected_by",
   "inspected_on",
   "photo_evidence",
-  "inspection_notes"
+  "inspection_notes",
+  "section_break_stock",
+  "stock_entry",
+  "restock_entry"
  ],
  "fields": [
   {
@@ -46,6 +52,13 @@
    "fieldtype": "Link",
    "label": "Original Delivery Note",
    "options": "Delivery Note"
+  },
+  {
+   "fieldname": "return_delivery_note",
+   "fieldtype": "Link",
+   "label": "Return Delivery Note",
+   "options": "Delivery Note",
+   "read_only": 1
   },
   {
    "fieldname": "item_code",
@@ -75,6 +88,18 @@
    "options": "Warehouse"
   },
   {
+   "fieldname": "refurbishment_warehouse",
+   "fieldtype": "Link",
+   "label": "Refurbishment Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "target_warehouse",
+   "fieldtype": "Link",
+   "label": "Restock Saleable Warehouse",
+   "options": "Warehouse"
+  },
+  {
    "fieldname": "return_reason",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -90,7 +115,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Inspection Status",
-   "options": "Quarantined\nInspected - Passed Refurbishment\nInspected - Scrapped\nRestocked"
+   "options": "Quarantined\nInspected - Passed Refurbishment\nInspected - Scrapped\nIn Refurbishment\nRestocked"
   },
   {
    "fieldname": "section_break_inspection",
@@ -117,6 +142,25 @@
    "fieldname": "inspection_notes",
    "fieldtype": "Text",
    "label": "Inspection Notes & Refurbishment Action"
+  },
+  {
+   "fieldname": "section_break_stock",
+   "fieldtype": "Section Break",
+   "label": "Refurbishment & Restock Stock Entries"
+  },
+  {
+   "fieldname": "stock_entry",
+   "fieldtype": "Link",
+   "label": "Refurbishment Stock Entry",
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "restock_entry",
+   "fieldtype": "Link",
+   "label": "Restock Stock Entry",
+   "options": "Stock Entry",
+   "read_only": 1
   }
  ],
  "links": [],
@@ -169,6 +213,17 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Clothing Warehouse Manager",
    "share": 1,
    "write": 1
   }

@@ -9,6 +9,7 @@ from quality_erp.quality import (
     approve_quality_gate,
     create_quality_inspection,
     get_quality_review_bundle,
+    inspect_return_quarantine,
     record_return_quarantine,
     reject_quality_gate,
     revise_quality_inspection,
@@ -209,6 +210,36 @@ class TestQualityERP(FrappeTestCase):
         self.assertEqual(doc["inspection_status"], "Quarantined")
         self.assertEqual(doc["quantity"], 5.0)
         self.assertEqual(doc["inspected_by"], self.inspector)
+
+    def test_inspect_return_quarantine_disposition(self):
+        """Inspector inspects quarantined items with pass or scrap disposition."""
+        frappe.set_user(self.inspector)
+        doc = record_return_quarantine(
+            retailer="TEST Quality Customer",
+            delivery_note=None,
+            item_code="TEST-CLASSIC-TEE-BLK",
+            quantity=2,
+            return_reason="Defective Stitching",
+        )
+        self.assertEqual(doc["inspection_status"], "Quarantined")
+
+        # Invalid decision is rejected
+        with self.assertRaises(frappe.ValidationError):
+            inspect_return_quarantine(doc["name"], decision="Invalid Decision")
+
+        # Pass for refurbishment
+        inspected = inspect_return_quarantine(
+            doc["name"],
+            decision="Passed Refurbishment",
+            notes="Loose seam at shoulder, repairable by stitching team",
+        )
+        self.assertEqual(inspected["inspection_status"], "Inspected - Passed Refurbishment")
+        self.assertIn("Loose seam at shoulder", inspected["inspection_notes"])
+        self.assertEqual(inspected["inspected_by"], self.inspector)
+
+        # Cannot re-inspect already decided quarantine
+        with self.assertRaises(frappe.ValidationError):
+            inspect_return_quarantine(doc["name"], decision="Scrapped")
 
     def test_quality_runtime_scoping(self):
         """Quality users only see quality_erp and Quality ERP workspace."""

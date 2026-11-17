@@ -66,11 +66,11 @@ Confirmed requirements now governing the next warehouse/quality stages:
   Order, Pick List, Delivery Note and Sales Invoice controllers.
 - [x] Generate a delivery follow-up obligation for the responsible ASM, who contacts the
   retailer and records confirmation or issues.
-- [ ] Implement return intake by scanning the exact Item/Size/serial/batch against an
+- [x] Implement return intake by scanning the exact Item/Size/serial/batch against an
   authorized original transaction and prevent duplicate or excess returns.
-- [ ] Keep returned goods in a native quarantine Warehouse/location; require a quality
+- [x] Keep returned goods in a native quarantine Warehouse/location; require a quality
   report and passing result before movement to refining/refurbishment.
-- [ ] Track refurbishment work and move completed goods back to saleable stock only through
+- [x] Track refurbishment work and move completed goods back to saleable stock only through
   submitted native ERPNext return/Stock Entry documents.
 - [ ] Add an app-owned production quality cycle linked to native Supplier, Purchase Order,
   Items/styles and applicable Purchase Receipt/Quality Inspection records.
@@ -86,7 +86,7 @@ Confirmed requirements now governing the next warehouse/quality stages:
 - [ ] Add bounded, permission-safe warehouse batch processing and the recommended scanning,
   exception, printing, package, return/refurbishment and quality-review conveniences from
   the operating-model document; bulk operations must expose every failure.
-- [ ] Preserve all fulfilment, handoff, follow-up, return, quality, refurbishment and gate
+- [x] Preserve all fulfilment, handoff, follow-up, return, quality, refurbishment and gate
   transitions with server-side permissions, row locking, idempotency and audit history.
 
 Known information still missing and explicitly deferred: billing submission authority,
