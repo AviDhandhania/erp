@@ -9,6 +9,7 @@ class ClothingCatalogue {
 		this.state = { page: 1, search: "", item_group: "", brand: "", customer: "", collection: "", fabric: "", fit: "", season: "" };
 		this.selection = new Map();
 		this.order_request_id = null;
+		this.customer_exposure = null;
 		this.products = new Map();
 		this.page.main.html(`<div class="clothing-catalogue">
 			<div class="catalogue-toolbar">
@@ -43,7 +44,7 @@ class ClothingCatalogue {
 			clearTimeout(timer);
 			timer = setTimeout(() => { this.state.search = event.target.value; this.state.page = 1; this.refresh(); }, 300);
 		});
-		this.$root.find(".catalogue-group, .catalogue-brand, .catalogue-customer").on("change", (event) => {
+		this.$root.find(".catalogue-group, .catalogue-brand, .catalogue-customer").on("change", async (event) => {
 			const field = event.target.classList.contains("catalogue-group")
 				? "item_group"
 				: event.target.classList.contains("catalogue-brand") ? "brand" : "customer";
@@ -51,6 +52,18 @@ class ClothingCatalogue {
 			if (field === "customer") {
 				this.selection.clear();
 				this.order_request_id = null;
+				this.customer_exposure = null;
+				if (this.state.customer) {
+					try {
+						const { message } = await frappe.call({
+							method: "sales_erp.ordering.get_retailer_stock_exposure",
+							args: { customer: this.state.customer },
+						});
+						this.customer_exposure = message;
+					} catch (e) {
+						this.customer_exposure = null;
+					}
+				}
 				this.render_selection();
 			}
 			this.state.page = 1;
@@ -176,8 +189,15 @@ class ClothingCatalogue {
 			return result;
 		}, {});
 		const money = Object.entries(totals).map(([currency, total]) => format_currency(total, currency)).join(" · ");
+		let exposure_info = "";
+		if (this.customer_exposure && this.customer_exposure.approved_limit > 0) {
+			const exp = this.customer_exposure;
+			const avail = exp.available_exposure !== null ? format_currency(exp.available_exposure, exp.currency) : "—";
+			const exp_class = exp.exceeds_limit ? "text-danger" : "text-muted";
+			exposure_info = `<span class="${exp_class}" style="margin-left: 8px;">· ${__("Available Limit")}: ${avail}</span>`;
+		}
 		this.$root.find(".catalogue-selection").html(rows.length ? `
-			<div><strong>${__("Draft selection")}</strong><span>${__("{0} variants · {1} units", [rows.length, units])}${money ? ` · ${money}` : ""}</span></div>
+			<div><strong>${__("Draft selection")}</strong><span>${__("{0} variants · {1} units", [rows.length, units])}${money ? ` · ${money}` : ""}${exposure_info}</span></div>
 			<div class="catalogue-selection-actions">
 				<button class="btn btn-default btn-sm clear-selection">${__("Clear")}</button>
 				<button class="btn btn-primary btn-sm create-sales-order" ${this.state.customer ? "" : "disabled"}>${this.state.customer ? __("Create draft order") : __("Select retailer first")}</button>

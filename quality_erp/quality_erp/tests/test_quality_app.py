@@ -8,6 +8,7 @@ from quality_erp.boot import restrict_quality_app_visibility
 from quality_erp.quality import (
     approve_quality_gate,
     create_quality_inspection,
+    get_quality_dashboard_summary,
     get_quality_review_bundle,
     inspect_return_quarantine,
     record_return_quarantine,
@@ -276,3 +277,60 @@ class TestQualityERP(FrappeTestCase):
                     quantity=1,
                     return_reason="Defective Stitching",
                 )
+
+    def test_quality_dashboard_summary(self):
+        """Dashboard summary computes accurate stage counts, critical gates, and quarantine metrics."""
+        frappe.set_user(self.inspector)
+
+        # Clear existing inspections for a clean metric baseline
+        frappe.db.sql("DELETE FROM `tabSupplier Quality Inspection`")
+        frappe.db.sql("DELETE FROM `tabReturn Quarantine`")
+        frappe.db.commit()
+
+        # Create inspections in various stages
+        create_quality_inspection(self.supplier, "TEST-CLASSIC-TEE-BLK", "1. First Submission")
+        create_quality_inspection(self.supplier, "TEST-CLASSIC-TEE-BLK", "4. Production Go Ahead")
+        create_quality_inspection(self.supplier, "TEST-CLASSIC-TEE-BLK", "7. Final Inspection")
+
+        # Create return quarantine records
+        record_return_quarantine(
+            retailer="TEST Quality Customer",
+            delivery_note=None,
+            item_code="TEST-CLASSIC-TEE-BLK",
+            quantity=10,
+            return_reason="Defective Stitching",
+        )
+        q2 = record_return_quarantine(
+            retailer="TEST Quality Customer",
+            delivery_note=None,
+            item_code="TEST-CLASSIC-TEE-BLK",
+            quantity=4,
+            return_reason="Fabric Fault",
+        )
+        inspect_return_quarantine(q2["name"], decision="Passed Refurbishment")
+
+        # Fetch dashboard summary
+        summary = get_quality_dashboard_summary()
+        self.assertEqual(summary["total_pending_inspections"], 3)
+        self.assertEqual(summary["pending_by_stage"]["1. First Submission"], 1)
+        self.assertEqual(summary["pending_by_stage"]["4. Production Go Ahead"], 1)
+        self.assertEqual(summary["pending_by_stage"]["7. Final Inspection"], 1)
+        self.assertEqual(summary["critical_gates_pending"]["production_go_ahead"], 1)
+        self.assertEqual(summary["critical_gates_pending"]["final_inspection"], 1)
+
+        # Check quarantine metrics
+        q_sum = summary["quarantine_summary"]
+        self.assertEqual(q_sum["quarantined_count"], 1)
+        self.assertEqual(q_sum["quarantined_qty"], 10.0)
+        self.assertEqual(q_sum["passed_refurbishment_count"], 1)
+
+        # Manager also has access
+        frappe.set_user(self.manager)
+        mgr_summary = get_quality_dashboard_summary(supplier=self.supplier)
+        self.assertEqual(mgr_summary["total_pending_inspections"], 3)
+
+        # Unauthorized user is denied
+        frappe.set_user("test-asm-south@example.invalid")
+        frappe.local.request_cache.clear()
+        with self.assertRaises(frappe.PermissionError):
+            get_quality_dashboard_summary()

@@ -70,11 +70,14 @@ def after_install():
 
     for role in ALL_ROLES:
         name = role["role_name"]
-        for dt in ("Warehouse", "Pick List", "Delivery Note", "Stock Entry"):
+        for dt in ("Warehouse", "Pick List", "Delivery Note", "Stock Entry", "Packing Slip"):
             _ensure_custom_docperm(dt, name, ["read"])
 
         if name in {ROLE_WAREHOUSE_OPERATOR, ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN}:
             _ensure_custom_docperm("Serial and Batch Bundle", name, ["read", "write", "create", "submit"])
+
+        if name in {ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN}:
+            _ensure_custom_docperm("Packing Slip", name, ["read", "write", "create", "submit"])
 
     ensure_warehouse_erp_sidebar()
     frappe.clear_cache()

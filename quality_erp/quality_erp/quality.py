@@ -357,3 +357,87 @@ def inspect_return_quarantine(quarantine_name, decision, notes=None, photo_evide
         doc.photo_evidence = photo_evidence
     doc.save()
     return doc.as_dict()
+
+
+@frappe.whitelist(methods=["GET", "POST"])
+def get_quality_dashboard_summary(supplier=None, item_code=None):
+    """Return high-level summary counts for quality inspections and return quarantines."""
+    require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
+
+    stage_counts = {stage: 0 for stage in QUALITY_STAGES}
+    conditions = ["status = 'Pending Review'"]
+    params = []
+    if supplier:
+        conditions.append("supplier = %s")
+        params.append(str(supplier).strip())
+    if item_code:
+        conditions.append("item_code = %s")
+        params.append(str(item_code).strip())
+
+    where_clause = " AND ".join(conditions)
+    rows = frappe.db.sql(
+        f"""
+        SELECT stage, COUNT(*) as cnt
+        FROM `tabSupplier Quality Inspection`
+        WHERE {where_clause}
+        GROUP BY stage
+        """,
+        tuple(params),
+        as_dict=True,
+    )
+    total_pending = 0
+    for r in rows:
+        if r.stage in stage_counts:
+            stage_counts[r.stage] = int(r.cnt)
+            total_pending += int(r.cnt)
+
+    pga_pending = stage_counts.get("4. Production Go Ahead", 0)
+    final_pending = stage_counts.get("7. Final Inspection", 0)
+
+    q_rows = frappe.db.sql(
+        """
+        SELECT inspection_status, COUNT(*) as cnt, COALESCE(SUM(quantity), 0) as total_qty
+        FROM `tabReturn Quarantine`
+        GROUP BY inspection_status
+        """,
+        as_dict=True,
+    )
+    quarantine_summary = {
+        "quarantined_count": 0,
+        "quarantined_qty": 0.0,
+        "passed_refurbishment_count": 0,
+        "scrapped_count": 0,
+    }
+    for r in q_rows:
+        if r.inspection_status == "Quarantined":
+            quarantine_summary["quarantined_count"] = int(r.cnt)
+            quarantine_summary["quarantined_qty"] = float(r.total_qty or 0.0)
+        elif r.inspection_status == "Inspected - Passed Refurbishment":
+            quarantine_summary["passed_refurbishment_count"] = int(r.cnt)
+        elif r.inspection_status == "Inspected - Scrapped":
+            quarantine_summary["scrapped_count"] = int(r.cnt)
+
+    recent_inspections = frappe.get_all(
+        "Supplier Quality Inspection",
+        fields=["name", "supplier", "item_code", "stage", "status", "creation", "modified"],
+        order_by="creation desc",
+        limit=5,
+    )
+    recent_quarantines = frappe.get_all(
+        "Return Quarantine",
+        fields=["name", "retailer", "item_code", "quantity", "return_reason", "inspection_status", "creation"],
+        order_by="creation desc",
+        limit=5,
+    )
+
+    return {
+        "total_pending_inspections": total_pending,
+        "pending_by_stage": stage_counts,
+        "critical_gates_pending": {
+            "production_go_ahead": pga_pending,
+            "final_inspection": final_pending,
+        },
+        "quarantine_summary": quarantine_summary,
+        "recent_inspections": recent_inspections,
+        "recent_quarantines": recent_quarantines,
+    }

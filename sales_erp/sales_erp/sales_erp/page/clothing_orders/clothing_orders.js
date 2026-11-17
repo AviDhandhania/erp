@@ -163,6 +163,16 @@ class ClothingOrders {
 			<div><span>${__("Taxes and charges")}</span><strong>${format_currency(order.total_taxes_and_charges, order.currency)}</strong></div>
 			<div class="grand-total"><span>${__("Grand total")}</span><strong>${format_currency(order.rounded_total || order.grand_total, order.currency)}</strong></div>
 		</div>`);
+		if (order.exposure && order.exposure.approved_limit > 0) {
+			const exp = order.exposure;
+			const is_over = exp.exceeds_limit;
+			const alert_class = is_over ? "alert-danger" : "alert-info";
+			const status_label = is_over ? __("Exposure Exceeds Approved Limit") : __("Stock & Credit Exposure");
+			dialog.$body.prepend(`<div class="alert ${alert_class} exposure-summary" style="margin-bottom: 12px; font-size: 13px;">
+				<div style="font-weight: 600; margin-bottom: 3px;">${status_label}: ${format_currency(exp.total_exposure, exp.currency)} / ${format_currency(exp.approved_limit, exp.currency)}</div>
+				<div class="text-muted" style="font-size: 11px;">${__("Shop Stock")}: ${format_currency(exp.stock_held_at_shop, exp.currency)} · ${__("Pending Orders")}: ${format_currency(exp.pending_orders_value, exp.currency)} · ${__("Available")}: ${exp.available_exposure !== null ? format_currency(exp.available_exposure, exp.currency) : __("N/A")}</div>
+			</div>`);
+		}
 		if (order.review.workflow) {
 			dialog.$body.prepend(`<div class="alert alert-info">${__("This order uses ERPNext Workflow {0}. Clothing ERP will not bypass its configured approval actions.", [this.escape(order.review.workflow)])}</div>`);
 		}

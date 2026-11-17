@@ -37,10 +37,17 @@ frappe.ui.form.on("Return Quarantine", {
 				frappe.confirm(
 					__("Mark this returned item as passed after refurbishment inspection?"),
 					async () => {
-						frm.set_value("inspection_status", "Inspected - Passed Refurbishment");
-						frm.set_value("inspected_by", frappe.session.user);
-						frm.set_value("inspected_on", frappe.datetime.now_datetime());
-						await frm.save();
+						await frappe.call({
+							method: "quality_erp.quality.inspect_return_quarantine",
+							type: "POST",
+							args: {
+								quarantine_name: frm.doc.name,
+								decision: "Passed Refurbishment",
+							},
+							freeze: true,
+							freeze_message: __("Updating inspection status…"),
+						});
+						await frm.reload_doc();
 					}
 				);
 			}, __("Inspection Actions")).addClass("btn-primary");
@@ -56,12 +63,18 @@ frappe.ui.form.on("Return Quarantine", {
 						}
 					],
 					async ({ notes }) => {
-						frm.set_value("inspection_status", "Inspected - Scrapped");
-						frm.set_value("inspected_by", frappe.session.user);
-						frm.set_value("inspected_on", frappe.datetime.now_datetime());
-						const existingNotes = frm.doc.inspection_notes ? `${frm.doc.inspection_notes}\n` : "";
-						frm.set_value("inspection_notes", `${existingNotes}Scrap Reason: ${notes}`);
-						await frm.save();
+						await frappe.call({
+							method: "quality_erp.quality.inspect_return_quarantine",
+							type: "POST",
+							args: {
+								quarantine_name: frm.doc.name,
+								decision: "Scrapped",
+								notes: notes || "",
+							},
+							freeze: true,
+							freeze_message: __("Updating inspection status…"),
+						});
+						await frm.reload_doc();
 					},
 					__("Confirm Scrap"),
 					__("Mark Scrapped")
