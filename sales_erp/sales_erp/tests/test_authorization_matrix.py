@@ -16,6 +16,7 @@ from warehouse_erp.fulfillment import get_fulfillment_tasks, verify_pick_item
 from warehouse_erp.security import warehouse_has_permission
 
 from quality_erp.quality import approve_quality_gate, create_quality_inspection
+from sales_erp.boot import ensure_module_app_mapped
 
 
 class TestAuthorizationMatrix(FrappeTestCase):
@@ -29,6 +30,7 @@ class TestAuthorizationMatrix(FrappeTestCase):
 
     def setUp(self):
         super().setUp()
+        ensure_module_app_mapped()
         frappe.set_user("Administrator")
         frappe.local.request_cache.clear()
 
