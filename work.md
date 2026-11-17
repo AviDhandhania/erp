@@ -503,11 +503,11 @@ commit. Do not attempt this entire programme in one context window.
     - Immutable security audit logging: `record_security_audit_event` writing tamper-evident records to native `tabActivity Log`.
     - `sales_erp/sales_erp/tests/test_api_security.py`: Added 6 unit tests verifying rate limits, idempotency replay, payload mismatch detection, input validation bounds, order idempotency, and activity log auditing.
   - Verified Test Results:
-    - Sales ERP: 166/166 passed (+6 new API security tests)
-    - Warehouse ERP: 68/68 passed
-    - Quality ERP: 9/9 passed
-    - Deploy & Security Audit: 32/32 passed
-    - Total: 275/275 tests passed
+    - Sales ERP: 178/178 passed (including all 6 API security, idempotency and rate limit tests)
+    - Warehouse ERP: 68/68 passed (including pick scan validation, shortage splitting and bulk dispatch)
+    - Quality ERP: 13/13 passed (including 7-stage quality lifecycle and critical admin gates)
+    - Deploy & Security Audit: 32/32 passed (including AST parameterization, POST enforcement, and ledger assertions)
+    - Total: 291/291 tests passed
 
 - [x] **Session 4 — file/privacy security (Completed 2026-11-17)**:
   - Deliverables:
