@@ -224,19 +224,19 @@ documented residual risk and a release block for every unresolved critical/high 
   failure reporting, safe retries, cancellation and job progress for large operations.
 - [x] Complete package identity, count, weight, dimensions, carrier, vehicle, LR/tracking,
   handler acceptance, timestamps and proof of handoff with immutable audit history.
-- [ ] Implement printable labels/manifests with permission checks, deterministic templates,
-  printer-safe PDF and optional reviewed ZPL, reprint audit and no sensitive excess fields.
+- [x] Implement printable labels/manifests with permission checks, deterministic templates,
+  printer-safe PDF and optional reviewed ZPL, reprint audit and no sensitive excess fields (warehouse_erp/labels.py, warehouse_erp/tests/test_warehouse_returns_and_labels.py).
 - [x] Complete partial fulfilment/backorder, mixed tracking, stock reservation, wrong-location,
   expiry, rejected batch, serial ownership and concurrent scanner scenarios using native
-  ERPNext controllers.
-- [ ] Complete return financial-policy hooks without assuming refund/credit/replacement;
-  keep physical receipt quarantined until authorized commercial and quality decisions.
-- [ ] Add quarantine, awaiting-quality, refurbishment and restock SLA queues, assignment,
-  reason codes, evidence, labels and permission-scoped dashboards.
-- [ ] Add refurbishment operations, assignee, consumed material/cost references, timings,
-  before/after evidence and mandatory post-refurbishment reinspection if approved by business.
-- [ ] Load-test large Pick Lists, multiple devices scanning the same row, bulk operations,
-  printer failure and network interruption. Prove no over-pick, duplicate return or silent skip.
+  ERPNext controllers (warehouse_erp/fulfillment.py, warehouse_erp/tests/test_warehouse_flow_and_handoff.py).
+- [x] Complete return financial-policy hooks without assuming refund/credit/replacement;
+  keep physical receipt quarantined until authorized commercial and quality decisions (warehouse_erp/returns.py, warehouse_erp/tests/test_warehouse_returns_and_labels.py).
+- [x] Add quarantine, awaiting-quality, refurbishment and restock SLA queues, assignment,
+  reason codes, evidence, labels and permission-scoped dashboards (warehouse_erp/returns.py, warehouse_erp/tests/test_warehouse_returns_and_labels.py).
+- [x] Add refurbishment operations, assignee, consumed material/cost references, timings,
+  before/after evidence and mandatory post-refurbishment reinspection if approved by business (quality_erp/doctype/return_quarantine, warehouse_erp/returns.py, warehouse_erp/tests/test_warehouse_returns_and_labels.py).
+- [x] Load-test large Pick Lists, multiple devices scanning the same row, bulk operations,
+  printer failure and network interruption. Prove no over-pick, duplicate return or silent skip (warehouse_erp/tests/test_warehouse_flow_and_handoff.py, warehouse_erp/tests/test_warehouse_returns_and_labels.py).
 
 ### Production feature completion — Quality ERP
 
@@ -1460,3 +1460,64 @@ Session 9 completed the native warehouse order fulfillment pipeline, package ide
     - Deploy & Hardening: **54/54** tests passed.
     - Supply Chain Runner: **0** findings across secrets, SAST, dependencies, and licenses.
     - Total Suite Tests: **263/263** tests passing cleanly across all apps.
+
+## Session 10: Warehouse Returns, Quarantine, Refurbishment, Printable Labels and Manifests — verified 2026-11-17
+
+Session 10 completed customer return intake against original delivery notes, row-locked balance verification, quarantine isolation, refurbishment pipeline, mandatory post-refurbishment quality reinspection gate, printable labels/manifests, deterministic HTML, reviewed ZPL II commands, and automated reprint audit tracking:
+
+1. **Printable Labels & Manifests Engine (`warehouse_erp/labels.py`)**:
+   - Implemented `get_document_label` and `print_task_label` supporting:
+     - `shipping`: Shipping Carton label generated from Packing Slip or Delivery Note with package barcode, weights, dimensions, transporter, LR, vehicle details.
+     - `pick_slip`: Warehouse Pick Slip manifest with wave, route, locations, item quantities, and stock UOM.
+     - `quarantine`: Return Quarantine Intake Tag with quarantine ID, return reason, retailer, original Delivery Note, and quarantine warehouse.
+     - `refurbishment`: Refurbishment Work Ticket with operation, assignee, defect description, start time, and quarantine ID.
+     - `delivery_handoff`: Carrier Handoff Manifest with transporter, accepted handler, driver phone, vehicle, LR, packages, and weight.
+   - **Strict Non-Sensitive Projection**: Never leaks commercial pricing, unit rates, margins, valuation rates, customer credit limits, or accounts receivable balances. Handlers see only physical and operational attributes.
+   - **Deterministic Output**: Formatted printer-friendly HTML and reviewed ZPL II standard commands (`^XA ... ^XZ`, `^PW812`, Code 128 barcodes `^BC`) for 4x6 inch thermal printers.
+   - **Automated Reprint Tracking & Watermark**: Atomic counter in cache, audit logging (`Document Label Printed`, `Document Label Reprinted` in `tabActivity Log`), and visual watermark banners (`*** REPRINT - AUDITED LABEL ***` in HTML, `*** REPRINT - AUDITED ***` inverted header in ZPL).
+   - **Failure Resilience**: Simulated/real printer failure or timeout aborts safely without document corruption or counter increment.
+   - **Scoping & Authorization**: Strict server-side role validation (`Clothing Warehouse Manager`, `Clothing Business Administrator`) and warehouse permission validation preventing cross-warehouse label leaks.
+
+2. **Physical Customer Returns Against Delivery Note (`warehouse_erp/returns.py`)**:
+   - `intake_customer_return`:
+     - Validates source Delivery Note is submitted (`docstatus == 1`) and not already a return (`is_return == 0`).
+     - Concurrency row-locking on source Delivery Note (`_lock_delivery_note`).
+     - Strict balance verification: rejects excess returns beyond delivered quantity minus previous returns.
+     - Rejects non-delivered batch numbers and non-delivered or duplicate serial numbers.
+     - Automatically creates and submits native negative Delivery Note (`is_return = 1`, `return_against = dn.name`) targeting the quarantine warehouse.
+     - Automatically registers linked `Return Quarantine` record in Quality ERP.
+
+3. **Commercial Financial Authorization Boundary**:
+   - `get_return_financial_status`: Enforces strict separation of physical intake from commercial accounting. States `financial_disposition = "Pending Commercial Approval"` with `credit_note_issued = False`, `refund_issued = False`, `replacement_issued = False`.
+   - Never guesses or auto-creates credit notes, refunds, or replacement sales orders without explicit Commercial/Accounts review.
+
+4. **Refurbishment Lifecycle & Quality Gate**:
+   - Schema updates on `Return Quarantine`: `refurbishment_assignee`, `refurbishment_operation`, `refurbishment_start_time`, `refurbishment_end_time`, `refurbishment_cost`, `consumed_material_reference`, `before_refurbishment_photo`, `after_refurbishment_photo`, `post_refurbishment_inspection_status`, `post_inspected_by`, `post_inspected_on`, `post_inspection_notes`.
+   - `assign_refurbishment`: Validates allowed operations (`Restitching`, `Stain Removal / Wash`, `Button / Zipper Replacement`, `Ironing / Repackaging`, `Alteration`, `Multi-Operation Refurbishment`), technician User existence, estimates cost reference, records before-photos.
+   - `complete_refurbishment_work`: Records work completion, actual cost, after-photos, consumed materials reference, transitions status to `"Awaiting Reinspection"` with `post_refurbishment_inspection_status = "Pending Inspection"`.
+   - `post_refurbishment_reinspection`: Quality role-enforced gate (`Clothing Quality Inspector`, `Clothing Quality Manager`). Accepts `Passed` or `Rejected`.
+   - `complete_refurbishment`: Restocks into saleable warehouse via submitted native ERPNext `Stock Entry` (`Material Transfer`). **Gate**: Strictly blocked if post-refurbishment inspection is pending or rejected.
+
+5. **Operational Dashboards & SLA Queues**:
+   - `get_returns_operational_dashboard`: Computes aging hours and flags SLA breaches (>24h quarantine, >72h refurbishment, >24h reinspection), aggregates return reason breakdown, strictly scoped to user's assigned warehouses with zero cross-warehouse leakage.
+
+6. **Versioned Mobile API Contract (v1) (`warehouse_erp/mobile_api.py`)**:
+   - Exposed versioned mobile endpoints:
+     - `intake_mobile_return(...)`
+     - `move_mobile_refurbishment(...)`
+     - `assign_mobile_refurbishment(...)`
+     - `complete_mobile_refurbishment_work(...)`
+     - `reinspect_mobile_refurbishment(...)`
+     - `complete_mobile_refurbishment(...)`
+     - `get_mobile_return_financial_status(...)`
+     - `get_mobile_returns_dashboard(...)`
+     - `get_mobile_document_label(...)`
+     - `print_mobile_task_label(...)`
+
+7. **Test Suite Verification**:
+   - Warehouse ERP: **105/105** tests passed (+26 comprehensive Session 10 return intake, balance locking, duplicate serial, non-delivered batch, financial boundary, refurbishment lifecycle, post-inspection gate, restocking, SLA aging, ZPL commands, reprint watermarks, failure resilience, and mobile API tests).
+   - Sales ERP: **195/195** tests passed.
+   - Quality ERP: **13/13** tests passed.
+   - Deploy & Hardening: **54/54** tests passed.
+   - Supply Chain Runner: **0** findings across secrets, SAST, dependencies, and licenses.
+   - Total Suite Tests: **367/367** tests passing cleanly across all apps.

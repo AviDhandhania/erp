@@ -24,6 +24,20 @@
   "photo_evidence",
   "evidence_photos",
   "inspection_notes",
+  "section_break_refurbishment",
+  "refurbishment_assignee",
+  "refurbishment_operation",
+  "refurbishment_start_time",
+  "refurbishment_end_time",
+  "refurbishment_cost",
+  "consumed_material_reference",
+  "before_refurbishment_photo",
+  "after_refurbishment_photo",
+  "section_break_post_inspection",
+  "post_refurbishment_inspection_status",
+  "post_inspected_by",
+  "post_inspected_on",
+  "post_inspection_notes",
   "section_break_stock",
   "stock_entry",
   "restock_entry"
@@ -116,7 +130,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Inspection Status",
-   "options": "Quarantined\nInspected - Passed Refurbishment\nInspected - Scrapped\nIn Refurbishment\nRestocked"
+   "options": "Quarantined\nInspected - Passed Refurbishment\nInspected - Scrapped\nIn Refurbishment\nAwaiting Reinspection\nRestocked"
   },
   {
    "fieldname": "section_break_inspection",
@@ -149,6 +163,81 @@
    "fieldname": "inspection_notes",
    "fieldtype": "Text",
    "label": "Inspection Notes & Refurbishment Action"
+  },
+  {
+   "fieldname": "section_break_refurbishment",
+   "fieldtype": "Section Break",
+   "label": "Refurbishment Operations"
+  },
+  {
+   "fieldname": "refurbishment_assignee",
+   "fieldtype": "Link",
+   "label": "Refurbishment Assignee",
+   "options": "User"
+  },
+  {
+   "fieldname": "refurbishment_operation",
+   "fieldtype": "Select",
+   "label": "Refurbishment Operation",
+   "options": "Restitching\nStain Removal / Wash\nButton / Zipper Replacement\nIroning / Repackaging\nAlteration\nMulti-Operation Refurbishment"
+  },
+  {
+   "fieldname": "refurbishment_start_time",
+   "fieldtype": "Datetime",
+   "label": "Refurbishment Started On"
+  },
+  {
+   "fieldname": "refurbishment_end_time",
+   "fieldtype": "Datetime",
+   "label": "Refurbishment Completed On"
+  },
+  {
+   "fieldname": "refurbishment_cost",
+   "fieldtype": "Currency",
+   "label": "Refurbishment Cost Reference"
+  },
+  {
+   "fieldname": "consumed_material_reference",
+   "fieldtype": "Small Text",
+   "label": "Consumed Materials / Trims"
+  },
+  {
+   "fieldname": "before_refurbishment_photo",
+   "fieldtype": "Attach Image",
+   "label": "Before Refurbishment Evidence"
+  },
+  {
+   "fieldname": "after_refurbishment_photo",
+   "fieldtype": "Attach Image",
+   "label": "After Refurbishment Evidence"
+  },
+  {
+   "fieldname": "section_break_post_inspection",
+   "fieldtype": "Section Break",
+   "label": "Post-Refurbishment Quality Gate"
+  },
+  {
+   "default": "Pending Inspection",
+   "fieldname": "post_refurbishment_inspection_status",
+   "fieldtype": "Select",
+   "label": "Post-Refurbishment Inspection Status",
+   "options": "Pending Inspection\nRe-inspected - Passed\nRe-inspected - Rejected\nNot Required"
+  },
+  {
+   "fieldname": "post_inspected_by",
+   "fieldtype": "Link",
+   "label": "Re-inspected By",
+   "options": "User"
+  },
+  {
+   "fieldname": "post_inspected_on",
+   "fieldtype": "Datetime",
+   "label": "Re-inspected On"
+  },
+  {
+   "fieldname": "post_inspection_notes",
+   "fieldtype": "Text",
+   "label": "Re-inspection Notes"
   },
   {
    "fieldname": "section_break_stock",

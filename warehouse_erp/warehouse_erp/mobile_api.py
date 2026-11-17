@@ -10,6 +10,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, now_datetime
 
+from warehouse_erp import labels, returns
 from warehouse_erp.api_security import check_rate_limit, record_security_audit_event
 from warehouse_erp.fulfillment import (
     complete_pick_list,
@@ -62,6 +63,9 @@ def get_mobile_warehouse_boot():
             "package_dimension_capture": True,
             "offline_scanning": True,
             "immutable_delivery_handoff": True,
+            "customer_returns": True,
+            "refurbishment_tracking": True,
+            "thermal_label_printing": True,
             "default_page_size": 20,
         },
     }
@@ -247,4 +251,199 @@ def get_mobile_work_queues(warehouse=None, queue_type="wave"):
     require_role(MOBILE_WAREHOUSE_ROLES)
     res = get_warehouse_work_queues(warehouse=warehouse, queue_type=queue_type)
     res["api_version"] = API_VERSION
+    return res
+
+
+@frappe.whitelist(methods=["POST"])
+def intake_mobile_return(
+    delivery_note,
+    item_code,
+    quantity,
+    quarantine_warehouse,
+    return_reason,
+    serial_no=None,
+    batch_no=None,
+    photo_evidence=None,
+    notes=None,
+    request_id=None,
+):
+    """Intake customer return garment into quarantine isolation via mobile scanner."""
+    check_rate_limit("intake_mobile_return", limit=60, window_seconds=60)
+    res = returns.intake_customer_return(
+        delivery_note=delivery_note,
+        item_code=item_code,
+        quantity=quantity,
+        quarantine_warehouse=quarantine_warehouse,
+        return_reason=return_reason,
+        serial_no=serial_no,
+        batch_no=batch_no,
+        photo_evidence=photo_evidence,
+        notes=notes,
+        request_id=request_id,
+    )
+    if isinstance(res, dict):
+        res["api_version"] = API_VERSION
+    return res
+
+
+@frappe.whitelist(methods=["POST"])
+def move_mobile_refurbishment(
+    quarantine_name,
+    refurbishment_warehouse,
+    request_id=None,
+):
+    """Move inspected garment to refurbishment staging."""
+    check_rate_limit("move_mobile_refurbishment", limit=60, window_seconds=60)
+    res = returns.move_to_refurbishment(
+        quarantine_name=quarantine_name,
+        refurbishment_warehouse=refurbishment_warehouse,
+        request_id=request_id,
+    )
+    if isinstance(res, dict):
+        res["api_version"] = API_VERSION
+    return res
+
+
+@frappe.whitelist(methods=["POST"])
+def assign_mobile_refurbishment(
+    quarantine_name,
+    assignee,
+    operation,
+    estimated_cost=0.0,
+    consumed_material=None,
+    photo_before=None,
+    notes=None,
+    request_id=None,
+):
+    """Assign refurbishment operation to a technician."""
+    check_rate_limit("assign_mobile_refurbishment", limit=60, window_seconds=60)
+    res = returns.assign_refurbishment(
+        quarantine_name=quarantine_name,
+        assignee=assignee,
+        operation=operation,
+        estimated_cost=estimated_cost,
+        consumed_material=consumed_material,
+        photo_before=photo_before,
+        notes=notes,
+        request_id=request_id,
+    )
+    if isinstance(res, dict):
+        res["api_version"] = API_VERSION
+    return res
+
+
+@frappe.whitelist(methods=["POST"])
+def complete_mobile_refurbishment_work(
+    quarantine_name,
+    photo_after=None,
+    consumed_material=None,
+    actual_cost=None,
+    notes=None,
+    require_reinspection=True,
+    request_id=None,
+):
+    """Record completion of refurbishment work and submit for reinspection."""
+    check_rate_limit("complete_mobile_refurbishment_work", limit=60, window_seconds=60)
+    res = returns.complete_refurbishment_work(
+        quarantine_name=quarantine_name,
+        photo_after=photo_after,
+        consumed_material=consumed_material,
+        actual_cost=actual_cost,
+        notes=notes,
+        require_reinspection=require_reinspection,
+        request_id=request_id,
+    )
+    if isinstance(res, dict):
+        res["api_version"] = API_VERSION
+    return res
+
+
+@frappe.whitelist(methods=["POST"])
+def reinspect_mobile_refurbishment(
+    quarantine_name,
+    decision,
+    notes=None,
+    request_id=None,
+):
+    """Reinspect refurbished garment (Passed or Rejected)."""
+    check_rate_limit("reinspect_mobile_refurbishment", limit=60, window_seconds=60)
+    res = returns.post_refurbishment_reinspection(
+        quarantine_name=quarantine_name,
+        decision=decision,
+        notes=notes,
+        request_id=request_id,
+    )
+    if isinstance(res, dict):
+        res["api_version"] = API_VERSION
+    return res
+
+
+@frappe.whitelist(methods=["POST"])
+def complete_mobile_refurbishment(
+    quarantine_name,
+    target_saleable_warehouse,
+    notes=None,
+    request_id=None,
+):
+    """Restock passed refurbished garment to saleable stock."""
+    check_rate_limit("complete_mobile_refurbishment", limit=60, window_seconds=60)
+    res = returns.complete_refurbishment(
+        quarantine_name=quarantine_name,
+        target_saleable_warehouse=target_saleable_warehouse,
+        notes=notes,
+        request_id=request_id,
+    )
+    if isinstance(res, dict):
+        res["api_version"] = API_VERSION
+    return res
+
+
+@frappe.whitelist()
+def get_mobile_return_financial_status(delivery_note_or_quarantine):
+    """Query return financial status (pending commercial approval)."""
+    check_rate_limit("get_mobile_return_financial_status", limit=60, window_seconds=60)
+    res = returns.get_return_financial_status(delivery_note_or_quarantine)
+    if isinstance(res, dict):
+        res["api_version"] = API_VERSION
+    return res
+
+
+@frappe.whitelist()
+def get_mobile_returns_dashboard(warehouse=None):
+    """Return operational return & refurbishment SLA queues."""
+    check_rate_limit("get_mobile_returns_dashboard", limit=60, window_seconds=60)
+    res = returns.get_returns_operational_dashboard(warehouse=warehouse)
+    if isinstance(res, dict):
+        res["api_version"] = API_VERSION
+    return res
+
+
+@frappe.whitelist()
+def get_mobile_document_label(doctype, name, label_type=None, label_format="html"):
+    """Get label or manifest data and formatted template for mobile/thermal printing."""
+    check_rate_limit("get_mobile_document_label", limit=120, window_seconds=60)
+    res = labels.get_document_label(
+        doctype=doctype,
+        name=name,
+        label_type=label_type,
+        label_format=label_format,
+    )
+    if isinstance(res, dict):
+        res["api_version"] = API_VERSION
+    return res
+
+
+@frappe.whitelist(methods=["POST"])
+def print_mobile_task_label(doctype, name, label_type=None, label_format="html", simulate_failure=False):
+    """Print label or manifest with audit tracking and reprint watermark."""
+    check_rate_limit("print_mobile_task_label", limit=60, window_seconds=60)
+    res = labels.print_task_label(
+        doctype=doctype,
+        name=name,
+        label_type=label_type,
+        label_format=label_format,
+        simulate_failure=simulate_failure,
+    )
+    if isinstance(res, dict):
+        res["api_version"] = API_VERSION
     return res
