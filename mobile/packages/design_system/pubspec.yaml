@@ -1,0 +1,13 @@
+name: clothing_design_system
+description: Shared UI design tokens, themes, viewfinders, and accessible components for Clothing ERP Mobile Suite.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  meta: ^1.15.0
+
+dev_dependencies:
+  lints: ^4.0.0

@@ -1,0 +1,11 @@
+name: clothing_mobile_workspace
+description: Monorepo workspace for Clothing ERP mobile applications.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dev_dependencies:
+  melos: ^6.0.0
+  lints: ^4.0.0

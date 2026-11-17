@@ -61,3 +61,51 @@ This follows Frappe's rule that reverse schema migrations are unsupported:
 [official migration documentation](https://docs.frappe.io/framework/user/en/database-migrations).
 Proxmox uses the [native container toolkit](https://pve.proxmox.com/pve-docs/pct.1.html);
 Docker nesting is not needed inside the LXC.
+
+---
+
+### Mobile Architecture & Multi-Target Foundation
+
+The mobile suite is organized as an independent Dart/Flutter monorepo located in `mobile/`, managed with Melos:
+
+```mermaid
+flowchart TD
+    Core["mobile/packages/core (Auth, Network, SQLCipher, Scanner, Queue)"]
+    Design["mobile/packages/design_system (Tokens, Themes, Components)"]
+
+    Core --> Sales["mobile/apps/sales_app (com.clothingerp.sales)"]
+    Design --> Sales
+
+    Core --> Warehouse["mobile/apps/warehouse_app (com.clothingerp.warehouse)"]
+    Design --> Warehouse
+
+    Core --> Quality["mobile/apps/quality_app (com.clothingerp.quality)"]
+    Design --> Quality
+
+    Sales -->|"OAuth2 PKCE / HTTPS"| Backend["ERPNext / Clothing ERP API"]
+    Warehouse -->|"OAuth2 PKCE / HTTPS"| Backend
+    Quality -->|"OAuth2 PKCE / HTTPS"| Backend
+```
+
+1. **Target Separation & Minimum Versions**:
+   - **Clothing Sales Mobile** (`com.clothingerp.sales`): Dedicated to Area Sales Managers (ASM) and Regional Sales Managers (RSM).
+   - **Clothing Warehouse Mobile** (`com.clothingerp.warehouse`): Dedicated to Warehouse Managers and fulfillment operators.
+   - **Clothing Quality Mobile** (`com.clothingerp.quality`): Dedicated to Quality Inspectors and Quality Managers.
+   - Minimum Supported Platforms: Android SDK 28 (Android 9.0+) and iOS 15.0+.
+
+2. **Security & Cryptography Doctrine**:
+   - **OAuth 2.0 with PKCE (RFC 7636)**: Uses SHA-256 code challenge and high-entropy verifier; zero user passwords or Administrator secrets stored on client devices.
+   - **Hardware-Backed Secure Storage**: Refresh tokens and database encryption keys stored exclusively in Apple Keychain (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`) and Android Keystore (`EncryptedSharedPreferences` with AES-256 GCM).
+   - **Encrypted Local Storage (SQLCipher)**: Full local database encrypted with AES-256 using keys derived from hardware secure storage. Complete cryptographic wipe upon logout or remote revocation.
+   - **Strict TLS & Hostname Validation**: All network traffic requires HTTPS with strict hostname matching and certificate verification. Zero "trust-all-certificates" bypasses allowed.
+
+3. **Offline Queue & Concurrency Model**:
+   - Mutations are enqueued into an encrypted local queue with client-generated UUID v4 idempotency keys.
+   - Server state and business permissions are strictly revalidated on sync; offline queue state never authorizes transactions.
+   - Business conflicts (e.g. concurrency changes, expired batches, over-picks) transition items to `conflict` state, halting retries until explicit user resolution.
+
+4. **Hardware Scanner & Peripheral Subsystem**:
+   - Keyboard-wedge listener detects rapid character pulses (<50ms inter-character interval).
+   - OEM broadcast intent binding for rugged warehouse handhelds (Zebra DataWedge, Honeywell Mobility Edge).
+   - Camera barcode scanner with torch/flashlight control and multi-sensory feedback (synth audio, haptic vibration, visual status colors).
+   - Safe photo intake with client-side EXIF/GPS stripping, 2MB size bounding, and SHA-256 cryptographic hashing.

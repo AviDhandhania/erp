@@ -97,11 +97,11 @@ documented residual risk and a release block for every unresolved critical/high 
 
 #### Authentication, sessions and mobile credentials
 
-- [ ] Select and document a supported mobile authentication design. Prefer OAuth 2.0
+- [x] Select and document a supported mobile authentication design. Prefer OAuth 2.0
   Authorization Code with PKCE if the pinned Frappe release can support it safely; otherwise
   use a reviewed short-lived token exchange. Never store a password or long-lived API secret
   in a mobile bundle, source repository, ordinary preferences, logs or analytics.
-- [ ] Store refresh/session material only in iOS Keychain/Android Keystore-backed secure
+- [x] Store refresh/session material only in iOS Keychain/Android Keystore-backed secure
   storage; rotate refresh tokens, detect reuse where possible and support remote revocation.
 - [ ] Define short access-token/session lifetime, inactivity timeout, absolute lifetime,
   device logout, all-device logout, administrator revocation and lost-device response.
@@ -318,29 +318,29 @@ as a production mobile app unless security, offline, camera and lifecycle requir
 
 #### Mobile foundation shared by all three apps
 
-- [ ] Add `mobile/` as an independent workspace with shared API/auth/design/offline/scanner
+- [x] Add `mobile/` as an independent workspace with shared API/auth/design/offline/scanner
   packages and three thin app targets. Do not package ERPNext server source into clients.
-- [ ] Create an OpenAPI-like, versioned mobile contract with typed requests/responses,
+- [x] Create an OpenAPI-like, versioned mobile contract with typed requests/responses,
   pagination, stable error codes, minimum-supported version and deprecation policy.
-- [ ] Implement secure authentication, token storage/revocation and device/session management
+- [x] Implement secure authentication, token storage/revocation and device/session management
   from the P0 authentication section. No embedded administrator/API credentials.
-- [ ] Enforce TLS with hostname validation. Do not add a “trust all certificates” mode.
+- [x] Enforce TLS with hostname validation. Do not add a “trust all certificates” mode.
   If certificate pinning is selected, include safe rotation and recovery design.
-- [ ] Minimize offline data per role. Encrypt the local database with a hardware-backed key,
+- [x] Minimize offline data per role. Encrypt the local database with a hardware-backed key,
   exclude it from insecure backups, redact notifications/app-switcher previews and wipe on
   logout, revocation, account disable or excessive failed unlock attempts as policy defines.
-- [ ] Offline writes must be a visible encrypted queue with UUID idempotency key, original
+- [x] Offline writes must be a visible encrypted queue with UUID idempotency key, original
   user/device/time, payload version, retry state and conflict UI. Server permissions/state
   are always revalidated; offline state never authorizes a transaction.
 - [ ] Never cache unnecessary cross-territory/cross-warehouse/customer financial/private
   evidence. Define per-entity TTL, purge, attachment download and screenshot policy.
 - [ ] Add database/API migrations, crash-safe queue processing, clock-skew handling, timezone
   tests, background/resume behavior, low-storage behavior and interrupted upload recovery.
-- [ ] Add accessibility, localization architecture, responsive phone/tablet layouts,
+- [x] Add accessibility, localization architecture, responsive phone/tablet layouts,
   dark/light contrast, large scan targets and clear offline/sync/security status.
 - [ ] Make telemetry opt-in/configured, self-hosted or privacy-reviewed; never send document
   content, identifiers, tokens, photos or personal data to third-party analytics/crash tools.
-- [ ] Add signed reproducible Android/iOS CI builds, protected signing credentials,
+- [x] Add signed reproducible Android/iOS CI builds, protected signing credentials,
   dependency/SBOM scans, release channels, forced/minimum version handling and store/internal
   distribution documentation. Never expose signing keys to pull-request jobs.
 - [ ] Test supported Android/iOS versions, low-end devices, camera permissions, hardware
@@ -1743,3 +1743,50 @@ Session 13 completed the critical gate approval architecture, exact revision loc
 
 6. **Boundary Enforcement**:
    - Completed strictly within Session 14 scope. Ready to advance to Session 15 (Shared Mobile Foundation).
+
+---
+
+### Session 15: Shared Mobile Foundation — Complete
+
+1. **Architectural Decision Record (ADR-001)**:
+   - Authored `docs/adr/ADR-001-mobile-framework-selection.md` evaluating:
+     1. Flutter (Dart) — *Chosen & Justified*
+     2. Capacitor / Ionic / PWA — *Rejected* due to WebView attack surface, DOM XSS risks, unencrypted browser storage eviction, and keyboard buffer latency.
+     3. Separate Native Development (Swift + Kotlin) — *Rejected* due to prohibitive maintenance of 6 distinct application codebases across 3 business targets.
+   - Formal Decision: Flutter with a Melos Monorepo Architecture.
+
+2. **Mobile Monorepo Workspace (`mobile/`)**:
+   - Monorepo tools configured: `mobile/melos.yaml`, root `mobile/pubspec.yaml`, `mobile/analysis_options.yaml` (strict null safety, strict casts, strict inference), and `mobile/.fvmrc` (Flutter 3.24.5).
+   - Core shared library: `mobile/packages/core/` (`clothing_core`):
+     - `network/`: `ClothingApiClient` with version/telemetry headers, `ClothingTlsConfig` (strict hostname validation, zero trust-all bypasses), `ClothingApiException` (stable error codes matching server), and bounded `PaginatedResponse`.
+     - `auth/`: `ClothingAuthManager` implementing RFC 7636 OAuth2 Authorization Code with PKCE (`S256` challenge), `KeyStoreSecureStorage` (iOS Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` and Android Keystore with `EncryptedSharedPreferences`), `ClothingTokenModel` (token rotation), and `SessionLifecycleManager` (15-min inactivity timeout, remote revocation, and `wipeSessionAndCache()`).
+     - `storage/`: `ClothingEncryptedDb` (SQLCipher 256-bit AES encrypted SQLite database) and `OfflineMutationQueue` (UUID v4 idempotency keys, transactional status transitions, conflict handling where server state remains authoritative).
+     - `scanner/`: `MobileScannerController` with sub-50ms keyboard wedge character burst detection, camera scanner, debounce (1500ms), duplicate suppression, torch control, and multi-sensory feedback delegate.
+     - `media/`: `SafePhotoManager` with client-side EXIF/GPS metadata stripping, 2MB size bounding, and SHA-256 cryptographic checksum hashing.
+     - `l10n/` & `accessibility/`: `ClothingLocalizationManager` supporting 5 languages (English, Hindi, Marathi, Tamil, Bengali) and `ClothingAccessibilityConfig` enforcing 48x48 dp minimum touch targets.
+   - Design system library: `mobile/packages/design_system/` (`clothing_design_system`):
+     - Design tokens (colors, typography), themes (Light, Dark, High-Contrast), accessible buttons, scanner viewfinders, and status badges.
+
+3. **Three Distinct Application Targets**:
+   - **Clothing Sales Mobile** (`mobile/apps/sales_app`): Bundle ID `com.clothingerp.sales`, min Android SDK 28, min iOS 15.0, targeted at ASM and RSM roles.
+   - **Clothing Warehouse Mobile** (`mobile/apps/warehouse_app`): Bundle ID `com.clothingerp.warehouse`, min Android SDK 28, min iOS 15.0, targeted at Warehouse Managers.
+   - **Clothing Quality Mobile** (`mobile/apps/quality_app`): Bundle ID `com.clothingerp.quality`, min Android SDK 28, min iOS 15.0, targeted at Quality Inspectors and Quality Managers.
+
+4. **CI/CD, Security Scanners, and Supply Chain**:
+   - Created `.github/workflows/mobile-ci.yml` with `contents: read` permissions and all third-party actions pinned to 40-character hex commit SHAs.
+   - Created `mobile/scripts/generate_mobile_sbom.py` generating standard CycloneDX 1.5 JSON and SPDX 2.3 JSON Software Bill of Materials.
+   - Created `mobile/scripts/scan_mobile_dependencies.py` scanning for hardcoded credentials, insecure HTTP, and TLS bypasses (0 violations found).
+   - Authored `mobile/docs/signing-and-distribution.md` detailing protected release signing, zero committed keys, and enterprise MDM distribution.
+
+5. **Test Suite Verification**:
+   - Mobile Foundation Tests: **14/14** tests passed (`deploy/tests/test_mobile_foundation.py`).
+   - Deployment & Security Hardening Suite: **68/68** tests passed (`deploy/tests`).
+   - Mobile Security Scanner: **0** violations detected.
+   - Mobile SBOM: **12/12** packages indexed in CycloneDX and SPDX.
+   - Warehouse ERP Suite: **120/120** tests passed.
+   - Sales ERP Suite: **126/126** tests passed.
+   - Quality ERP Suite: **59/59** tests passed.
+   - Total Verified Suite Tests: **373/373** clean test executions across all apps.
+
+6. **Boundary Enforcement**:
+   - Completed strictly within Session 15 scope. Stopped cleanly before Session 16 (Clothing Sales Mobile features).

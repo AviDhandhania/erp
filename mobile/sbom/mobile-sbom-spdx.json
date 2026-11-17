@@ -1,0 +1,99 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "Clothing-ERP-Mobile-Suite",
+  "documentNamespace": "https://github.com/AviDhandhania/erp/mobile/spdx-20261117175548",
+  "creationInfo": {
+    "created": "2026-11-17T17:55:48Z",
+    "creators": [
+      "Tool: Clothing ERP Mobile SBOM Generator 1.0.0"
+    ]
+  },
+  "packages": [
+    {
+      "name": "clothing_core",
+      "SPDXID": "SPDXRef-Package-clothing_core",
+      "versionInfo": "any",
+      "downloadLocation": "https://pub.dev/packages/clothing_core",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    },
+    {
+      "name": "clothing_design_system",
+      "SPDXID": "SPDXRef-Package-clothing_design_system",
+      "versionInfo": "any",
+      "downloadLocation": "https://pub.dev/packages/clothing_design_system",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    },
+    {
+      "name": "crypto",
+      "SPDXID": "SPDXRef-Package-crypto",
+      "versionInfo": "3.0.3",
+      "downloadLocation": "https://pub.dev/packages/crypto",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    },
+    {
+      "name": "flutter_secure_storage",
+      "SPDXID": "SPDXRef-Package-flutter_secure_storage",
+      "versionInfo": "9.2.2",
+      "downloadLocation": "https://pub.dev/packages/flutter_secure_storage",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    },
+    {
+      "name": "http",
+      "SPDXID": "SPDXRef-Package-http",
+      "versionInfo": "1.2.1",
+      "downloadLocation": "https://pub.dev/packages/http",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    },
+    {
+      "name": "intl",
+      "SPDXID": "SPDXRef-Package-intl",
+      "versionInfo": "0.19.0",
+      "downloadLocation": "https://pub.dev/packages/intl",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    },
+    {
+      "name": "lints",
+      "SPDXID": "SPDXRef-Package-lints",
+      "versionInfo": "4.0.0",
+      "downloadLocation": "https://pub.dev/packages/lints",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    },
+    {
+      "name": "melos",
+      "SPDXID": "SPDXRef-Package-melos",
+      "versionInfo": "6.0.0",
+      "downloadLocation": "https://pub.dev/packages/melos",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    },
+    {
+      "name": "meta",
+      "SPDXID": "SPDXRef-Package-meta",
+      "versionInfo": "1.15.0",
+      "downloadLocation": "https://pub.dev/packages/meta",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    },
+    {
+      "name": "sqflite_common_ffi",
+      "SPDXID": "SPDXRef-Package-sqflite_common_ffi",
+      "versionInfo": "2.3.3",
+      "downloadLocation": "https://pub.dev/packages/sqflite_common_ffi",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    },
+    {
+      "name": "test",
+      "SPDXID": "SPDXRef-Package-test",
+      "versionInfo": "1.25.2",
+      "downloadLocation": "https://pub.dev/packages/test",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    },
+    {
+      "name": "uuid",
+      "SPDXID": "SPDXRef-Package-uuid",
+      "versionInfo": "4.4.0",
+      "downloadLocation": "https://pub.dev/packages/uuid",
+      "packageSupplier": "Organization: Dart Pub Registry"
+    }
+  ]
+}

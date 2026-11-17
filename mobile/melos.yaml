@@ -1,0 +1,34 @@
+name: clothing_mobile_workspace
+repository: https://github.com/AviDhandhania/erp
+
+packages:
+  - packages/**
+  - apps/**
+
+command:
+  version:
+    linkToCommits: true
+    branch: main
+  bootstrap:
+    usePubspecOverrides: true
+
+scripts:
+  analyze:
+    run: melos exec -- "dart analyze --fatal-infos"
+    description: Run static analysis across all mobile packages and apps.
+
+  test:
+    run: melos exec --dir-exists="test" -- "flutter test"
+    description: Run all unit and widget tests.
+
+  clean:
+    run: melos exec -- "flutter clean"
+    description: Clean build artifacts across all workspaces.
+
+  sbom:
+    run: python scripts/generate_mobile_sbom.py
+    description: Generate Software Bill of Materials for mobile dependencies.
+
+  security:scan:
+    run: python scripts/scan_mobile_dependencies.py
+    description: Scan mobile dependencies for vulnerabilities and insecure packages.

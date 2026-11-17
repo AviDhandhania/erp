@@ -1,0 +1,108 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:clothing-erp-mobile-sbom-20261117175548",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-11-17T17:55:48.650408+00:00",
+    "tools": [
+      {
+        "vendor": "Clothing ERP Platform",
+        "name": "Mobile SBOM Generator",
+        "version": "1.0.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "Clothing ERP Mobile Suite",
+      "version": "1.0.0",
+      "description": "Enterprise mobile suite comprising Sales, Warehouse, and Quality applications."
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "clothing_core",
+      "version": "any",
+      "purl": "pkg:pub/clothing_core@any",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "clothing_design_system",
+      "version": "any",
+      "purl": "pkg:pub/clothing_design_system@any",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "crypto",
+      "version": "3.0.3",
+      "purl": "pkg:pub/crypto@3.0.3",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "flutter_secure_storage",
+      "version": "9.2.2",
+      "purl": "pkg:pub/flutter_secure_storage@9.2.2",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "http",
+      "version": "1.2.1",
+      "purl": "pkg:pub/http@1.2.1",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "intl",
+      "version": "0.19.0",
+      "purl": "pkg:pub/intl@0.19.0",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "lints",
+      "version": "4.0.0",
+      "purl": "pkg:pub/lints@4.0.0",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "melos",
+      "version": "6.0.0",
+      "purl": "pkg:pub/melos@6.0.0",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "meta",
+      "version": "1.15.0",
+      "purl": "pkg:pub/meta@1.15.0",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "sqflite_common_ffi",
+      "version": "2.3.3",
+      "purl": "pkg:pub/sqflite_common_ffi@2.3.3",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "test",
+      "version": "1.25.2",
+      "purl": "pkg:pub/test@1.25.2",
+      "scope": "required"
+    },
+    {
+      "type": "library",
+      "name": "uuid",
+      "version": "4.4.0",
+      "purl": "pkg:pub/uuid@4.4.0",
+      "scope": "required"
+    }
+  ]
+}

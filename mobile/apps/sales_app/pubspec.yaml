@@ -1,0 +1,18 @@
+name: sales_app
+description: Clothing Sales Mobile application for ASM and RSM field operations.
+version: 1.0.0+1
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  clothing_core:
+    path: ../../packages/core
+  clothing_design_system:
+    path: ../../packages/design_system
+  meta: ^1.15.0
+
+dev_dependencies:
+  test: ^1.25.2
+  lints: ^4.0.0

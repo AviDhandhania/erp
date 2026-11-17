@@ -1,0 +1,20 @@
+name: clothing_core
+description: Core networking, security, authentication, encrypted persistence, and peripheral abstractions for Clothing ERP Mobile Suite.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  http: ^1.2.1
+  crypto: ^3.0.3
+  uuid: ^4.4.0
+  meta: ^1.15.0
+  flutter_secure_storage: ^9.2.2
+  sqflite_common_ffi: ^2.3.3
+  intl: ^0.19.0
+
+dev_dependencies:
+  test: ^1.25.2
+  lints: ^4.0.0
