@@ -1,0 +1,142 @@
+/* Barcode Scanner Desk Page Styling */
+.barcode-scanner-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.scanner-flash-green {
+    animation: flashGreen 0.35s ease;
+}
+
+.scanner-flash-red {
+    animation: flashRed 0.35s ease;
+}
+
+.scanner-flash-amber {
+    animation: flashAmber 0.35s ease;
+}
+
+@keyframes flashGreen {
+    0% { background-color: rgba(46, 125, 50, 0.25); }
+    100% { background-color: transparent; }
+}
+
+@keyframes flashRed {
+    0% { background-color: rgba(198, 40, 40, 0.25); }
+    100% { background-color: transparent; }
+}
+
+@keyframes flashAmber {
+    0% { background-color: rgba(245, 124, 0, 0.25); }
+    100% { background-color: transparent; }
+}
+
+.scanner-card {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #d1d8dd);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.scanner-viewport-box {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+    height: 300px;
+    margin: 0 auto 15px auto;
+    background: #111;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.scanner-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.scanner-viewfinder-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70%;
+    height: 50%;
+    border: 2px solid rgba(76, 175, 80, 0.85);
+    border-radius: 6px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+}
+
+.scanner-laser-line {
+    width: 100%;
+    height: 2px;
+    background: #ff5252;
+    position: absolute;
+    top: 50%;
+    box-shadow: 0 0 8px #ff5252;
+    animation: scanLaser 2s infinite ease-in-out;
+}
+
+@keyframes scanLaser {
+    0% { top: 10%; }
+    50% { top: 90%; }
+    100% { top: 10%; }
+}
+
+.scanner-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 15px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.scanner-result-box {
+    border-left: 4px solid #2e7d32;
+    background: #f1f8e9;
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 15px;
+}
+
+.scanner-result-box.error {
+    border-left-color: #c62828;
+    background: #ffebee;
+}
+
+.scanner-result-box.warning {
+    border-left-color: #f57c00;
+    background: #fff3e0;
+}
+
+.scan-history-table {
+    width: 100%;
+    font-size: 13px;
+    border-collapse: collapse;
+}
+
+.scan-history-table th, .scan-history-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+}
+
+.scan-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.scan-badge.green { background: #e8f5e9; color: #2e7d32; }
+.scan-badge.red { background: #ffebee; color: #c62828; }
+.scan-badge.amber { background: #fff3e0; color: #ef6c00; }

@@ -272,34 +272,34 @@ The barcode is an identifier, never authorization. Every scan must resolve and r
 the current user, company, Territory/Warehouse, document state, quantity, serial/batch,
 remaining work and concurrency on the server.
 
-- [ ] Write `docs/barcodes.md` defining identifier namespaces and symbologies before coding:
+- [x] Write `docs/barcodes.md` defining identifier namespaces and symbologies before coding:
   Item/EAN/UPC/GTIN where supplied, internal Item Code128, Serial No, Batch No, package,
   Pick List, Delivery Note, return/quarantine, quality-cycle/report and location labels.
-- [ ] Reuse ERPNext Item Barcode, Serial No, Batch No and Serial and Batch Bundle wherever
+- [x] Reuse ERPNext Item Barcode, Serial No, Batch No and Serial and Batch Bundle wherever
   they are authoritative. Do not generate a second competing product/serial registry.
-- [ ] Add administrator-controlled internal barcode generation with collision-safe server
+- [x] Add administrator-controlled internal barcode generation with collision-safe server
   allocation, check digit where applicable, immutable assignment/audit, preview and explicit
   rules for manufacturer barcodes. Never silently replace a used identifier.
-- [ ] Support Code 128 for internal identifiers and standards-compliant EAN-13/UPC/GTIN/GS1
+- [x] Support Code 128 for internal identifiers and standards-compliant EAN-13/UPC/GTIN/GS1
   only when input ownership, length, check digit and licensing/business rules are satisfied.
   Use QR only for opaque non-secret record/label identifiers or URLs requiring login.
-- [ ] Add single and bounded bulk label generation for products/size variants, bins/locations,
+- [x] Add single and bounded bulk label generation for products/size variants, bins/locations,
   packages, returns and quality records. Provide configurable label size, human-readable text,
   company/brand, SKU, colour, size, price only when authorized, batch/serial and print count.
-- [ ] Produce deterministic PDF and optional reviewed ZPL without shell interpolation or
+- [x] Produce deterministic PDF and optional reviewed ZPL without shell interpolation or
   remote resources. Permission-check generation and download; record who printed/reprinted.
-- [ ] Create one server-side scan resolver that accepts normalized scan text plus operation
+- [x] Create one server-side scan resolver that accepts normalized scan text plus operation
   context and returns a minimal typed result. Prevent cross-company/warehouse/territory
   enumeration and ambiguous collisions across barcode types.
-- [ ] Support hardware keyboard-wedge scanners and mobile camera scanning with debounce,
+- [x] Support hardware keyboard-wedge scanners and mobile camera scanning with debounce,
   duplicate suppression, continuous scan mode, torch, sound/haptic/color feedback and an
   accessible manual entry fallback.
-- [ ] Add explicit scan operations for catalogue lookup, picking, undo-before-submit,
+- [x] Add explicit scan operations for catalogue lookup, picking, undo-before-submit,
   packing, dispatch, returns, quarantine, refurbishment, stock/location and quality evidence.
-- [ ] Require idempotency and row locks for scan mutations; add replay, rapid double scan,
+- [x] Require idempotency and row locks for scan mutations; add replay, rapid double scan,
   two-device race, wrong item, wrong variant, wrong batch, wrong serial, expired batch,
   over-pick, over-return, offline replay and revoked-access tests.
-- [ ] Never embed credentials, customer PII, prices, private file URLs or business approval
+- [x] Never embed credentials, customer PII, prices, private file URLs or business approval
   in a barcode. Treat printed identifiers as observable and potentially forged.
 
 ### Mobile programme — three production applications
@@ -1681,3 +1681,65 @@ Session 13 completed the critical gate approval architecture, exact revision loc
 
 11. **Boundary Enforcement**:
     - Completed strictly within Session 13 scope. Stopped cleanly before Session 14 (Barcodes, QR, labels, scanner).
+
+---
+
+### Session 14: Barcode Generation, Scanning, Labels and Printing — Complete
+
+1. **Architecture & Standards Specification**:
+   - Authored `docs/barcodes.md` defining 11 distinct identifier namespaces and symbologies:
+     - Licensed GS1 GTIN / EAN-13 / EAN-8 / UPC-A / GTIN-14
+     - ERPNext Item Barcode (`tabItem Barcode`)
+     - Internal Code 128 SKU (`SKU-...`)
+     - Serial No (`SR-...`)
+     - Batch No (`BATCH-...`)
+     - Warehouse Location Bin Tag (`LOC-...` / `WH-...`)
+     - Shipping Carton / Package (`PKG-...`)
+     - Pick List (`PL-...` / `PICK-...`)
+     - Delivery Note (`MAT-DN-...` / `DN-...`)
+     - Return Quarantine (`RQ-...` / `RET-...`)
+     - Quality Cycle & Inspection (`PQC-...` / `SQI-...`)
+   - Strict Anti-Forgery Policy: Rejection of pseudo-EAN generation or claims of global GS1 validity without licensed prefixes.
+   - Core Security Doctrine: Barcode is strictly an object identifier, never an authorization grant.
+
+2. **Backend Barcode Platform (`warehouse_erp/warehouse_erp/barcodes.py`)**:
+   - GS1 Modulo-10 check-digit computation and validation algorithms (`compute_gs1_mod10_check_digit`, `validate_gs1_mod10_check_digit`, `validate_ean13`, `validate_upca`, `validate_ean8`).
+   - Code 128 character validation (`validate_code128_charset`).
+   - Deterministic classification routine (`classify_barcode_namespace`).
+   - Collision-safe allocation (`allocate_item_barcode`, `generate_internal_sku_barcode`, `bulk_allocate_barcodes` bounded to max 500 items).
+   - Crisp SVG barcode preview generator (`preview_barcode`) using pure Python library `python-barcode`.
+   - Typed Scan Resolver (`resolve_scan`):
+     - Single entry-point validating permissions, company, warehouse scoping, and operational context.
+     - Detects and strictly rejects: Wrong Item, Wrong Size Variant, Wrong Batch, Expired Batch, Wrong Serial, Undelivered Serial, Over-pick, Over-return, and Unauthorized Warehouse Location.
+
+3. **Label Printing & Generation (`warehouse_erp/warehouse_erp/labels.py`)**:
+   - Extended `ALLOWED_LABEL_TYPES` to support `item_sku`, `location`, `quality_cycle`, `quality_inspection`, alongside `shipping`, `pick_slip`, `refurbishment`, and `return_quarantine`.
+   - SVG barcode embedding within deterministic HTML labels.
+   - Reviewed ZPL II standard thermal output generator (`generate_label_zpl`) emitting `^XA ... ^XZ` and `^BC` Code 128 barcodes.
+   - WeasyPrint PDF binary rendering with MIME type `application/pdf` (`get_document_label(..., label_format="pdf")`).
+   - Bounded bulk label generator (`generate_bulk_labels` bounded to max 100 items).
+   - Atomic reprint counter, security audit event logging, and prominent `*** REPRINT - AUDITED LABEL ***` watermark on reprints.
+
+4. **Web & Mobile Scanning Client (`clothing_scanner.js` & Desk Page `barcode_scanner`)**:
+   - Created reusable client library `warehouse_erp/public/js/clothing_scanner.js` (`ClothingScanner` class):
+     - Hardware keyboard-wedge scanner listener (< 50ms character interval buffer detection).
+     - Camera video stream scanning with torch/flashlight toggling.
+     - Debounce (1500ms) and duplicate suppression.
+     - Continuous scanning mode.
+     - Multi-sensory feedback: Web Audio API synth tones (880Hz success chime, 220Hz error chime), haptic vibration (`navigator.vibrate`), and visual color flashing.
+     - Accessible manual entry fallback with ARIA live region (`aria-live="polite"`).
+   - Created Desk Page `warehouse_erp/page/barcode_scanner`:
+     - Context selector (Catalogue, Picking, Packing, Dispatch, Returns, Inspection, Bin Relocation).
+     - Interactive camera viewfinder, manual input box, and scan history audit timeline.
+   - Registered Desk Page navigation in `warehouse_erp.json` sidebar.
+
+5. **Test Suite Verification**:
+   - Barcode Platform Tests: **15/15** tests passed (`warehouse_erp/tests/test_barcode_platform.py`).
+   - Warehouse ERP Suite: **120/120** tests passed (`test_warehouse_app`, `test_warehouse_flow_and_handoff`, `test_warehouse_returns_and_labels`, `test_barcode_platform`, `test_warehouse_security`, `test_returns`, `test_fulfillment`).
+   - Sales ERP Suite: **126/126** tests passed (`test_delivery_follow_up`, `test_api_security`, `test_sales_policy_settings`, `test_sales_app`, `test_cadence`, `test_sales_orders_reports_scale`, `test_credit_limit_request`, `test_authorization_matrix`, `test_retailer_visit_report`, `test_catalogue`, `test_insights_compat`, `test_gallery`, `test_supervision`, `test_seed`, `test_erpnext_compat`, `test_sales_security`).
+   - Quality ERP Suite: **59/59** tests passed (`test_quality_evidence`, `test_production_quality_cycle`, `test_quality_stage_reports`, `test_quality_gates_and_dispositions`, `test_quality_app`).
+   - Deployment & Security Hardening: **54/54** tests passed (`deploy/tests`).
+   - Total Suite Tests: **359/359** clean test executions across all apps.
+
+6. **Boundary Enforcement**:
+   - Completed strictly within Session 14 scope. Ready to advance to Session 15 (Shared Mobile Foundation).

@@ -46,6 +46,7 @@ APPROVED_RUNTIME_IGNORE_PERMISSIONS = {
     ("quality_erp/quality_erp/file_security.py", "save_secure_file", "Inserts private File document after validating content bytes, magic signature, and decompression bounds"),
     ("quality_erp/quality_erp/file_security.py", "reference_safe_delete_file", "Deletes unreferenced local File document after verifying zero active references across suite"),
     ("warehouse_erp/warehouse_erp/file_security.py", "save_secure_file", "Inserts private File document after validating content bytes, magic signature, and decompression bounds"),
+    ("warehouse_erp/warehouse_erp/barcodes.py", "allocate_item_barcode", "Allocates immutable barcode to Item after role validation, check-digit verification and collision check"),
 }
 
 

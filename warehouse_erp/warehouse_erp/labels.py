@@ -32,8 +32,26 @@ from warehouse_erp.security import (
     require_role,
 )
 
-LABEL_ROLES = {ROLE_WAREHOUSE_MANAGER, ROLE_BUSINESS_ADMIN, "System Manager"}
-ALLOWED_LABEL_TYPES = {"shipping", "pick_slip", "quarantine", "refurbishment", "delivery_handoff"}
+LABEL_ROLES = {
+    ROLE_WAREHOUSE_MANAGER,
+    ROLE_BUSINESS_ADMIN,
+    "System Manager",
+    "Quality Inspector",
+    "Quality Manager",
+    "Clothing Quality Inspector",
+    "Clothing Quality Manager",
+}
+ALLOWED_LABEL_TYPES = {
+    "shipping",
+    "pick_slip",
+    "quarantine",
+    "refurbishment",
+    "delivery_handoff",
+    "item_sku",
+    "location",
+    "quality_cycle",
+    "quality_inspection",
+}
 ALLOWED_LABEL_FORMATS = {"html", "pdf", "zpl"}
 
 
@@ -110,6 +128,12 @@ def _validate_label_access(doctype: str, name: str) -> frappe.Document:
                             _("You do not have permission for warehouse {0}.").format(item.warehouse),
                             frappe.PermissionError,
                         )
+        elif doctype == "Warehouse":
+            if doc.name not in allowed:
+                frappe.throw(
+                    _("You do not have permission for warehouse {0}.").format(doc.name),
+                    frappe.PermissionError,
+                )
 
     return doc
 
@@ -235,6 +259,70 @@ def get_label_data(doctype: str, name: str, label_type: str) -> dict:
             "printed_by": get_current_user(),
         }
 
+    elif label_type == "item_sku":
+        primary_bc = doc.name
+        for b in doc.get("barcodes") or []:
+            if b.barcode:
+                primary_bc = b.barcode
+                break
+        return {
+            "title": "PRODUCT SKU LABEL",
+            "document_name": doc.name,
+            "barcode": primary_bc,
+            "item_code": doc.item_code,
+            "item_name": doc.item_name,
+            "item_group": doc.item_group,
+            "stock_uom": doc.stock_uom,
+            "printed_on": now_str,
+            "printed_by": get_current_user(),
+        }
+
+    elif label_type == "location":
+        return {
+            "title": "WAREHOUSE LOCATION BIN TAG",
+            "document_name": doc.name,
+            "barcode": f"LOC-{doc.name}",
+            "warehouse_name": doc.warehouse_name,
+            "company": doc.company,
+            "parent_warehouse": doc.parent_warehouse or "Root",
+            "printed_on": now_str,
+            "printed_by": get_current_user(),
+        }
+
+    elif label_type == "quality_cycle":
+        return {
+            "title": "PRODUCTION QUALITY CYCLE TAG",
+            "document_name": doc.name,
+            "barcode": doc.name,
+            "supplier": doc.supplier,
+            "purchase_order": doc.purchase_order or "N/A",
+            "item_code": doc.item_code,
+            "production_lot": doc.production_lot or "N/A",
+            "season": doc.season or "N/A",
+            "go_ahead_status": doc.go_ahead_status or "Pending",
+            "final_inspection_status": doc.final_inspection_status or "Pending",
+            "clearance_status": doc.clearance_status or "Pending",
+            "printed_on": now_str,
+            "printed_by": get_current_user(),
+        }
+
+    elif label_type == "quality_inspection":
+        return {
+            "title": "SUPPLIER QUALITY INSPECTION TAG",
+            "document_name": doc.name,
+            "barcode": doc.name,
+            "stage": doc.stage,
+            "supplier": doc.supplier,
+            "item_code": doc.item_code,
+            "status": doc.status,
+            "result": doc.result,
+            "inspector": doc.inspector,
+            "inspection_date": str(doc.inspection_date),
+            "revision": doc.revision or 1,
+            "printed_on": now_str,
+            "printed_by": get_current_user(),
+        }
+
     else:
         frappe.throw(_("Unsupported label type: {0}").format(label_type), frappe.ValidationError)
 
@@ -294,6 +382,24 @@ def generate_label_html(doctype: str, name: str, label_type: str, is_reprint: bo
 
     primary_code = data.get("package_barcode") or data.get("barcode") or data.get("document_name")
 
+    barcode_svg = ""
+    try:
+        import barcode as pybarcode
+        from barcode.writer import SVGWriter
+        import io
+        writer = SVGWriter()
+        buf = io.BytesIO()
+        bc_class = pybarcode.get_barcode_class("code128")
+        clean_code = str(primary_code or "").strip()
+        bc_obj = bc_class(clean_code, writer=writer)
+        bc_obj.write(buf)
+        raw_svg = buf.getvalue().decode("utf-8")
+        if "<?xml" in raw_svg:
+            raw_svg = raw_svg.split("?>", 1)[-1]
+        barcode_svg = f"<div style='margin: 4px auto; max-width: 320px;'>{raw_svg}</div>"
+    except Exception:
+        barcode_svg = f"<div class='barcode-visual'>*{escape_html(primary_code)}*</div>"
+
     html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -345,7 +451,7 @@ def generate_label_html(doctype: str, name: str, label_type: str, is_reprint: bo
         </div>
         <div class="barcode-box">
             <div style="font-size: 10px; color: #666; margin-bottom: 4px;">SCANNER BARCODE</div>
-            <div class="barcode-visual">*{escape_html(primary_code)}*</div>
+            {barcode_svg}
             <div style="font-size: 12px; font-weight: bold; margin-top: 4px;">{escape_html(primary_code)}</div>
         </div>
         <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
@@ -426,9 +532,19 @@ def get_document_label(
     if label_format == "zpl":
         rendered = generate_label_zpl(doctype, name, label_type, is_reprint=is_reprint)
         mime_type = "text/plain"
+        size_bytes = len(rendered.encode("utf-8"))
+    elif label_format == "pdf":
+        html_rendered = generate_label_html(doctype, name, label_type, is_reprint=is_reprint)
+        import weasyprint
+        import base64
+        pdf_bytes = weasyprint.HTML(string=html_rendered).write_pdf()
+        rendered = base64.b64encode(pdf_bytes).decode("utf-8")
+        mime_type = "application/pdf"
+        size_bytes = len(pdf_bytes)
     else:
         rendered = generate_label_html(doctype, name, label_type, is_reprint=is_reprint)
         mime_type = "text/html"
+        size_bytes = len(rendered.encode("utf-8"))
 
     return {
         "doctype": doctype,
@@ -438,7 +554,65 @@ def get_document_label(
         "is_reprint": is_reprint,
         "print_count": print_count,
         "content": rendered,
+        "size_bytes": size_bytes,
         "mime_type": mime_type,
+    }
+
+
+@frappe.whitelist()
+def download_label_pdf(
+    doctype: str,
+    name: str,
+    label_type: str = "shipping",
+) -> None:
+    """Stream label as a direct PDF download."""
+    import base64
+    res = get_document_label(doctype, name, label_type, label_format="pdf")
+    pdf_bytes = base64.b64decode(res["content"])
+    frappe.local.response.filename = f"{label_type}_{name}.pdf"
+    frappe.local.response.filecontent = pdf_bytes
+    frappe.local.response.type = "download"
+
+
+@frappe.whitelist(methods=["POST"])
+def generate_bulk_labels(
+    doctype: str,
+    names: list[str] | str,
+    label_type: str = "shipping",
+    label_format: str = "html",
+) -> dict:
+    """Generate labels in bounded batches (max 100 per request)."""
+    check_rate_limit("generate_bulk_labels", limit=30, window_seconds=60)
+    require_role(LABEL_ROLES)
+    doctype = validate_string(doctype, "DocType", max_len=140, required=True)
+    label_type = validate_string(label_type, "Label Type", allowed_values=ALLOWED_LABEL_TYPES)
+    label_format = validate_string(label_format, "Label Format", allowed_values=ALLOWED_LABEL_FORMATS)
+
+    if isinstance(names, str):
+        try:
+            names = json.loads(names)
+        except Exception:
+            names = [s.strip() for s in names.split(",") if s.strip()]
+
+    if len(names) > 100:
+        frappe.throw(
+            _("Bulk label generation bounded to maximum 100 items per request; received {0}.").format(len(names)),
+            frappe.ValidationError,
+        )
+
+    results = []
+    for item_name in names:
+        try:
+            lbl = get_document_label(doctype, item_name, label_type, label_format)
+            results.append({"name": item_name, "success": True, "label": lbl})
+        except Exception as e:
+            results.append({"name": item_name, "success": False, "error": str(e)})
+
+    return {
+        "success": True,
+        "total_requested": len(names),
+        "total_generated": len([r for r in results if r["success"]]),
+        "results": results,
     }
 
 

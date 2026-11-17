@@ -32,6 +32,10 @@ website_route_rules = [
 after_install = "warehouse_erp.install.after_install"
 after_migrate = "warehouse_erp.install.after_migrate"
 
+app_include_js = [
+	"/assets/warehouse_erp/js/clothing_scanner.js",
+]
+
 extend_bootinfo = "warehouse_erp.boot.restrict_warehouse_app_visibility"
 boot_session = "warehouse_erp.boot.restrict_warehouse_app_visibility"
 
