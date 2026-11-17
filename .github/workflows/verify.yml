@@ -5,16 +5,18 @@ on:
       ref:
         required: false
         type: string
+permissions:
+  contents: read
 jobs:
   checks:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref || github.sha }}
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@86029dd7c2826cf84be8593361e6c38ceaaae54c # v5.1.0
       - run: sudo apt-get update && sudo apt-get install -y libmariadb-dev pkg-config shellcheck
       - run: |
           . deploy/versions.env
@@ -54,14 +56,14 @@ jobs:
         ports:
           - 6379:6379
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref || github.sha }}
       - run: sudo apt-get update && sudo apt-get install -y libmariadb-dev mariadb-client pkg-config
       - name: Build exact native app combination and run database tests
         shell: bash
         run: bash deploy/ci-integration.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
           name: verified-runtime-locks
           path: /tmp/verified-runtime-locks/

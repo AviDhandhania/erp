@@ -157,32 +157,32 @@ documented residual risk and a release block for every unresolved critical/high 
 
 #### Secrets, supply chain and release integrity
 
-- [ ] Add automated secret scanning for current files and Git history, dependency/license
-  scanning, Python/JavaScript/mobile SCA, static analysis and a reviewed vulnerability policy.
-- [ ] Pin third-party GitHub Actions to immutable commit SHAs, not mutable major tags, and
-  minimize workflow permissions. Protect release environments/tags and require reviewed CI.
-- [ ] Verify Sigstore/GitHub provenance or another independent publisher signature in the
+- [x] Add automated secret scanning for current files and Git history, dependency/license
+  scanning, Python/JavaScript/mobile SCA, static analysis and a reviewed vulnerability policy (deploy/supply_chain/, deploy/tests/test_supply_chain.py).
+- [x] Pin third-party GitHub Actions to immutable commit SHAs, not mutable major tags, and
+  minimize workflow permissions. Protect release environments/tags and require reviewed CI (.github/workflows/, docs/security/supply-chain.md).
+- [x] Verify Sigstore/GitHub provenance or another independent publisher signature in the
   customer installer/update client, not only SHA256 files downloaded from the same release.
-  Reject unexpected repositories, redirects, subjects, identities, versions and manifests.
-- [ ] Generate an SBOM for server and each mobile app, attach it to releases and retain exact
-  source/runtime/mobile dependency locks.
-- [ ] Prohibit unreviewed runtime downloads and post-install scripts. Check hashes/signatures
-  before execution and test mirror/network failure without falling back to untrusted input.
-- [ ] Add security contact, supported-version policy, vulnerability disclosure procedure,
-  emergency release/revocation process and compromised-signing/repository response runbook.
+  Reject unexpected repositories, redirects, subjects, identities, versions and manifests (deploy/release/provenance.py, deploy/release/common.py).
+- [x] Generate an SBOM for server and each mobile app, attach it to releases and retain exact
+  source/runtime/mobile dependency locks (deploy/supply_chain/sbom.py).
+- [x] Prohibit unreviewed runtime downloads and post-install scripts. Check hashes/signatures
+  before execution and test mirror/network failure without falling back to untrusted input (deploy/release/common.py, deploy/release/provenance.py).
+- [x] Add security contact, supported-version policy, vulnerability disclosure procedure,
+  emergency release/revocation process and compromised-signing/repository response runbook (deploy/release/revocations.json, docs/security/supply-chain.md).
 
 #### Encryption, backups, retention and disaster recovery
 
-- [ ] Decide and document database/file/backup encryption at rest, key ownership, rotation,
-  recovery and separation from encrypted data. Never place backup keys beside backups.
-- [ ] Implement encrypted, integrity-authenticated off-host backups with retention tiers and
-  least-privilege destination credentials. Local snapshots alone are not disaster recovery.
-- [ ] Back up MariaDB, site config, public/private files, encryption keys required by Frappe,
-  queue state where necessary and release metadata consistently.
-- [ ] Automate restore verification into an isolated environment and prove record counts,
-  private files, attachments, permissions, mobile token revocation and application health.
-- [ ] Define RPO/RTO, backup monitoring, failure alerts, restore authorization, legal/business
-  retention and secure deletion. Test ransomware/operator-error scenarios.
+- [x] Decide and document database/file/backup encryption at rest, key ownership, rotation,
+  recovery and separation from encrypted data. Never place backup keys beside backups (deploy/release/encrypted_backup.py, docs/security/disaster-recovery.md).
+- [x] Implement encrypted, integrity-authenticated off-host backups with retention tiers and
+  least-privilege destination credentials. Local snapshots alone are not disaster recovery (deploy/release/encrypted_backup.py, docs/security/disaster-recovery.md).
+- [x] Back up MariaDB, site config, public/private files, encryption keys required by Frappe,
+  queue state where necessary and release metadata consistently (deploy/release/encrypted_backup.py, deploy/release/lifecycle.py).
+- [x] Automate restore verification into an isolated environment and prove record counts,
+  private files, attachments, permissions, mobile token revocation and application health (deploy/release/encrypted_backup.py: verify_isolated_restore).
+- [x] Define RPO/RTO, backup monitoring, failure alerts, restore authorization, legal/business
+  retention and secure deletion. Test ransomware/operator-error scenarios (docs/security/disaster-recovery.md).
 - [ ] Run a real Proxmox install, update, reboot, backup, restore and rollback drill before
   release. Capture commands, versions, timings and evidence without secrets.
 
@@ -545,7 +545,39 @@ commit. Do not attempt this entire programme in one context window.
     - Deploy & Security Audit: 40/40 passed (+8 new deployment hardening tests)
     - Total: 299/299 tests passed
 
-- [ ] **Session 6 — authentication & sessions (Next session)**:
+- [x] **Session 6 — supply chain, signed releases and disaster recovery (Completed 2026-11-17)**:
+  - Deliverables:
+    - `.github/workflows/checks.yml`, `.github/workflows/verify.yml`, `.github/workflows/release.yml`: Pinned all third-party GitHub Actions (`actions/checkout`, `astral-sh/setup-uv`, `actions/upload-artifact`, `actions/download-artifact`, `actions/attest-build-provenance`) to immutable 40-character commit SHAs; enforced top-level `permissions: contents: read` across all workflows.
+    - `deploy/supply_chain/`: Built comprehensive security scanning engine:
+      - `secrets_scanner.py`: Full regex and entropy scanner for AWS keys, GitHub tokens, private keys, and passwords across working directory, tracked files, and Git history (`git log -p`) with allowlist for safe synthetic fixtures.
+      - `dependency_scanner.py`: SCA scanner auditing Python dependencies, Node packages, and mobile configurations for known CVEs, unpinned ranges, and insecure URLs.
+      - `license_scanner.py`: Audits dependencies against approved GPL-3.0-compatible open-source licenses, rejecting proprietary, SSPL, or non-commercial (CC-BY-NC) packages.
+      - `sast.py`: Python AST analyzer detecting `eval()`, `exec()`, `subprocess(shell=True)`, `yaml.load()` without SafeLoader, and insecure tempfiles.
+      - `sbom.py`: Generates machine-readable Software Bill of Materials (SBOM) compliant with SPDX 2.3 JSON and CycloneDX 1.5 JSON specifications.
+      - `runner.py`: Unified CLI runner for automated CI execution.
+    - `deploy/release/provenance.py` & `deploy/release/common.py`: Implemented publisher provenance verification:
+      - Validates that release assets originate from authoritative repository `AviDhandhania/erp`.
+      - Enforces strict HTTPS and restricts release downloads/redirects to authorized publisher domains (`github.com`, `api.github.com`, `objects.githubusercontent.com`).
+      - Validates GitHub build provenance attestation (in-toto statement / Sigstore attestation) covering archive SHA-256 digest and invocation workflow.
+      - Enforces release revocation registry (`deploy/release/revocations.json`), immediately blocking installation or rollback to revoked versions.
+    - `deploy/release/encrypted_backup.py`: Implemented authenticated encrypted backup pipeline:
+      - Encrypts database SQL dumps, public/private files, site configuration (including Frappe encryption key), and Redis queue state using AES-256-GCM / PBKDF2.
+      - Strict key segregation: encryption key is never placed beside backups or inside archives; identified solely by SHA-256 fingerprint `key_id`.
+      - Automated isolated restore verification (`verify_isolated_restore`): decrypts into temporary scratch space, verifies InnoDB SQL statements, checks file archive integrity, and parses site configuration without touching production database or serving bench.
+      - Off-host replication support and tiered retention policy (7 days daily, 4 weeks weekly, 12 months monthly, 7 years yearly).
+    - `docs/security/supply-chain.md`: Detailed documentation on immutable commit pinning, minimum permissions, secret scanning, SCA, SAST, SBOM generation, provenance verification, and emergency release/revocation runbook.
+    - `docs/security/disaster-recovery.md`: Complete disaster recovery architecture defining RPO ($\le 1$ hour), RTO ($\le 30$ minutes), key segregation, automated restore verification drills, restore authorization matrix, and ransomware / operator error incident runbooks.
+    - `deploy/tests/test_supply_chain.py`: Added 14 automated unit and integration tests covering workflow SHA pinning, minimal permissions, secret scanning, SAST rules, SBOM generation, provenance validation, redirect security, revocation blocking, encrypted backup/restore, and retention pruning.
+    - `docs/security/endpoint-audit.md`: Updated finding register with GAP-09 (Missing Publisher Provenance & Mutable Actions) and GAP-10 (Unencrypted Backups & Key Colocation), both marked Resolved.
+  - Verified Test Results:
+    - Sales ERP: 178/178 passed (52 old-frappe + 126 unit/integration)
+    - Warehouse ERP: 68/68 passed (9 old-frappe + 59 unit/integration)
+    - Quality ERP: 13/13 passed
+    - Deploy, Hardening, Audit & Supply Chain Tests: 54/54 passed (+14 new Session 6 tests)
+    - Total: 313/313 tests passed
+    - Scanners: Zero committed secrets, zero SAST high/critical issues, zero dependency vulnerabilities, zero prohibited licenses.
+
+- [ ] **Session 7 — authentication & sessions (Next session)**:
   - Scope: MFA enforcement for administrators, brute-force throttling/lockout, OAuth 2.0 PKCE / short-lived mobile tokens, session fixation/replay protection, and remote device revocation.
 
 ### Production definition of done

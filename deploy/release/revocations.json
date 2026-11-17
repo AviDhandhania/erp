@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "repository": "AviDhandhania/erp",
+  "updated_at": "2026-11-17T18:00:00Z",
+  "revoked_releases": {
+    "v0.1.0": {
+      "reason": "Pre-production insecure HTTP prototype with plain-text credentials",
+      "revoked_at": "2026-11-07T00:00:00Z",
+      "superseded_by": "v0.3.1"
+    },
+    "v0.2.0": {
+      "reason": "Legacy Warehouse Operator permission vulnerability",
+      "revoked_at": "2026-11-17T12:00:00Z",
+      "superseded_by": "v0.3.1"
+    }
+  }
+}

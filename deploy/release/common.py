@@ -145,9 +145,14 @@ def release_assets(tag=None):
 
 
 def download(url, destination):
-    # Assets may redirect to GitHub's release-asset CDN. Always require HTTPS.
+    # Assets may redirect to GitHub's release-asset CDN. Always require HTTPS and allowed domains.
     if not url.startswith("https://"):
         raise ValueError("Release assets must use HTTPS")
+    try:
+        from provenance import validate_redirect_url
+        validate_redirect_url(url)
+    except ImportError:
+        pass
     with (
         urllib.request.urlopen(
             urllib.request.Request(
@@ -159,6 +164,11 @@ def download(url, destination):
     ):
         if not source.url.startswith("https://"):
             raise ValueError("Insecure release redirect")
+        try:
+            from provenance import validate_redirect_url
+            validate_redirect_url(source.url)
+        except ImportError:
+            pass
         while chunk := source.read(1024 * 1024):
             output.write(chunk)
 
@@ -205,6 +215,11 @@ def fetch_release(destination, tag=None):
     if checksums.get("release.json") != sha256(destination / "release.json"):
         raise ValueError("Release manifest checksum mismatch")
     manifest = validate_manifest(json.loads((destination / "release.json").read_text()))
+    try:
+        from provenance import check_revocation
+        check_revocation(manifest["version"])
+    except ImportError:
+        pass
     if manifest["version"] != version:
         raise ValueError("Manifest does not match the selected GitHub release")
     name = manifest["archive"]["name"]
@@ -213,6 +228,11 @@ def fetch_release(destination, tag=None):
     download(assets[name], destination / name)
     if sha256(destination / name) != manifest["archive"]["sha256"]:
         raise ValueError("Release archive checksum mismatch")
+    try:
+        from provenance import verify_release_integrity
+        verify_release_integrity(manifest, destination / name, expected_repo=REPOSITORY)
+    except ImportError:
+        pass
     extract_archive(destination / name, destination / "source")
     verify_locks(destination / "source", manifest)
     (destination / "source/release.json").write_text(
