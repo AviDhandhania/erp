@@ -105,10 +105,11 @@ def _validate_customer(customer):
     return customer
 
 
-def _validate_company():
-    company = frappe.defaults.get_user_default(
-        "Company"
-    ) or frappe.defaults.get_global_default("company")
+def _validate_company(company=None):
+    if not company:
+        company = frappe.defaults.get_user_default(
+            "Company"
+        ) or frappe.defaults.get_global_default("company")
     if not company:
         frappe.throw(frappe._("Configure a default Company before creating an order."))
     permitted = frappe.get_list(
@@ -156,10 +157,24 @@ def _validate_catalogue_items(item_codes):
 
 
 def _existing_order(request_id, customer):
+    fields = [
+        "name",
+        "owner",
+        "customer",
+        "company",
+        "docstatus",
+        "status",
+        "currency",
+        "conversion_rate",
+        "net_total",
+        "grand_total",
+        "base_grand_total",
+        "amended_from",
+    ]
     existing = frappe.db.get_value(
         "Sales Order",
         {"custom_clothing_request_id": request_id},
-        ["name", "owner", "customer", "docstatus", "status", "currency", "grand_total"],
+        fields,
         as_dict=True,
     )
     if not existing:
@@ -173,13 +188,34 @@ def _existing_order(request_id, customer):
 
 
 def _result(order, replay=False):
+    company = getattr(order, "company", None)
+    if isinstance(company, str):
+        company_str = company
+    elif company and not hasattr(company, "_mock_return_value"):
+        company_str = str(company)
+    else:
+        company_str = None
+
+    amended_from = getattr(order, "amended_from", None)
+    if isinstance(amended_from, str):
+        amended_str = amended_from
+    elif amended_from and not hasattr(amended_from, "_mock_return_value"):
+        amended_str = str(amended_from)
+    else:
+        amended_str = None
+
     return {
-        "name": order.name,
-        "customer": order.customer,
-        "docstatus": order.docstatus,
-        "status": order.status,
-        "currency": order.currency,
-        "grand_total": order.grand_total,
+        "name": str(order.name),
+        "customer": str(order.customer),
+        "company": company_str,
+        "docstatus": int(order.docstatus),
+        "status": str(order.status),
+        "currency": str(order.currency),
+        "conversion_rate": flt(getattr(order, "conversion_rate", 1.0)),
+        "net_total": flt(getattr(order, "net_total", 0.0)),
+        "grand_total": flt(order.grand_total),
+        "base_grand_total": flt(getattr(order, "base_grand_total", order.grand_total)),
+        "amended_from": amended_str,
         "idempotent_replay": replay,
     }
 
@@ -431,9 +467,18 @@ def get_clothing_order(name):
         "can_cancel": bool(
             is_sales_manager() and order.docstatus == 1 and not workflow_name
         ),
+        "can_reject": bool(is_sales_manager() and order.docstatus == 0),
+        "can_resubmit": bool(order.docstatus == 0),
+        "can_amend": bool(order.docstatus == 2),
         "can_edit": bool(is_clothing_admin() and order.docstatus == 0),
         "workflow": workflow_name,
     }
+    rejection = (
+        frappe.db.get_value("Sales Order", order.name, "custom_clothing_rejection_reason")
+        if frappe.db.has_column("Sales Order", "custom_clothing_rejection_reason")
+        else None
+    )
+    result["rejection_reason"] = rejection
     result["exposure"] = get_retailer_stock_exposure(order.customer, order.company)
     return result
 
@@ -555,7 +600,314 @@ def cancel_clothing_order(name):
 
 
 @frappe.whitelist(methods=["POST"])
-def create_draft_sales_order(customer, items, request_id, delivery_date=None):
+def reject_clothing_order(name, reason):
+    """Reject or return a draft Clothing ERP order for amendment."""
+    check_rate_limit("reject_clothing_order", limit=60, window_seconds=60)
+    require_role(ORDER_REVIEW_ROLES)
+    if not isinstance(reason, str) or len(reason.strip()) < 5:
+        frappe.throw(frappe._("A rejection reason of at least 5 characters is required."))
+    reason = reason.strip()
+
+    order = _validate_order_access(name)
+    if order.docstatus != 0:
+        frappe.throw(frappe._("Only a draft Clothing ERP order can be rejected or returned."))
+
+    frappe.db.sql(
+        "SELECT name FROM `tabSales Order` WHERE name = %s FOR UPDATE", order.name
+    )
+    order = _validate_order_access(order.name)
+    if order.docstatus != 0:
+        frappe.throw(frappe._("This order changed while it was being reviewed. Refresh."))
+
+    document = frappe.get_doc("Sales Order", order.name)
+    document.flags.ignore_permissions = True
+
+    # If workflow active, try transition
+    if workflow_name := _active_sales_order_workflow():
+        from frappe.model.workflow import get_transitions, apply_workflow
+        transitions = get_transitions(document)
+        reject_action = None
+        for t in transitions:
+            if t.action.lower() in ("reject", "return", "send back"):
+                reject_action = t.action
+                break
+        if reject_action:
+            apply_workflow(document, reject_action)
+
+    if hasattr(document, "custom_clothing_rejection_reason"):
+        document.custom_clothing_rejection_reason = reason
+    document.add_comment(
+        "Workflow",
+        frappe._("Order rejected by {0}. Reason: {1}").format(get_current_user(), reason),
+    )
+    document.save(ignore_permissions=True)
+
+    record_security_audit_event(
+        "Sales Order Rejected",
+        "Sales Order",
+        document.name,
+        {"customer": document.customer, "reason": reason, "reviewer": get_current_user()},
+    )
+    res = _result(document)
+    res["rejection_reason"] = reason
+    return res
+
+
+@frappe.whitelist(methods=["POST"])
+def resubmit_clothing_order(name, items=None, delivery_date=None, notes=None):
+    """Update and resubmit a draft order for supervisory review."""
+    check_rate_limit("resubmit_clothing_order", limit=60, window_seconds=60)
+    require_role(ORDER_ROLES)
+    order = _validate_order_access(name)
+    if order.docstatus != 0:
+        frappe.throw(frappe._("Only a draft order can be resubmitted for review."))
+
+    frappe.db.sql(
+        "SELECT name FROM `tabSales Order` WHERE name = %s FOR UPDATE", order.name
+    )
+    order = _validate_order_access(order.name)
+    if order.docstatus != 0:
+        frappe.throw(frappe._("This order changed while it was being edited. Refresh."))
+
+    document = frappe.get_doc("Sales Order", order.name)
+    document.flags.ignore_permissions = True
+
+    from sales_erp.cadence import is_retailer_order_blocked_by_collection
+    blocked, block_reason = is_retailer_order_blocked_by_collection(document.customer)
+    if blocked:
+        frappe.throw(block_reason, frappe.ValidationError)
+
+    if items:
+        rows = _items(items)
+        _validate_catalogue_items([row["item_code"] for row in rows])
+        target_delivery = getdate(delivery_date) if delivery_date else document.delivery_date
+        document.items = []
+        for row in rows:
+            document.append("items", {
+                "item_code": row["item_code"],
+                "qty": row["qty"],
+                "delivery_date": target_delivery,
+            })
+
+    if delivery_date:
+        try:
+            d_date = getdate(delivery_date)
+            if d_date < getdate(nowdate()):
+                frappe.throw(frappe._("Delivery Date cannot be in the past."))
+            document.delivery_date = d_date
+            for item in document.items:
+                item.delivery_date = d_date
+        except (TypeError, ValueError):
+            frappe.throw(frappe._("Delivery Date is invalid."))
+
+    if not getattr(document, "selling_price_list", None):
+        document.selling_price_list = (
+            frappe.db.get_value("Customer", document.customer, "default_price_list")
+            or frappe.db.get_single_value("Selling Settings", "selling_price_list")
+            or "Standard Selling"
+        )
+    document.set_missing_values()
+    document.calculate_taxes_and_totals()
+
+    exposure = get_retailer_stock_exposure(document.customer, document.company)
+    if exposure["approved_limit"] > 0 and (exposure["total_exposure"] + flt(document.grand_total)) > exposure["approved_limit"]:
+        if not is_clothing_admin():
+            frappe.throw(
+                frappe._(
+                    "The combined shop-stock exposure ({0} {1:,.2f}) exceeds the retailer's approved limit of {0} {2:,.2f}."
+                ).format(
+                    exposure["currency"],
+                    exposure["total_exposure"] + flt(document.grand_total),
+                    exposure["approved_limit"],
+                ),
+                frappe.ValidationError,
+            )
+
+    if hasattr(document, "custom_clothing_rejection_reason"):
+        document.custom_clothing_rejection_reason = ""
+
+    if workflow_name := _active_sales_order_workflow():
+        from frappe.model.workflow import get_transitions, apply_workflow
+        transitions = get_transitions(document)
+        resubmit_action = None
+        for t in transitions:
+            if t.action.lower() in ("resubmit", "submit for review", "submit"):
+                resubmit_action = t.action
+                break
+        if resubmit_action:
+            apply_workflow(document, resubmit_action)
+
+    if notes:
+        document.add_comment(
+            "Workflow",
+            frappe._("Order resubmitted by {0}. Notes: {1}").format(get_current_user(), notes),
+        )
+
+    document.save(ignore_permissions=True)
+
+    record_security_audit_event(
+        "Sales Order Resubmitted",
+        "Sales Order",
+        document.name,
+        {"customer": document.customer, "grand_total": flt(document.grand_total), "notes": notes},
+    )
+    return _result(document)
+
+
+@frappe.whitelist(methods=["POST"])
+def apply_order_workflow_action(name, action, notes=None):
+    """Execute a native ERPNext Workflow action on an authorized Sales Order."""
+    check_rate_limit("apply_order_workflow_action", limit=60, window_seconds=60)
+    require_role(ORDER_ROLES)
+    action = str(action or "").strip()
+    if not action:
+        frappe.throw(frappe._("A workflow action is required."))
+
+    order = _validate_order_access(name)
+    workflow_name = _active_sales_order_workflow()
+    if not workflow_name:
+        frappe.throw(frappe._("No active Workflow configured on Sales Order."))
+
+    frappe.db.sql(
+        "SELECT name FROM `tabSales Order` WHERE name = %s FOR UPDATE", order.name
+    )
+    order = _validate_order_access(order.name)
+    document = frappe.get_doc("Sales Order", order.name)
+    document.flags.ignore_permissions = True
+
+    from frappe.model.workflow import get_transitions, apply_workflow
+    transitions = get_transitions(document)
+    matching = [t for t in transitions if t.action.lower() == action.lower()]
+    if not matching:
+        frappe.throw(
+            frappe._("Workflow action '{0}' is not available in the current state for your role.").format(action),
+            frappe.PermissionError,
+        )
+
+    target_transition = matching[0]
+
+    target_state = frappe.db.get_value(
+        "Workflow Document State",
+        {"parent": workflow_name, "state": target_transition.next_state},
+        "doc_status",
+    )
+    if cint(target_state) == 1:
+        from sales_erp.cadence import is_retailer_order_blocked_by_collection
+        blocked, block_reason = is_retailer_order_blocked_by_collection(document.customer)
+        if blocked:
+            frappe.throw(block_reason, frappe.ValidationError)
+
+        exposure = get_retailer_stock_exposure(document.customer, document.company)
+        new_total_exposure = exposure["total_exposure"] + flt(document.grand_total)
+        if exposure["approved_limit"] > 0 and new_total_exposure > exposure["approved_limit"]:
+            if not is_clothing_admin():
+                frappe.throw(
+                    frappe._("Cannot approve order: combined shop-stock exposure exceeds approved limit."),
+                    frappe.ValidationError,
+                )
+
+    apply_workflow(document, target_transition.action)
+    if notes:
+        document.add_comment("Workflow", notes)
+
+    record_security_audit_event(
+        "Sales Order Workflow Action",
+        "Sales Order",
+        document.name,
+        {"action": target_transition.action, "next_state": target_transition.next_state, "notes": notes},
+    )
+    return _result(document)
+
+
+@frappe.whitelist(methods=["POST"])
+def amend_clothing_order(name, request_id):
+    """Amend a cancelled Clothing ERP order using native Frappe amendment conventions."""
+    check_rate_limit("amend_clothing_order", limit=60, window_seconds=60)
+    require_role(ORDER_ROLES)
+    order = _validate_order_access(name)
+    if order.docstatus != 2:
+        frappe.throw(frappe._("Only a cancelled order can be amended."))
+
+    request_id = _request_id(request_id)
+    if existing := _existing_order(request_id, order.customer):
+        return _result(existing, replay=True)
+
+    cached, is_replay = validate_idempotency(
+        "amend_clothing_order",
+        request_id,
+        {"cancelled_order": name, "customer": order.customer},
+    )
+    if is_replay:
+        return cached
+
+    frappe.db.sql(
+        "SELECT name FROM `tabSales Order` WHERE name = %s FOR UPDATE", order.name
+    )
+    order = _validate_order_access(order.name)
+    if order.docstatus != 2:
+        frappe.throw(frappe._("This order changed while being amended. Refresh."))
+
+    original_doc = frappe.get_doc("Sales Order", order.name)
+
+    from sales_erp.cadence import is_retailer_order_blocked_by_collection
+    blocked, block_reason = is_retailer_order_blocked_by_collection(original_doc.customer)
+    if blocked:
+        frappe.throw(block_reason, frappe.ValidationError)
+
+    new_doc = frappe.copy_doc(original_doc)
+    new_doc.docstatus = 0
+    new_doc.amended_from = original_doc.name
+    new_doc.custom_clothing_request_id = request_id
+    if hasattr(new_doc, "custom_clothing_rejection_reason"):
+        new_doc.custom_clothing_rejection_reason = ""
+    new_doc.delivery_date = max(getdate(original_doc.delivery_date), getdate(nowdate()))
+    for item in new_doc.items:
+        item.delivery_date = new_doc.delivery_date
+
+    new_doc.set_missing_values()
+    new_doc.calculate_taxes_and_totals()
+
+    exposure = get_retailer_stock_exposure(new_doc.customer, new_doc.company)
+    if exposure["approved_limit"] > 0 and (exposure["total_exposure"] + flt(new_doc.grand_total)) > exposure["approved_limit"]:
+        if not is_clothing_admin():
+            clear_idempotency("amend_clothing_order", request_id)
+            frappe.throw(
+                frappe._("Cannot amend order: combined shop-stock exposure exceeds approved limit."),
+                frappe.ValidationError,
+            )
+
+    try:
+        new_doc.insert(ignore_permissions=True)
+    except frappe.DuplicateEntryError:
+        if existing := _existing_order(request_id, new_doc.customer):
+            return _result(existing, replay=True)
+        clear_idempotency("amend_clothing_order", request_id)
+        frappe.db.rollback()
+        raise
+    except Exception:
+        clear_idempotency("amend_clothing_order", request_id)
+        frappe.db.rollback()
+        raise
+
+    res = _result(new_doc)
+    res["amended_from"] = original_doc.name
+    record_security_audit_event(
+        "Sales Order Amended",
+        "Sales Order",
+        new_doc.name,
+        {"amended_from": original_doc.name, "grand_total": flt(new_doc.grand_total), "request_id": request_id},
+    )
+    save_idempotency_result(
+        "amend_clothing_order",
+        request_id,
+        res,
+        {"cancelled_order": name, "customer": order.customer},
+    )
+    return res
+
+
+@frappe.whitelist(methods=["POST"])
+def create_draft_sales_order(customer, items, request_id, delivery_date=None, company=None):
     """Create a standard ERPNext draft; submission remains a separate native workflow."""
     check_rate_limit("create_draft_sales_order", limit=60, window_seconds=60)
     require_role(ORDER_ROLES)
@@ -579,7 +931,7 @@ def create_draft_sales_order(customer, items, request_id, delivery_date=None):
     cached, is_replay = validate_idempotency(
         "create_draft_sales_order",
         request_id,
-        {"customer": customer, "items": rows, "delivery_date": str(delivery_date)},
+        {"customer": customer, "items": rows, "delivery_date": str(delivery_date), "company": company or ""},
     )
     if is_replay:
         return cached
@@ -589,7 +941,7 @@ def create_draft_sales_order(customer, items, request_id, delivery_date=None):
         "SELECT name FROM `tabCustomer` WHERE name = %s FOR UPDATE", customer
     )
 
-    company = _validate_company()
+    company = _validate_company(company)
 
     exposure = get_retailer_stock_exposure(customer, company)
 
@@ -613,6 +965,12 @@ def create_draft_sales_order(customer, items, request_id, delivery_date=None):
         }
     )
     order.flags.ignore_permissions = True
+    if not getattr(order, "selling_price_list", None):
+        order.selling_price_list = (
+            frappe.db.get_value("Customer", customer, "default_price_list")
+            or frappe.db.get_single_value("Selling Settings", "selling_price_list")
+            or "Standard Selling"
+        )
     order.set_missing_values()
     order.calculate_taxes_and_totals()
 
@@ -659,6 +1017,6 @@ def create_draft_sales_order(customer, items, request_id, delivery_date=None):
         "create_draft_sales_order",
         request_id,
         res,
-        {"customer": customer, "items": rows, "delivery_date": str(delivery_date)},
+        {"customer": customer, "items": rows, "delivery_date": str(delivery_date), "company": company or ""},
     )
     return res

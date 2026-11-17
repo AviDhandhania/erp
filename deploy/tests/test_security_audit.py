@@ -13,6 +13,9 @@ APP_NAMES = ("sales_erp", "warehouse_erp", "quality_erp")
 APPROVED_RUNTIME_IGNORE_PERMISSIONS = {
     ("sales_erp/sales_erp/gallery.py", "_delete_orphan", "Scheduled background cleaner of orphaned temporary images"),
     ("sales_erp/sales_erp/ordering.py", "create_draft_sales_order", "Inserts draft Sales Order after validating ASM territory ownership and credit exposure"),
+    ("sales_erp/sales_erp/ordering.py", "reject_clothing_order", "Updates rejection reason and adds workflow comment on draft order under row lock"),
+    ("sales_erp/sales_erp/ordering.py", "resubmit_clothing_order", "Updates and resubmits draft Sales Order after validating territory scope and credit exposure"),
+    ("sales_erp/sales_erp/ordering.py", "amend_clothing_order", "Creates amended draft Sales Order from cancelled order after validating territory scope and credit exposure"),
     ("sales_erp/sales_erp/pricing.py", "set_template_price", "Admin-only template pricing update for size variants"),
     ("sales_erp/sales_erp/retailer_assignment.py", "_replace_assignment", "Admin-only territory/salesperson reassignment with customer row-lock"),
     ("sales_erp/sales_erp/retailer_defaults.py", "ensure_retailer_defaults", "Idempotent customer group hierarchy provisioning"),

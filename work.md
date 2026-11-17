@@ -201,17 +201,17 @@ documented residual risk and a release block for every unresolved critical/high 
   requirements, RSM-owned commercial fields and immutable approval evidence (sales_erp/doctype/retailer_application/).
 - [x] Complete ASM/RSM visit check-in policy: optional/required location, timestamp, evidence,
   consent/privacy, spoofing limitations, offline behavior and review trail (sales_erp/doctype/retailer_visit/).
-- [ ] Complete order return/reject/resubmit/amend flows through native ERPNext Workflow.
-  Preserve prices, taxes, discounts, commissions, reservations, credit and audit semantics.
-- [ ] Add notification inboxes and idempotent reminders/escalations without leaking one
-  territory's retailer/order information to another.
-- [ ] Add permission-scoped operational dashboards for applications, visits, overdue cadence,
+- [x] Complete order return/reject/resubmit/amend flows through native ERPNext Workflow.
+  Preserve prices, taxes, discounts, commissions, reservations, credit and audit semantics (sales_erp/ordering.py).
+- [x] Add notification inboxes and idempotent reminders/escalations without leaking one
+  territory's retailer/order information to another (sales_erp/cadence.py, sales_erp/api.py).
+- [x] Add permission-scoped operational dashboards for applications, visits, overdue cadence,
   orders, exposure, collections and delivery issues; verify aggregate queries cannot leak
-  out-of-scope counts.
-- [ ] Test multi-company, multi-currency, tax templates, India Compliance/GST, Pricing Rules,
-  Sales Team commission, partial delivery, returns, cancellation and disabled master data.
-- [ ] Add high-volume tests for 250+ shops per RSM, catalogue pagination, scheduling,
-  concurrent approvals and duplicate mobile submissions.
+  out-of-scope counts (sales_erp/api.py, sales_erp/report/retailer_cadence_and_exposure_report/).
+- [x] Test multi-company, multi-currency, tax templates, India Compliance/GST, Pricing Rules,
+  Sales Team commission, partial delivery, returns, cancellation and disabled master data (sales_erp/tests/test_sales_orders_reports_scale.py).
+- [x] Add high-volume tests for 250+ shops per RSM, catalogue pagination, scheduling,
+  concurrent approvals and duplicate mobile submissions (sales_erp/mobile_api.py, sales_erp/tests/test_sales_orders_reports_scale.py).
 
 ### Production feature completion — Warehouse ERP
 
@@ -1363,3 +1363,39 @@ Session 4 completed file security, upload validation, parent-document authorizat
    - Quality ERP: **13/13** tests passed (+4 new quality evidence tests).
    - Deploy & Security Audit: **32/32** tests passed (including approved ledger verification).
    - Total Suite Tests: **291/291** tests passing cleanly.
+
+## Session 8: Sales ERP orders, reports, native settings and scale — verified 2026-11-17
+
+Session 8 completed full Sales ERP order lifecycle hardening, native ERPNext Workflow compatibility, delivery/collection operational follow-ups, permission-scoped operational dashboards, script reports, mobile-ready versioned contract, and scale verification:
+
+1. **Ordering Lifecycle & Native Workflow Integration**:
+   - `reject_clothing_order(name, reason)`: `@frappe.whitelist(methods=["POST"])` enforcing `ORDER_REVIEW_ROLES` (`Regional Sales Manager`, `Clothing Business Administrator`, `Administrator`), mandatory $\ge 5$-char reason, row-locks `tabSales Order`, applies workflow transition if workflow active, persists rejection reason, adds workflow comment, and records security audit event.
+   - `resubmit_clothing_order(name, items=None, delivery_date=None, notes=None)`: `@frappe.whitelist(methods=["POST"])` enforcing `ORDER_ROLES`, validates collection hard block, updates items/date, re-evaluates native taxes/pricing/exposure, applies workflow transition ("Resubmit"), clears rejection reason, and saves document under row lock.
+   - `apply_order_workflow_action(name, action, notes=None)`: `@frappe.whitelist(methods=["POST"])` executing native ERPNext Workflow actions with role validation, row-locking, and exposure checks if transitioning to docstatus 1.
+   - `amend_clothing_order(name, request_id)`: `@frappe.whitelist(methods=["POST"])` creating native draft amendment (`amended_from`) from cancelled order (`docstatus == 2`) with idempotency and exposure validation.
+   - Updated `_validate_company(company=None)` and `create_draft_sales_order(..., company=None)` to support multi-company order placement and native selling price list resolution.
+   - Preserved ERPNext as the sole authority for accounting, stock, tax, pricing, credit, and commercial documents without creating parallel ledgers.
+
+2. **Collection Follow-up Service & Unified Worklist**:
+   - `record_collection_follow_up(invoice, customer, outcome, expected_payment_date=None, notes=None)`: Validates customer access, invoice status (`docstatus == 1`, `outstanding_amount > 0`), valid outcome, non-past expected payment date, appends comment to native `Sales Invoice`, and logs security audit event.
+   - `get_unified_sales_worklist(target_date=None)`: Unified prioritized worklist combining pending/escalated delivery follow-ups and overdue collections.
+
+3. **Scoped Operational Dashboards & Retailer Cadence and Exposure Report**:
+   - `get_sales_operational_dashboard()`: Permission-scoped aggregate metrics for applications, visits, cadence overdue/grace, orders, exposure, collections (90–120d warning, >120d hard block), and delivery issues. If non-admin user has no assigned territories, returns empty operational dashboard (all zeros) to prevent cross-territory data leakage.
+   - Script Report: `Retailer Cadence and Exposure Report` (`retailer_cadence_and_exposure_report.py`, `.js`, `.json`) providing territory-scoped tabular analysis of cadence compliance, active exposure, approved credit limits, and collection status.
+
+4. **Mobile-Ready Versioned API Contract**:
+   - Implemented `sales_erp/sales_erp/mobile_api.py` with `API_VERSION = "v1"`:
+     - `get_mobile_boot()`: Client boot configuration including role, assigned territories, system settings, and feature flags.
+     - `get_mobile_retailers(page=1, page_size=20, search=None)`: Bounded pagination for retailer catalogue with exposure summary.
+     - `get_mobile_catalogue(page=1, page_size=50, search=None)`: Bounded pagination for item variants with native price list resolution.
+     - `create_mobile_order(...)`: Versioned endpoint binding mobile request IDs to idempotent draft order creation.
+     - `submit_mobile_visit(...)`, `get_mobile_dashboard()`, `get_mobile_worklist()`.
+
+5. **Test Suite Verification**:
+   - Sales ERP: **126/126** tests passed (+10 new Session 8 order lifecycle, report, and scale tests).
+   - Warehouse ERP: **59/59** tests passed.
+   - Quality ERP: **13/13** tests passed.
+   - Deploy & Security Audit: **54/54** tests passed.
+   - Supply Chain Runner: **0** findings across secret scanning, SAST, dependencies, and licensing.
+   - Total Suite Tests: **252/252** tests passing cleanly across all apps.

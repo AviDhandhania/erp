@@ -239,7 +239,16 @@ def after_install():
                     "unique": 1,
                     "no_copy": 1,
                     "description": "Idempotency key for Sales Orders created from the catalogue.",
-                }
+                },
+                {
+                    "fieldname": "custom_clothing_rejection_reason",
+                    "label": "Clothing Rejection Reason",
+                    "fieldtype": "Small Text",
+                    "insert_after": "custom_clothing_request_id",
+                    "read_only": 1,
+                    "no_copy": 1,
+                    "description": "Reason recorded when an order was rejected or returned for amendment.",
+                },
             ],
         }
     )

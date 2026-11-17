@@ -31,6 +31,7 @@ from sales_erp.supervision import (
     get_territory_supervision,
 )
 from sales_erp.settings import get_sales_settings
+from sales_erp.api_security import check_rate_limit, record_security_audit_event
 
 RSM_VISIT_CYCLE_DAYS = 80
 RSM_ADVANCE_WARNING_DAYS = 70
@@ -1084,6 +1085,90 @@ def get_seasonal_calendar_status(target_date: str | None = None) -> dict:
         "next_season_start": next_season_start,
         "days_to_next_season": days_to_next,
         "prebooking_active": prebooking_active,
+    }
+
+
+VALID_COLLECTION_OUTCOMES = {
+    "Payment Promised",
+    "Cheque Collected",
+    "Dispute / Reconciliation Needed",
+    "Retailer Unavailable",
+    "Escalated to RSM",
+}
+
+
+@frappe.whitelist(methods=["POST"])
+def record_collection_follow_up(invoice, customer, outcome, notes=None, expected_payment_date=None):
+    """Record an operational collection follow-up on an outstanding invoice.
+
+    Does not modify accounting ledgers or balances. Adds verified supervisory audit
+    notes to the native Sales Invoice and records an activity audit event.
+    """
+    check_rate_limit("record_collection_follow_up", limit=60, window_seconds=60)
+    require_role({ROLE_SALESPERSON, ROLE_SALES_MANAGER, ROLE_BUSINESS_ADMIN})
+
+    user = get_current_user()
+    if not is_clothing_admin(user) and not has_retailer_access(customer, user):
+        frappe.throw(_("Access denied to retailer {0}").format(customer), frappe.PermissionError)
+
+    if outcome not in VALID_COLLECTION_OUTCOMES:
+        frappe.throw(
+            _("Invalid collection outcome '{0}'. Valid options: {1}").format(
+                outcome, ", ".join(sorted(VALID_COLLECTION_OUTCOMES))
+            ),
+            frappe.ValidationError,
+        )
+
+    inv = frappe.db.get_value(
+        "Sales Invoice",
+        {"name": invoice, "customer": customer},
+        ["name", "customer", "docstatus", "outstanding_amount", "grand_total"],
+        as_dict=True,
+    )
+    if not inv:
+        frappe.throw(_("Sales Invoice {0} not found for retailer {1}").format(invoice, customer))
+    if inv.docstatus != 1:
+        frappe.throw(_("Collection follow-up can only be recorded on submitted invoices."))
+    if flt(inv.outstanding_amount) <= 0:
+        frappe.throw(_("Invoice {0} is fully settled; no collection follow-up required.").format(invoice))
+
+    if expected_payment_date:
+        try:
+            exp_date = getdate(expected_payment_date)
+            if exp_date < getdate(nowdate()):
+                frappe.throw(_("Expected payment date cannot be in the past."))
+        except (TypeError, ValueError):
+            frappe.throw(_("Expected payment date is invalid."))
+
+    comment_msg = _("Collection follow-up recorded by {0}. Outcome: {1}. Notes: {2}").format(
+        user, outcome, notes or "N/A"
+    )
+    if expected_payment_date:
+        comment_msg += f". Expected payment: {expected_payment_date}"
+
+    inv_doc = frappe.get_doc("Sales Invoice", invoice)
+    inv_doc.add_comment("Comment", comment_msg)
+
+    record_security_audit_event(
+        "Collection Follow-Up Recorded",
+        "Sales Invoice",
+        invoice,
+        {
+            "customer": customer,
+            "outcome": outcome,
+            "expected_payment_date": str(expected_payment_date) if expected_payment_date else None,
+            "outstanding_amount": flt(inv.outstanding_amount),
+            "user": user,
+        },
+    )
+
+    return {
+        "status": "Recorded",
+        "invoice": invoice,
+        "customer": customer,
+        "outcome": outcome,
+        "outstanding_amount": flt(inv.outstanding_amount),
+        "expected_payment_date": str(expected_payment_date) if expected_payment_date else None,
     }
 
 
