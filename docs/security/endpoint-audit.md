@@ -159,11 +159,108 @@ All 82 raw SQL queries were audited for parameterization and row-level concurren
 
 ---
 
-## 5. Identified Security Gaps & Remediation Schedule
+## 5. File Upload, Deletion & Export Inventory
 
-| Finding | Severity | Description | Remediation Target |
-|---|---|---|---|
-| **GAP-01: Implicit GET Endpoints** | Low | Several read endpoints do not specify `methods=["GET"]`, accepting any HTTP method by default. | Session 3 (API Security) |
-| **GAP-02: Legacy Warehouse Operator Role** | High | `ROLE_WAREHOUSE_OPERATOR` is still granted read on native DocTypes in `warehouse_erp/install.py`. | Session 2 (Authorization) |
-| **GAP-03: Single Photo Quality Evidence** | Medium | Quality inspections and return quarantine currently use a single `Attach Image` field rather than a multi-photo child table. | Session 4 (Files & Privacy) |
-| **GAP-04: Static Security Assertions** | Medium | Need automated unit tests verifying that all mutating endpoints enforce POST and reject SQL string interpolation. | Session 1 (Automated Checks) |
+Every file storage, attachment, export, and deletion path across `sales_erp`, `warehouse_erp`, and `quality_erp` was audited to verify privacy, authorization, MIME signature validation, and spreadsheet injection defenses:
+
+### 5.1 File Ingress & Storage Security (`file_security.py`)
+- **Private Storage Enforcement**: 100% of custom business uploads (retailer onboarding documents, visit photos, garment quality evidence, quarantine defect photos) are inserted with `is_private = 1` into `/private/files/`. Direct public web access via nginx is blocked.
+- **Magic Byte Validation**: File contents are inspected at the byte level before storage (`validate_file_content`):
+  - JPEG: `\xff\xd8\xff`
+  - PNG: `\x89PNG\r\n\x1a\n`
+  - WebP: `RIFF....WEBP`
+  - PDF: `%PDF-`
+  Disguised executables or renamed binary scripts are rejected immediately.
+- **Polyglot & Script Injection Protection**: In-memory inspection scans file bytes for executable strings (`<?php`, `<script`, `<html`, `onload=`, `javascript:`, `eval(`, and ELF/PE magic headers). Any match triggers a security error and aborts the upload.
+- **Decompression Bomb Mitigation**: Pillow image loading enforces dimension bounds (max 8192px / 50 megapixels) and strict file size limits (5 MB for photos, 15 MB for PDF inspection dossiers).
+- **EXIF Sanitization**: Camera metadata, GPS location coordinates, and device serial tags are stripped prior to saving images to disk.
+- **Malware Scanning & Quarantine**: Byte payloads undergo pattern analysis against known signature sets (including the EICAR test signature). Detected malicious files are isolated in `/tmp/quarantine/`, an immutable audit entry is written to `tabActivity Log`, and a security validation exception is raised.
+
+### 5.2 Multi-Photo Defect & Inspection Evidence (`Quality Inspection Evidence`)
+- Replaced legacy single-photo fields (`photo_evidence`) with a dedicated child DocType: `Quality Inspection Evidence` (`quality_inspection_evidence.json`).
+- Linked to `Supplier Quality Inspection` and `Return Quarantine` via the `evidence_photos` Table field.
+- Schema captures: `photo` (Attach), `caption` (Data), `defect_type` (Select: Stitching, Fabric, Measurement, Stain, Packaging, Other), `display_order` (Int), `uploaded_by` (Data), `uploaded_on` (Datetime), and `revision` (Int).
+- **Revision Immutability**: During inspection revisions (`revise_quality_inspection`), historical evidence records remain preserved under their original revision index; photos are never overwritten or orphaned.
+
+### 5.3 Server-Side File Authorization (`has_file_permission`)
+- The `has_file_permission` hook is registered for the `File` DocType across all three apps (`sales_erp`, `warehouse_erp`, `quality_erp`).
+- Evaluates whether `frappe.session.user` holds read permissions on the attached parent record (`attached_doctype`, `attached_name`).
+- If a user is unassigned from a Territory, removed from a Warehouse, or has their account disabled (`tabUser.enabled = 0`), private file access is immediately revoked server-side.
+
+### 5.4 Reference-Safe File Deletion (`reference_safe_delete_file`)
+- Deleting attachments requires explicit reference verification: `reference_safe_delete_file` queries all custom and standard DocTypes to ensure zero active references before unlinking the local disk file.
+- Unreferenced temporary product gallery images are swept via `cleanup_orphan_gallery_files` scheduled daily.
+
+### 5.5 Export Sanitization & Spreadsheet Formula Neutralization (`export_records_to_csv`)
+- Enforces native `export` permission check on `frappe.session.user` before generating CSV or data extracts.
+- Automatically strips sensitive fields: `password`, `api_secret`, `secret`, `token`, `auth_token`, `hash`, and HTML/Code fields.
+- **Formula Injection Mitigation (`sanitize_spreadsheet_injection`)**: Neutralizes dynamic code execution in Excel / LibreOffice Calc by prepending a single quote (`'`) to any string field beginning with `= `, `+ `, `- `, `@ `, `\t`, or `\r`.
+
+---
+
+## 6. Schedulers, Background Tasks & Bulk Operations Inventory
+
+### 6.1 Schedulers & Periodic Tasks (`scheduler_events` in `hooks.py`)
+All periodic tasks run within controlled execution contexts and use atomic transactions:
+
+| Hook Cadence | Scheduled Function | App | Target & Concurrency Controls | Audit / Log Action |
+|---|---|---|---|---|
+| `daily` | `sales_erp.cadence.evaluate_rsm_visit_cadence` | `sales_erp` | Evaluates 80-day RSM visit obligation window; transitions `Pending` to `Overdue` or `Escalated`. Uses parameterized SQL. | Updates status; records notification |
+| `daily` | `sales_erp.cadence.evaluate_asm_visit_cadence` | `sales_erp` | Evaluates monthly and quarterly ASM visit obligations and 90-120 day collection windows. | Updates status; logs cadence alerts |
+| `daily_long` | `sales_erp.gallery.cleanup_orphan_gallery_files` | `sales_erp` | Identifies and deletes unattached temporary gallery images older than 24 hours. | Audit log in `tabActivity Log` |
+
+### 6.2 Bulk Operations Audit
+Bulk endpoints accept batched inputs and must protect against denial of service, memory exhaustion, and partial transaction inconsistencies:
+
+| Bulk Endpoint | Allowed Roles | Batch Size Limit | Concurrency / Row Locks | Transaction Isolation |
+|---|---|---|---|---|
+| `retailer_assignment.bulk_reassign_retailers` | Admin, Business Admin | Max 100 retailers | `SELECT name FROM tabCustomer FOR UPDATE` per retailer | Atomic per-request; rollback on failure |
+| `fulfillment.bulk_create_delivery_notes_from_picks` | Warehouse Manager, Admin | Max 50 pick lists | Row locks on `tabPick List` and linked `tabSales Order` | Atomic per-document; rolls back individual doc on error |
+| `fulfillment.bulk_dispatch_delivery_notes` | Warehouse Manager, Admin | Max 50 delivery notes | Row locks on `tabDelivery Note` | Atomic per-document; rolls back individual doc on error |
+
+### 6.3 Background Worker & Task Isolation
+- Tasks enqueued via Redis Queue (`frappe.enqueue`) execute within worker processes running under the unprivileged `frappe` user.
+- Enqueued payloads pass only immutable document identifiers (`doctype`, `name`); workers never receive serialized session credentials or unvalidated client inputs.
+- Workers establish fresh database transactions and evaluate server-side business rules before executing mutations.
+
+---
+
+## 7. Release Download, Package Verification & Backup/Restore Audit
+
+### 7.1 Release Manifest & Commit Integrity (`deploy/release/manifest.py`)
+- The production release contract strictly enforces immutable 40-character Git commit hashes for all components (`frappe`, `erpnext`, `india_compliance`, `insights`, `sales_erp`, `warehouse_erp`, `quality_erp`).
+- Mutable branch heads (e.g., `main`, `HEAD`, `version-16`) and dynamic version tags are rejected by `test_rejects_unstable_tags_and_unsupported_components`.
+- Releases require cryptographically verified SHA-256 package checksums and Software Bill of Materials (SBOM) generation.
+
+### 7.2 Portable Package Extraction & Path Traversal Defenses (`deploy/release/lifecycle.py`)
+- Archive extraction strictly validates tarball member paths (`test_archive_traversal_and_symlinks_are_rejected`):
+  - Traversal sequences (`../`, `..\`) are detected and rejected prior to extraction.
+  - Hard links and symbolic links pointing outside the installation root are forbidden.
+  - Packaging routines (`git archive`) exclude `.env`, `.git`, developer secrets, credentials, and test directories (`test_git_archive_excludes_untracked_credentials_and_is_reproducible`).
+
+### 7.3 Backup, Health Check & Recovery Pipeline (`deploy/release/backup.py`, `deploy/release/services.py`)
+- **Pre-Upgrade Backup**: Before executing schema migrations or code swaps, an atomic backup is created combining:
+  1. MariaDB consistent dump (`mysqldump --single-transaction --quick`).
+  2. Snapshot of private files and site configurations.
+- **Tampering Verification**: Backups are verified against SHA-256 manifest signatures prior to restore (`test_backup_tampering_is_rejected_before_restore`).
+- **Automated Rollback**: If a database migration or post-install health check fails, the installer automatically executes rollback:
+  - Stops updated services.
+  - Reverts code symlinks to the previous active release.
+  - Restores the database and private files from the pre-upgrade recovery point.
+  - Re-activates previous release services (`test_failed_migration_restores_both_code_and_files`, `test_failed_health_also_restores_database`).
+- **Durable Recovery Records**: Each upgrade generates an immutable recovery record in `/state/backups/<timestamp>/` containing exact instructions for operator recovery.
+
+---
+
+## 8. Comprehensive Security Finding Register
+
+| Finding ID | Severity | Category (CWE/OWASP) | Description & Evidence Location | Owner | Status | Verified Remediation Evidence |
+|---|---|---|---|---|---|---|
+| **GAP-01** | Low | CWE-650 (HTTP Method Confusion) | Several whitelisted read endpoints accepted arbitrary HTTP methods without declaring `methods=['GET']`. | Antigravity | **Resolved** | Enforced explicit `methods=['GET']` and `methods=['POST']` across all 63 endpoints. AST test in `test_security_audit.py` passes. |
+| **GAP-02** | High | CWE-269 (Privilege Escalation) | Legacy `ROLE_WAREHOUSE_OPERATOR` role was still granted read permissions in `warehouse_erp/install.py` and boot info. | Antigravity | **Resolved** | Retired operator role in Session 2; migrated active users to Warehouse Manager; removed DocPerms and role definitions. Verified by 7 negative tests in `test_authorization_matrix.py`. |
+| **GAP-03** | Medium | CWE-732 (Insecure Permission Assignment) | Supplier Quality Inspections and Return Quarantine used single `Attach Image` field rather than versioned multi-photo evidence child table. | Antigravity | **Resolved** | Implemented `Quality Inspection Evidence` child DocType in Session 4 with uploader tracking, defect classification, and revision snapshots. |
+| **GAP-04** | Medium | CWE-89 (SQL Injection Risk) | Lack of automated static analysis asserting SQL query parameterization and POST enforcement on mutating endpoints. | Antigravity | **Resolved** | Created `deploy/tests/test_security_audit.py` verifying AST compliance for parameterization, POST methods, and registered `ignore_permissions` calls. |
+| **GAP-05** | High | CWE-799 / CWE-834 (Resource Exhaustion / Replay) | Absence of sliding-window rate limiting and UUID idempotency keys on mutating endpoints (ordering, visits, scanning, returns, quality approvals). | Antigravity | **Resolved** | Implemented Redis-backed sliding-window `check_rate_limit` and UUID/SHA-256 payload idempotency in Session 3 (`api_security.py`). Verified by 6 tests in `test_api_security.py`. |
+| **GAP-06** | Medium | CWE-1236 (Spreadsheet Formula Injection) | CSV export endpoints could allow stored formula injection (`=`, `+`, `-`, `@`) when downloaded files are opened in spreadsheet software. | Antigravity | **Resolved** | Implemented `sanitize_spreadsheet_injection` in Session 4 (`file_security.py`), prefixing trigger characters with `'`. Verified by unit tests. |
+| **GAP-07** | High | CWE-200 / CWE-284 (Unauthorized File Access) | Private file attachments could be retrieved if users knew file URLs or if authorization checks did not verify parent document read access. | Antigravity | **Resolved** | Registered `has_file_permission` hook across all apps in Session 4, binding private file access to live parent document read permissions and immediate revocation. |
+| **GAP-08** | Critical | CWE-319 / CWE-522 (Cleartext Transmission & Credentials) | Production deployment currently defaults to plain HTTP; initial Administrator credential exposed in plaintext setup scripts. | Antigravity | **Scheduled** | Scheduled for Session 5 (Network, TLS, and Host Hardening): automated HTTPS redirection, HSTS, secure cookies, and mode 0600 credential protection. |
