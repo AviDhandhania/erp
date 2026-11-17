@@ -83,6 +83,9 @@ class FulfillmentTasks {
 			let action = "";
 			if (task.can_verify_items) {
 				action += `<button type="button" class="btn btn-default btn-xs verify-pick-item" data-location="${this.escape(row.location)}" data-item-code="${this.escape(row.item_code)}">${__("Verify item")}</button>`;
+				if (Number(row.picked_qty) > 0) {
+					action += ` <button type="button" class="btn btn-default btn-xs undo-pick-item" data-location="${this.escape(row.location)}" data-item-code="${this.escape(row.item_code)}">${__("Undo scan")}</button>`;
+				}
 			}
 			if (row.can_split) {
 				action += ` <button type="button" class="btn btn-default btn-xs split-pick-shortage" data-location="${this.escape(row.location)}" data-item-code="${this.escape(row.item_code)}">${__("Split shortage")}</button>`;
@@ -90,22 +93,25 @@ class FulfillmentTasks {
 			return `<tr><td><strong>${this.escape(row.item_name || row.item_code)}</strong><small>${this.escape(row.item_code)}</small></td><td>${this.escape(row.warehouse)}</td><td class="text-right">${format_number(row.stock_qty)} ${this.escape(row.stock_uom)}</td><td class="text-right">${row.picked_qty == null ? "0" : format_number(row.picked_qty)}</td><td>${this.escape(row.batch_no || row.serial_no || "—")}</td>${hasRowActions ? `<td class="text-right">${action}</td>` : ""}</tr>`;
 		}).join("");
 		const workflowNotice = task.workflow ? `<div class="alert alert-warning">${__("Pick List workflow {0} is active. Its configured approval actions must be completed before submission.", [this.escape(task.workflow)])}</div>` : "";
+		const printAction = `<button type="button" class="btn btn-default print-task-manifest">${__("Print Manifest")}</button>`;
 		const shortageAction = task.can_resolve_shortage ? `<button type="button" class="btn btn-default resolve-pick-shortage">${__("Resolve shortage")}</button>` : "";
 		const completeAction = task.can_complete_pick ? `<button type="button" class="btn btn-primary complete-pick-list">${__("Complete picking")}</button>` : "";
 		const createDnAction = task.can_create_delivery_note ? `<button type="button" class="btn btn-primary create-delivery-note">${__("Create Delivery Note")}</button>` : "";
 		const packAction = task.can_pack ? `<button type="button" class="btn btn-default create-packing-slip">${__("Create Packing Slip")}</button>` : "";
 		const dispatchAction = task.can_dispatch_delivery ? `<button type="button" class="btn btn-primary dispatch-delivery-note">${__("Dispatch Delivery")}</button>` : "";
 		const returnAction = task.task_type === "delivery" && Number(task.docstatus) === 1 ? `<button type="button" class="btn btn-default intake-delivery-return">${__("Intake Return")}</button>` : "";
-		const footerActions = shortageAction || completeAction || createDnAction || packAction || dispatchAction || returnAction ? `<div class="text-right">${shortageAction} ${completeAction} ${createDnAction} ${packAction} ${dispatchAction} ${returnAction}</div>` : "";
+		const footerActions = `<div class="text-right">${printAction} ${shortageAction} ${completeAction} ${createDnAction} ${packAction} ${dispatchAction} ${returnAction}</div>`;
 		const packingSlipBadges = (task.packing_slips || []).map((ps) => `<div><span>${__("Packing Slip")}</span><strong>${this.escape(ps.name)} (Boxes ${ps.from_case_no}–${ps.to_case_no}${ps.gross_weight_pkg ? `, ${ps.gross_weight_pkg} kg` : ""})</strong></div>`).join("");
 		dialog.$body.html(`<div class="fulfillment-detail-summary"><div><span>${__("Status")}</span><strong>${this.escape(task.status)}</strong></div><div><span>${__("Retailer")}</span><strong>${this.escape(task.customer_name || task.customer || "—")}</strong></div><div><span>${__("Company")}</span><strong>${this.escape(task.company)}</strong></div><div><span>${__("Purpose")}</span><strong>${this.escape(task.purpose || __("Delivery"))}</strong></div>${task.transporter_name ? `<div><span>${__("Transporter")}</span><strong>${this.escape(task.transporter_name)}</strong></div>` : ""}${task.lr_no ? `<div><span>${__("LR No")}</span><strong>${this.escape(task.lr_no)}</strong></div>` : ""}${packingSlipBadges}</div>${task.can_verify_items ? `<div class="alert alert-info">${__("Scan the SKU/item barcode, Batch No, or Serial No required by the exact Pick List row. ERPNext validates tracked stock when each scan is saved.")}</div>` : ""}${workflowNotice}<div class="fulfillment-detail-table"><table class="table table-bordered"><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Required")}</th><th class="text-right">${__("Picked")}</th><th>${__("Batch / serial")}</th>${hasRowActions ? `<th class="text-right">${__("Action")}</th>` : ""}</tr></thead><tbody>${rows}</tbody></table></div>${task.rows_truncated ? `<p class="text-muted">${__("Only the first 200 rows are shown.")}</p>` : ""}${footerActions}`);
 		dialog.$body.on("click", ".verify-pick-item", (event) => this.verify_item(task, event.currentTarget, dialog));
+		dialog.$body.on("click", ".undo-pick-item", (event) => this.undo_scan(task, event.currentTarget, dialog));
 		dialog.$body.on("click", ".split-pick-shortage", (event) => this.split_shortage(task, event.currentTarget, dialog));
 		dialog.$body.on("click", ".resolve-pick-shortage", () => this.resolve_shortage(task, dialog));
 		dialog.$body.on("click", ".complete-pick-list", () => this.complete_pick(task, dialog));
 		dialog.$body.on("click", ".create-delivery-note", () => this.create_delivery_note(task, dialog));
 		dialog.$body.on("click", ".create-packing-slip", () => this.create_packing_slip(task, dialog));
 		dialog.$body.on("click", ".dispatch-delivery-note", () => this.dispatch_delivery(task, dialog));
+		dialog.$body.on("click", ".print-task-manifest", () => this.print_manifest(task));
 		dialog.$body.on("click", ".intake-delivery-return", () => {
 			dialog.hide();
 			const firstItem = task.rows && task.rows.length ? task.rows[0].item_code : "";
@@ -131,6 +137,40 @@ class FulfillmentTasks {
 			frappe.show_alert({ message: __("{0} verified — {1}: {2} of {3} picked", [scanned, message.item_code, message.picked_qty, message.required_qty]), indicator: message.complete ? "green" : "blue" });
 			this.open_task(task.name);
 		}, __("Verify {0}", [button.dataset.itemCode]), __("Verify item"));
+	}
+
+	undo_scan(task, button, dialog) {
+		frappe.confirm(
+			__("Undo last scan on {0}?", [button.dataset.itemCode]),
+			async () => {
+				const { message } = await frappe.call({
+					method: "warehouse_erp.fulfillment.undo_pick_item_scan",
+					type: "POST",
+					args: { pick_list: task.name, location: button.dataset.location },
+					freeze: true,
+					freeze_message: __("Reverting last scan with ERPNext…"),
+				});
+				frappe.show_alert({
+					message: __("Scan undone for {0}: remaining picked {1} of {2}", [message.item_code, message.picked_qty, message.required_qty]),
+					indicator: "orange",
+				});
+				await this.refresh();
+				this.open_task(task.name);
+			}
+		);
+	}
+
+	async print_manifest(task) {
+		const { message: manifest } = await frappe.call({
+			method: "warehouse_erp.fulfillment.get_task_manifest",
+			args: { task_type: task.task_type, name: task.name },
+			freeze: true,
+			freeze_message: __("Loading manifest…"),
+		});
+		const items = manifest.items.map((i) => `<tr><td><strong>${this.escape(i.item_name || i.item_code)}</strong> (${this.escape(i.item_code)})</td><td>${this.escape(i.warehouse)}</td><td class="text-right">${format_number(i.qty)} ${this.escape(i.uom)}</td><td>${this.escape(i.batch_no || i.serial_no || "—")}</td></tr>`).join("");
+		const w = window.open();
+		w.document.write(`<html><head><title>${this.escape(manifest.name)} — ${__("Fulfillment Manifest")}</title><style>body{font-family:sans-serif;padding:24px}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ccc;padding:8px;text-align:left}.text-right{text-align:right}h1{font-size:20px;margin-bottom:4px}.summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px;background:#f8f9fa;padding:12px;border-radius:4px}</style></head><body><h1>${this.escape(manifest.doctype)}: ${this.escape(manifest.name)}</h1><div>${__("Status")}: <strong>${this.escape(manifest.status)}</strong> | ${__("Date")}: ${this.escape(manifest.posting_date)}</div><div class="summary"><div><strong>${__("Retailer")}</strong>: ${this.escape(manifest.customer_name || manifest.customer || "—")}</div><div><strong>${__("Company")}</strong>: ${this.escape(manifest.company)}</div><div><strong>${__("Total Packages")}</strong>: ${manifest.total_packages}</div><div><strong>${__("Total Weight")}</strong>: ${format_number(manifest.total_gross_weight)} kg</div>${manifest.transporter_name ? `<div><strong>${__("Carrier")}</strong>: ${this.escape(manifest.transporter_name)}</div>` : ""}${manifest.lr_no ? `<div><strong>${__("LR No")}</strong>: ${this.escape(manifest.lr_no)}</div>` : ""}</div><table><thead><tr><th>${__("Item")}</th><th>${__("Warehouse")}</th><th class="text-right">${__("Quantity")}</th><th>${__("Batch / Serial")}</th></tr></thead><tbody>${items}</tbody></table><script>window.print();</script></body></html>`);
+		w.document.close();
 	}
 
 	complete_pick(task, dialog) {

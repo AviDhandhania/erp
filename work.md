@@ -58,7 +58,7 @@ quality disposition and production-cycle details are still expected.
 
 Confirmed requirements now governing the next warehouse/quality stages:
 
-- [ ] Replace/migrate the legacy Warehouse Operator/Manager split with manager-only
+- [x] Replace/migrate the legacy Warehouse Operator/Manager split with manager-only
   Clothing ERP warehouse access. Scope each manager using native Warehouse User
   Permissions; administrators retain oversight.
 - [x] Complete normal fulfilment from approved order through scan/pick, packing, the
@@ -83,7 +83,7 @@ Confirmed requirements now governing the next warehouse/quality stages:
   administrator and block workflow advancement until the recorded approval.
 - [x] At Final Inspection, present the complete seven-stage report history/photos and both
   gate decisions to an administrator for final approval/rejection.
-- [ ] Add bounded, permission-safe warehouse batch processing and the recommended scanning,
+- [x] Add bounded, permission-safe warehouse batch processing and the recommended scanning,
   exception, printing, package, return/refurbishment and quality-review conveniences from
   the operating-model document; bulk operations must expose every failure.
 - [x] Preserve all fulfilment, handoff, follow-up, return, quality, refurbishment and gate

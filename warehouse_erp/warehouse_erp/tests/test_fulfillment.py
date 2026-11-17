@@ -662,3 +662,138 @@ class TestFulfillment(unittest.TestCase):
         self.assertEqual(result["to_case_no"], 2)
         self.assertEqual(result["gross_weight_pkg"], 15.5)
 
+    def test_undo_pick_item_scan_rejects_non_draft_or_zero_picked(self):
+        document, row = self.pick_document(picked_qty=0, stock_qty=3, docstatus=1)
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            # docstatus == 1 -> cannot undo
+            fulfillment.undo_pick_item_scan(document.name, row.name)
+
+        document.docstatus = 0
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=document),
+            patch.object(fulfillment, "_active_pick_list_workflow", return_value=None),
+            patch.object(fulfillment, "_lock_pick_list"),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            # picked_qty == 0 -> cannot undo
+            fulfillment.undo_pick_item_scan(document.name, row.name)
+
+    def test_undo_pick_item_scan_success_and_audits(self):
+        before, before_row = self.pick_document(picked_qty=2, stock_qty=3)
+        after, after_row = self.pick_document(picked_qty=2, stock_qty=3)
+        before_row.serial_no = "SER-01\nSER-02"
+        after_row.serial_no = "SER-01\nSER-02"
+
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", side_effect=[before, after]),
+            patch.object(fulfillment, "_active_pick_list_workflow", return_value=None),
+            patch.object(fulfillment, "_item_tracking", return_value=frappe._dict(has_serial_no=1)),
+            patch.object(fulfillment, "_lock_pick_list") as lock,
+            patch.object(frappe.db, "commit"),
+        ):
+            result = fulfillment.undo_pick_item_scan(before.name, before_row.name)
+
+        lock.assert_called_once_with(before.name)
+        self.assertEqual(after_row.picked_qty, 1.0)
+        self.assertEqual(after_row.serial_no, "SER-01")
+        after.save.assert_called_once_with(ignore_permissions=True)
+        after.add_comment.assert_called_once()
+        self.assertEqual(result["undone_serial"], "SER-02")
+        self.assertEqual(result["picked_qty"], 1.0)
+
+    def test_bulk_create_delivery_notes_bounds_and_exposes_failures(self):
+        with (
+            patch.object(fulfillment, "require_role"),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            # Over 25 documents rejected
+            fulfillment.bulk_create_delivery_notes_from_picks([f"PICK-{i}" for i in range(26)])
+
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(
+                fulfillment,
+                "create_delivery_note_from_pick",
+                side_effect=[
+                    {"delivery_note": "MAT-DN-0001", "customer": "CUST-1"},
+                    frappe.ValidationError("Pick List not submitted"),
+                ],
+            ),
+        ):
+            res = fulfillment.bulk_create_delivery_notes_from_picks(["PICK-01", "PICK-02"])
+
+        self.assertEqual(res["total"], 2)
+        self.assertEqual(res["succeeded"], 1)
+        self.assertEqual(res["failed"], 1)
+        self.assertTrue(res["results"][0]["success"])
+        self.assertEqual(res["results"][0]["delivery_note"], "MAT-DN-0001")
+        self.assertFalse(res["results"][1]["success"])
+        self.assertIn("Pick List not submitted", res["results"][1]["error"])
+
+    def test_bulk_dispatch_delivery_notes_bounds_and_exposes_failures(self):
+        with (
+            patch.object(fulfillment, "require_role"),
+            self.assertRaises(frappe.ValidationError),
+        ):
+            fulfillment.bulk_dispatch_delivery_notes([f"DN-{i}" for i in range(26)])
+
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(
+                fulfillment,
+                "dispatch_delivery_note",
+                side_effect=[
+                    {"delivery_note": "DN-01", "status": "Completed"},
+                    frappe.PermissionError("Unauthorized warehouse"),
+                ],
+            ),
+        ):
+            res = fulfillment.bulk_dispatch_delivery_notes(["DN-01", "DN-02"], transporter_name="Express")
+
+        self.assertEqual(res["total"], 2)
+        self.assertEqual(res["succeeded"], 1)
+        self.assertEqual(res["failed"], 1)
+        self.assertTrue(res["results"][0]["success"])
+        self.assertFalse(res["results"][1]["success"])
+        self.assertIn("Unauthorized warehouse", res["results"][1]["error"])
+
+    def test_get_task_manifest_projection_and_scoping(self):
+        item = frappe._dict(
+            item_code="TEST-SHIRT-M",
+            item_name="Shirt",
+            warehouse="Stores - TCED",
+            stock_qty=10,
+            stock_uom="Nos",
+            batch_no="BATCH-1",
+            serial_no="SER-1",
+        )
+        doc = frappe._dict(
+            name="TEST-PICK-01",
+            doctype="Pick List",
+            customer="TEST Retailer",
+            customer_name="Retailer Name",
+            company="TEST Company",
+            status="Open",
+            docstatus=0,
+            locations=[item],
+            check_permission=MagicMock(),
+        )
+
+        with (
+            patch.object(fulfillment, "require_role"),
+            patch.object(frappe, "get_doc", return_value=doc),
+            patch("warehouse_erp.security.is_warehouse_admin", return_value=True),
+        ):
+            manifest = fulfillment.get_task_manifest("pick", "TEST-PICK-01")
+
+        self.assertEqual(manifest["name"], "TEST-PICK-01")
+        self.assertEqual(manifest["total_qty"], 10.0)
+        self.assertEqual(manifest["total_items"], 1)
+        self.assertEqual(manifest["items"][0]["item_code"], "TEST-SHIRT-M")
+

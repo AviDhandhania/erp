@@ -482,6 +482,76 @@ def verify_pick_item(pick_list, location, barcode, quantity=1):
 
 
 @frappe.whitelist(methods=["POST"])
+def undo_pick_item_scan(pick_list, location, barcode=None, quantity=1):
+    """Undo the last unsubmitted scan on a draft Pick List row with an audit comment."""
+    require_role(FULFILLMENT_ROLES)
+    pick_list = _task_name(pick_list)
+    quantity = _scan_quantity(quantity)
+    document = frappe.get_doc("Pick List", pick_list)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(frappe._("Only a draft Pick List scan can be undone."))
+    _require_no_pick_workflow()
+
+    _lock_pick_list(pick_list)
+    document = frappe.get_doc("Pick List", pick_list)
+    document.check_permission("read")
+    if document.docstatus != 0:
+        frappe.throw(frappe._("This Pick List changed. Refresh it."))
+    _require_no_pick_workflow()
+
+    row = _pick_location(document, location)
+    current_picked = flt(row.picked_qty)
+    if current_picked <= 0:
+        frappe.throw(frappe._("This row has no picked items to undo."))
+
+    undo_qty = min(quantity, int(current_picked))
+    tracking = _item_tracking(row.item_code)
+    has_serial = bool(tracking.get("has_serial_no"))
+
+    undone_serial = None
+    if has_serial and row.get("serial_no"):
+        serials = _serial_numbers(row.get("serial_no"))
+        if barcode and str(barcode).strip() in serials:
+            undone_serial = str(barcode).strip()
+            serials.remove(undone_serial)
+        elif serials:
+            undone_serial = serials.pop()
+        row.serial_no = "\n".join(serials)
+
+    new_picked = max(0.0, current_picked - undo_qty)
+    row.picked_qty = new_picked
+
+    document.add_comment(
+        "Comment",
+        frappe._(
+            "<strong>Clothing ERP scan undone</strong><br>"
+            "Item: {0}<br>Location: {1}<br>Quantity undone: {2}<br>Undone serial: {3}<br>Remaining picked: {4} of {5}"
+        ).format(
+            escape_html(row.item_code),
+            escape_html(row.name),
+            undo_qty,
+            escape_html(undone_serial or "—"),
+            flt(new_picked),
+            flt(row.stock_qty),
+        ),
+    )
+    document.flags.ignore_permissions = True
+    document.save(ignore_permissions=True)
+    frappe.db.commit()
+
+    return {
+        "pick_list": document.name,
+        "location": row.name,
+        "item_code": row.item_code,
+        "picked_qty": row.picked_qty,
+        "required_qty": row.stock_qty,
+        "undone_serial": undone_serial,
+        "complete": flt(row.picked_qty) >= flt(row.stock_qty),
+    }
+
+
+@frappe.whitelist(methods=["POST"])
 def resolve_pick_shortage(pick_list, reason):
     """Reallocate completely unpicked rows with ERPNext's native stock selection."""
     require_role(SHORTAGE_RESOLUTION_ROLES)
@@ -884,4 +954,188 @@ def dispatch_delivery_note(
         "delivery_note": document.name,
         "docstatus": document.docstatus,
         "status": document.status,
+    }
+
+
+@frappe.whitelist(methods=["POST"])
+def bulk_create_delivery_notes_from_picks(pick_lists):
+    """Bounded bulk creation of Delivery Notes from submitted Pick Lists with per-document error reporting."""
+    require_role(FULFILLMENT_ROLES)
+    if isinstance(pick_lists, str):
+        import json
+        try:
+            pick_lists = json.loads(pick_lists)
+        except Exception:
+            pick_lists = [p.strip() for p in pick_lists.split(",") if p.strip()]
+
+    if not isinstance(pick_lists, (list, tuple)) or not pick_lists:
+        frappe.throw(frappe._("Please provide a list of Pick Lists."))
+
+    if len(pick_lists) > 25:
+        frappe.throw(frappe._("Bulk operations are limited to 25 documents at a time."))
+
+    results = []
+    succeeded = 0
+    failed = 0
+
+    for name in pick_lists:
+        task_name = str(name).strip()
+        try:
+            res = create_delivery_note_from_pick(task_name)
+            results.append({
+                "pick_list": task_name,
+                "success": True,
+                "delivery_note": res.get("delivery_note"),
+                "customer": res.get("customer"),
+            })
+            succeeded += 1
+        except Exception as e:
+            results.append({
+                "pick_list": task_name,
+                "success": False,
+                "error": str(getattr(e, "message", None) or e),
+            })
+            failed += 1
+
+    return {
+        "total": len(pick_lists),
+        "succeeded": succeeded,
+        "failed": failed,
+        "results": results,
+    }
+
+
+@frappe.whitelist(methods=["POST"])
+def bulk_dispatch_delivery_notes(
+    delivery_notes,
+    transporter_name=None,
+    vehicle_no=None,
+    lr_no=None,
+    lr_date=None,
+):
+    """Bounded bulk dispatch of draft Delivery Notes with per-document failure reporting."""
+    require_role(SHORTAGE_RESOLUTION_ROLES)
+    if isinstance(delivery_notes, str):
+        import json
+        try:
+            delivery_notes = json.loads(delivery_notes)
+        except Exception:
+            delivery_notes = [d.strip() for d in delivery_notes.split(",") if d.strip()]
+
+    if not isinstance(delivery_notes, (list, tuple)) or not delivery_notes:
+        frappe.throw(frappe._("Please provide a list of Delivery Notes."))
+
+    if len(delivery_notes) > 25:
+        frappe.throw(frappe._("Bulk operations are limited to 25 documents at a time."))
+
+    results = []
+    succeeded = 0
+    failed = 0
+
+    for name in delivery_notes:
+        dn_name = str(name).strip()
+        try:
+            res = dispatch_delivery_note(
+                delivery_note=dn_name,
+                transporter_name=transporter_name,
+                vehicle_no=vehicle_no,
+                lr_no=lr_no,
+                lr_date=lr_date,
+            )
+            results.append({
+                "delivery_note": dn_name,
+                "success": True,
+                "status": res.get("status"),
+            })
+            succeeded += 1
+        except Exception as e:
+            results.append({
+                "delivery_note": dn_name,
+                "success": False,
+                "error": str(getattr(e, "message", None) or e),
+            })
+            failed += 1
+
+    return {
+        "total": len(delivery_notes),
+        "succeeded": succeeded,
+        "failed": failed,
+        "results": results,
+    }
+
+
+@frappe.whitelist()
+def get_task_manifest(task_type, name):
+    """Return an authorized printable manifest projection for Pick List or Delivery Note."""
+    require_role(FULFILLMENT_ROLES)
+    task_type, doctype = _task_type(task_type)
+    name = _task_name(name)
+    document = frappe.get_doc(doctype, name)
+    document.check_permission("read")
+
+    from warehouse_erp.security import assigned_warehouses, is_warehouse_admin
+
+    user = frappe.session.user
+    if not is_warehouse_admin(user):
+        allowed = assigned_warehouses(user)
+        child_rows = document.locations if task_type == "pick" else document.items
+        for row in child_rows:
+            wh = row.get("warehouse")
+            if wh and wh not in allowed:
+                frappe.throw(
+                    frappe._("You do not have permission for warehouse {0}.").format(wh),
+                    frappe.PermissionError,
+                )
+
+    items = []
+    total_qty = 0.0
+    child_rows = document.locations if task_type == "pick" else document.items
+    for row in child_rows:
+        qty = flt(row.get("stock_qty") or row.get("qty"), 2)
+        total_qty += qty
+        items.append({
+            "item_code": row.item_code,
+            "item_name": row.item_name,
+            "warehouse": row.warehouse,
+            "qty": qty,
+            "uom": row.stock_uom,
+            "batch_no": row.get("batch_no"),
+            "serial_no": row.get("serial_no"),
+        })
+
+    packing_slips = []
+    total_packages = 1
+    total_gross_weight = 0.0
+    if task_type == "delivery":
+        ps_records = frappe.get_all(
+            "Packing Slip",
+            filters={"delivery_note": document.name, "docstatus": ["<", 2]},
+            fields=["name", "from_case_no", "to_case_no", "gross_weight_pkg", "net_weight_pkg"],
+            order_by="from_case_no asc",
+        )
+        for ps in ps_records:
+            total_packages = max(total_packages, cint(ps.to_case_no))
+            total_gross_weight += flt(ps.gross_weight_pkg)
+            packing_slips.append(ps)
+
+    return {
+        "name": document.name,
+        "doctype": doctype,
+        "task_type": task_type,
+        "customer": document.get("customer"),
+        "customer_name": document.get("customer_name"),
+        "company": document.company,
+        "posting_date": str(document.get("posting_date") or document.get("transaction_date") or ""),
+        "status": document.status,
+        "docstatus": document.docstatus,
+        "items": items,
+        "total_items": len(items),
+        "total_qty": total_qty,
+        "total_packages": total_packages,
+        "total_gross_weight": total_gross_weight,
+        "packing_slips": packing_slips,
+        "transporter_name": document.get("transporter_name"),
+        "vehicle_no": document.get("vehicle_no"),
+        "lr_no": document.get("lr_no"),
+        "lr_date": str(document.get("lr_date")) if document.get("lr_date") else None,
     }
