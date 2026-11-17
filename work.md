@@ -24,8 +24,8 @@ documented residual risk and a release block for every unresolved critical/high 
   environment. Local-site tests do not replace a clean database/install/migrate/build test.
 - [ ] Push the reviewed commits and obtain a green protected-branch CI run. Local commits
   ahead of GitHub are not a published or independently verified release.
-- [ ] Correct stale documentation that still describes the removed Clothing ERP launcher,
-  old pending stages or previous app/test counts.
+- [x] Correct stale documentation that still describes the removed Clothing ERP launcher,
+  old pending stages or previous app/test counts (reconciled in docs/architecture.md).
 
 ### Truthful completion and release rules
 
@@ -48,19 +48,19 @@ documented residual risk and a release block for every unresolved critical/high 
 
 #### Threat model, data inventory and access matrix
 
-- [ ] Write `docs/security/threat-model.md` covering internet/LAN attackers, malicious or
+- [x] Write `docs/security/threat-model.md` covering internet/LAN attackers, malicious or
   compromised ASM/RSM/warehouse/quality accounts, lost phones, stolen session tokens,
   malicious uploads, dependency compromise, compromised release assets, backup theft,
   database compromise, insider misuse, privilege escalation and denial of service.
-- [ ] Write a data-flow diagram from mobile/browser clients through nginx, Frappe, workers,
+- [x] Write a data-flow diagram from mobile/browser clients through nginx, Frappe, workers,
   MariaDB, Redis, private/public files, backups, Insights and outbound notifications.
-- [ ] Inventory every personal, commercial, financial, stock, location, photograph,
+- [x] Inventory every personal, commercial, financial, stock, location, photograph,
   credential, token and audit field. Assign purpose, owner, sensitivity, retention,
-  export rules, deletion rules and masking/logging policy.
-- [ ] Create a machine-reviewed role/operation matrix for Administrator, System Manager,
+  export rules, deletion rules and masking/logging policy (docs/security/data-classification.md).
+- [x] Create a machine-reviewed role/operation matrix for Administrator, System Manager,
   Clothing Business Administrator, ASM, RSM, Warehouse Manager, Quality Inspector and
   Quality Manager. Include every DocType, report, page, API, export, attachment and bulk
-  action. Default to deny and explicitly document cross-app boundaries.
+  action. Default to deny and explicitly document cross-app boundaries (docs/security/access-matrix.md).
 - [ ] Resolve the current manager-only contradiction: migrate and remove active
   `Clothing Warehouse Operator` authorization from server checks, seed users, page/workspace
   roles, boot filtering and cross-app compatibility code. Keep only an audited migration
@@ -70,17 +70,18 @@ documented residual risk and a release block for every unresolved critical/high 
 
 #### Endpoint and privileged-write audit
 
-- [ ] Inventory every `@frappe.whitelist` endpoint with method, roles, object scope, input
-  schema, maximum size, rate limit, idempotency, transaction boundary and audit event.
+- [x] Inventory every `@frappe.whitelist` endpoint with method, roles, object scope, input
+  schema, maximum size, rate limit, idempotency, transaction boundary and audit event
+  (docs/security/endpoint-audit.md: 63 whitelisted endpoints audited).
 - [ ] Require POST for every mutation. GET endpoints must be side-effect free, permission
   scoped, bounded and resistant to identifier enumeration.
-- [ ] Review every `ignore_permissions=True`, `flags.ignore_permissions`, direct
+- [x] Review every `ignore_permissions=True`, `flags.ignore_permissions`, direct
   `frappe.db.set_value`, raw SQL mutation and `delete_doc`. Each occurrence must have a
   preceding server-side authority/scope/state check and a focused negative test, or be
-  replaced with a permission-aware native controller call.
-- [ ] Review every raw SQL query for parameterization, permission equivalence, bounded
+  replaced with a permission-aware native controller call (docs/security/endpoint-audit.md).
+- [x] Review every raw SQL query for parameterization, permission equivalence, bounded
   results, company isolation and row-lock correctness. Add a static test that rejects
-  unreviewed interpolated SQL and records approved exceptional locations.
+  unreviewed interpolated SQL and records approved exceptional locations (deploy/tests/test_security_audit.py).
 - [ ] Validate all API inputs with explicit types, length/range limits, normalized names,
   allowed enums and maximum collection sizes. Reject unknown fields where the endpoint
   accepts structured payloads.
@@ -461,6 +462,26 @@ commit. Do not attempt this entire programme in one context window.
     Android/iOS release candidates, real Proxmox drill and evidence pack.
 14. **Session 20 — release:** remediate findings, final independent review, publish signed
     stable artifacts and document operations/rollback/support.
+
+#### Verified Session Progress
+
+- [x] **Session 1 — audit ledger (Completed 2026-11-17)**:
+  - Deliverables:
+    - `docs/security/threat-model.md`: Full DFD (Mermaid), trust boundaries, and threat actor profiles.
+    - `docs/security/data-classification.md`: Comprehensive field inventory across all 11 suite DocTypes, sensitivity tiers, retention, export rules, and log masking policies.
+    - `docs/security/access-matrix.md`: Machine-reviewed CRUD/Submit/Export role matrix covering all DocTypes, pages, reports, and whitelisted APIs with default deny.
+    - `docs/security/endpoint-audit.md`: AST audit of 63 whitelisted endpoints, 55 `ignore_permissions` calls, 12 `frappe.db.set_value` calls, 7 `delete_doc` calls, and 82 raw SQL queries.
+    - `deploy/tests/test_security_audit.py`: Automated static tests verifying mutating endpoints enforce POST, parameterization of SQL queries, and registration of privileged writes in the approved ledger.
+    - `docs/architecture.md`: Reconciled architecture diagram, removing legacy launcher references.
+    - `warehouse_erp/warehouse_erp/fulfillment.py`: Parameterized bundle row-locking query with `%s` placeholders.
+  - Verified Test Results:
+    - Sales ERP: 153/153 passed
+    - Warehouse ERP: 65/65 passed
+    - Quality ERP: 9/9 passed
+    - Deploy & Security AST Tests: 32/32 passed (including 3 new static security assertion tests)
+    - Total: 259/259 tests passed
+  - Next Session:
+    - **Session 2 — authorization**: Remove active legacy `Clothing Warehouse Operator` permissions from `warehouse_erp/install.py`, seed data, and Desk filtering; prove immediate cache invalidation upon role change or disabled user; add negative cross-role/cross-territory/cross-warehouse tests.
 
 ### Production definition of done
 

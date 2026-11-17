@@ -363,15 +363,16 @@ def _lock_pick_list(pick_list):
 
 
 def _lock_pick_bundles(document):
-    bundle_names = [
+    bundle_names = sorted({
         row.serial_and_batch_bundle
         for row in getattr(document, "locations", [])
         if row.get("serial_and_batch_bundle")
-    ]
+    })
     if bundle_names:
-        escaped = ", ".join(frappe.db.escape(b) for b in set(bundle_names))
+        placeholders = ", ".join(["%s"] * len(bundle_names))
         frappe.db.sql(
-            f"SELECT name FROM `tabSerial and Batch Bundle` WHERE name IN ({escaped}) FOR UPDATE"
+            f"SELECT name FROM `tabSerial and Batch Bundle` WHERE name IN ({placeholders}) FOR UPDATE",
+            tuple(bundle_names),
         )
 
 
