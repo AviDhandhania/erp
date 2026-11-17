@@ -15,6 +15,8 @@
   "status",
   "inspector",
   "inspection_date",
+  "revision",
+  "supersedes",
   "section_break_approval",
   "approved_by",
   "approval_date",
@@ -93,6 +95,20 @@
    "fieldname": "inspection_date",
    "fieldtype": "Date",
    "label": "Inspection Date"
+  },
+  {
+   "default": "1",
+   "fieldname": "revision",
+   "fieldtype": "Int",
+   "label": "Revision",
+   "read_only": 1
+  },
+  {
+   "fieldname": "supersedes",
+   "fieldtype": "Link",
+   "label": "Supersedes Inspection",
+   "options": "Supplier Quality Inspection",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_approval",

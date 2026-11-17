@@ -336,6 +336,19 @@ def _lock_pick_list(pick_list):
     )
 
 
+def _lock_pick_bundles(document):
+    bundle_names = [
+        row.serial_and_batch_bundle
+        for row in getattr(document, "locations", [])
+        if row.get("serial_and_batch_bundle")
+    ]
+    if bundle_names:
+        escaped = ", ".join(frappe.db.escape(b) for b in set(bundle_names))
+        frappe.db.sql(
+            f"SELECT name FROM `tabSerial and Batch Bundle` WHERE name IN ({escaped}) FOR UPDATE"
+        )
+
+
 def _close_pick_assignments(pick_list):
     from frappe.desk.form.assign_to import close_all_assignments
 
@@ -517,6 +530,7 @@ def complete_pick_list(pick_list):
         )
     _require_no_pick_workflow()
     _require_complete_pick(document)
+    _lock_pick_bundles(document)
 
     document.flags.ignore_permissions = True
     # Native submit owns stock availability, serial/batch, reservation, reference

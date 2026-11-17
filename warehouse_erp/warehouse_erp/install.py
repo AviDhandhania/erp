@@ -80,6 +80,26 @@ def after_install():
     frappe.clear_cache()
 
 
+def migrate_warehouse_operators_to_managers():
+    """Migrate legacy Clothing Warehouse Operator users to Clothing Warehouse Manager preserving auditability."""
+    operator_users = frappe.get_all(
+        "Has Role",
+        filters={"role": ROLE_WAREHOUSE_OPERATOR, "parenttype": "User"},
+        pluck="parent",
+    )
+    for user in set(operator_users):
+        if user in {"Administrator", "Guest"} or not frappe.db.exists("User", user):
+            continue
+        user_roles = set(frappe.get_roles(user))
+        if ROLE_WAREHOUSE_MANAGER not in user_roles:
+            user_doc = frappe.get_doc("User", user)
+            user_doc.add_roles(ROLE_WAREHOUSE_MANAGER)
+            frappe.logger("warehouse_erp").info(
+                f"Migrated user {user} from {ROLE_WAREHOUSE_OPERATOR} to {ROLE_WAREHOUSE_MANAGER}."
+            )
+
+
 def after_migrate():
     after_install()
+    migrate_warehouse_operators_to_managers()
     ensure_warehouse_erp_sidebar()

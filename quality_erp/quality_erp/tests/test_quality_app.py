@@ -8,8 +8,10 @@ from quality_erp.boot import restrict_quality_app_visibility
 from quality_erp.quality import (
     approve_quality_gate,
     create_quality_inspection,
+    get_quality_review_bundle,
     record_return_quarantine,
     reject_quality_gate,
+    revise_quality_inspection,
 )
 from quality_erp.roles import (
     ROLE_BUSINESS_ADMIN,
@@ -29,6 +31,8 @@ class TestQualityERP(FrappeTestCase):
         from collections import defaultdict
         frappe.local.request_cache = defaultdict(dict)
         frappe.set_user("Administrator")
+        frappe.db.sql("DELETE FROM `tabSupplier Quality Inspection`")
+        frappe.db.commit()
         seed_quality_data()
         self.inspector = SEED_QUALITY_INSPECTOR
         self.manager = SEED_QUALITY_MANAGER
@@ -94,8 +98,8 @@ class TestQualityERP(FrappeTestCase):
         self.assertIn("warehouse_erp", visible)
         self.assertIn("erpnext", visible)
 
-    def test_quality_inspection_creation_and_rejection(self):
-        """Inspector can create quality inspections and reject with reason."""
+    def test_quality_inspection_creation_rejection_and_versioning(self):
+        """Inspector can create quality inspections, reject with reason, and submit versioned revisions."""
         frappe.set_user(self.inspector)
         doc = create_quality_inspection(
             supplier=self.supplier,
@@ -104,6 +108,7 @@ class TestQualityERP(FrappeTestCase):
             spec_notes="Chest 38cm, Length 68cm",
         )
         self.assertEqual(doc["status"], "Pending Review")
+        self.assertEqual(doc["revision"], 1)
 
         # Rejection requires reason
         with self.assertRaises(frappe.ValidationError):
@@ -113,47 +118,83 @@ class TestQualityERP(FrappeTestCase):
         self.assertEqual(rejected["status"], "Rejected")
         self.assertIn("Sleeve length out of spec", rejected["comments"])
 
-    def test_critical_gates_require_administrator(self):
-        """Critical gates (Production Go Ahead & Final Inspection) require Administrator."""
-        frappe.set_user(self.inspector)
-        doc = create_quality_inspection(
-            supplier=self.supplier,
-            item_code="TEST-CLASSIC-TEE-BLK",
-            stage="4. Production Go Ahead",
-            spec_notes="Pre-production approval request",
+        # Create versioned revision
+        rev = revise_quality_inspection(
+            doc["name"],
+            spec_notes="Chest 38cm, Length 68cm, Sleeve corrected to 22cm",
         )
+        self.assertEqual(rev["revision"], 2)
+        self.assertEqual(rev["supersedes"], doc["name"])
+        self.assertEqual(rev["status"], "Pending Review")
 
-        # Inspector cannot approve critical gate
+        # Approve the revision
+        approved = approve_quality_gate(rev["name"], notes="Correction verified")
+        self.assertEqual(approved["status"], "Approved")
+
+    def test_strict_7_stage_lifecycle_and_critical_gates(self):
+        """Enforce strict prerequisite ordering across the 7 stages and Admin gate controls."""
+        item = "TEST-CLASSIC-TEE-BLK"
+
+        # 1. First submission (Stage 1) - no prerequisites
+        frappe.set_user(self.inspector)
+        stg1 = create_quality_inspection(self.supplier, item, "1. First Submission")
+        # Attempting Stage 2 before Stage 1 approved must fail
+        stg2 = create_quality_inspection(self.supplier, item, "2. Second Submission")
+        with self.assertRaisesRegex(frappe.ValidationError, "prerequisite stage"):
+            approve_quality_gate(stg2["name"])
+
+        # Approve Stage 1
+        approve_quality_gate(stg1["name"], notes="Stage 1 approved")
+
+        # Now Stage 2 can be approved
+        approve_quality_gate(stg2["name"], notes="Stage 2 approved")
+
+        # Stage 3 (Size Set Submission)
+        stg3 = create_quality_inspection(self.supplier, item, "3. Size Set Submission")
+        approve_quality_gate(stg3["name"], notes="Stage 3 approved")
+
+        # Review bundle before Stage 4 approval shows prerequisites satisfied
+        frappe.set_user(self.manager)
+        bundle_pga = get_quality_review_bundle(self.supplier, item, gate="Production Go Ahead")
+        self.assertTrue(bundle_pga["ready_for_approval"])
+        self.assertEqual(len(bundle_pga["missing_prerequisites"]), 0)
+
+        # Stage 4 (Production Go Ahead) requires Administrator gate sign-off
+        frappe.set_user(self.inspector)
+        stg4 = create_quality_inspection(self.supplier, item, "4. Production Go Ahead")
         with self.assertRaises(frappe.PermissionError):
-            approve_quality_gate(doc["name"])
+            approve_quality_gate(stg4["name"])
 
-        # Manager also cannot approve critical release gate
         frappe.set_user(self.manager)
         with self.assertRaises(frappe.PermissionError):
-            approve_quality_gate(doc["name"])
+            approve_quality_gate(stg4["name"])
 
-        # Administrator can approve critical gate
         frappe.set_user("Administrator")
-        approved = approve_quality_gate(doc["name"], notes="Administrator sign-off approved")
-        self.assertEqual(approved["status"], "Approved")
-        self.assertEqual(approved["approved_by"], "Administrator")
+        appr_stg4 = approve_quality_gate(stg4["name"], notes="Admin PGA sign-off")
+        self.assertEqual(appr_stg4["status"], "Approved")
 
-    def test_final_inspection_critical_gate(self):
-        """Final Inspection gate 7 also strictly requires Administrator."""
+        # Stage 5 (Inline Visit) and Stage 6 (Mid-line Visit)
         frappe.set_user(self.inspector)
-        doc = create_quality_inspection(
-            supplier=self.supplier,
-            item_code="TEST-CLASSIC-TEE-BLK",
-            stage="7. Final Inspection",
-            spec_notes="Final bulk inspection 100 units",
-        )
+        stg5 = create_quality_inspection(self.supplier, item, "5. Inline Visit")
+        approve_quality_gate(stg5["name"])
 
+        stg6 = create_quality_inspection(self.supplier, item, "6. Mid-line Visit")
+        approve_quality_gate(stg6["name"])
+
+        # Stage 7 (Final Inspection) requires all prior 6 stages + Administrator approval
+        stg7 = create_quality_inspection(self.supplier, item, "7. Final Inspection")
         with self.assertRaises(frappe.PermissionError):
-            approve_quality_gate(doc["name"])
+            approve_quality_gate(stg7["name"])
 
         frappe.set_user("Administrator")
-        approved = approve_quality_gate(doc["name"], notes="Final release approved")
-        self.assertEqual(approved["status"], "Approved")
+        appr_stg7 = approve_quality_gate(stg7["name"], notes="Final release approved")
+        self.assertEqual(appr_stg7["status"], "Approved")
+
+        # Review bundle for Final Inspection shows full history
+        bundle_final = get_quality_review_bundle(self.supplier, item, gate="Final Inspection")
+        self.assertTrue(bundle_final["ready_for_approval"])
+        self.assertEqual(len(bundle_final["missing_prerequisites"]), 0)
+        self.assertEqual(len(bundle_final["stage_reports"]), 7)
 
     def test_return_quarantine_intake(self):
         """Inspector can intake goods into return quarantine."""

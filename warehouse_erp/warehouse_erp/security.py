@@ -56,13 +56,19 @@ def assigned_warehouses(user=None):
     if not direct:
         return []
     descendants = set(direct)
-    for wh in direct:
-        child_records = frappe.get_all(
+    to_visit = list(direct)
+    while to_visit:
+        curr = to_visit.pop(0)
+        children = frappe.get_all(
             "Warehouse",
-            filters={"parent_warehouse": wh, "is_group": 0},
-            pluck="name",
+            filters={"parent_warehouse": curr},
+            fields=["name", "is_group"],
         )
-        descendants.update(child_records)
+        for ch in children:
+            if ch.name not in descendants:
+                descendants.add(ch.name)
+                if ch.is_group:
+                    to_visit.append(ch.name)
     return sorted(descendants)
 
 
@@ -87,8 +93,13 @@ def pick_list_has_permission(doc, ptype="read", user=None, **kwargs):
     allowed = assigned_warehouses(user)
     if not allowed:
         return False
-    for item in getattr(doc_obj, "locations", []):
-        if item.warehouse and item.warehouse not in allowed:
+    parent_wh = doc_obj.get("parent_warehouse") if isinstance(doc_obj, dict) else getattr(doc_obj, "parent_warehouse", None)
+    if parent_wh and parent_wh not in allowed:
+        return False
+    locations = doc_obj.get("locations") if isinstance(doc_obj, dict) else getattr(doc_obj, "locations", [])
+    for item in (locations or []):
+        wh = item.get("warehouse") if isinstance(item, dict) else getattr(item, "warehouse", None)
+        if wh and wh not in allowed:
             return False
     return True
 
@@ -103,8 +114,10 @@ def delivery_note_has_permission(doc, ptype="read", user=None, **kwargs):
     allowed = assigned_warehouses(user)
     if not allowed:
         return False
-    for item in getattr(doc_obj, "items", []):
-        if item.warehouse and item.warehouse not in allowed:
+    items = doc_obj.get("items") if isinstance(doc_obj, dict) else getattr(doc_obj, "items", [])
+    for item in (items or []):
+        wh = item.get("warehouse") if isinstance(item, dict) else getattr(item, "warehouse", None)
+        if wh and wh not in allowed:
             return False
     return True
 

@@ -1,17 +1,17 @@
-"""Quality management services: 7-stage supplier quality lifecycle and return quarantine."""
+"""Quality management services: 7-stage supplier quality lifecycle, return quarantine, and review bundles."""
 
 import frappe
+from frappe import _
 from frappe.utils import now_datetime
-from quality_erp.security import (
-    assert_can_approve_quality_gate,
-    get_current_user,
-    is_quality_admin,
-    require_role,
-)
 from quality_erp.roles import (
     ROLE_BUSINESS_ADMIN,
     ROLE_QUALITY_INSPECTOR,
     ROLE_QUALITY_MANAGER,
+)
+from quality_erp.security import (
+    assert_can_approve_quality_gate,
+    get_current_user,
+    require_role,
 )
 
 QUALITY_STAGES = (
@@ -25,14 +25,58 @@ QUALITY_STAGES = (
 )
 
 
-@frappe.whitelist()
-def create_quality_inspection(supplier, item_code, stage, purchase_order=None, spec_notes=None, photo_evidence=None):
+def check_stage_prerequisites(stage, supplier, item_code, purchase_order=None, current_inspection=None):
+    """Ensure all ordered preceding stages have an approved inspection."""
+    if stage not in QUALITY_STAGES:
+        frappe.throw(_("Invalid quality stage '{0}'").format(stage), frappe.ValidationError)
+
+    stage_idx = QUALITY_STAGES.index(stage)
+    if stage_idx == 0:
+        return
+
+    prereq_stages = QUALITY_STAGES[:stage_idx]
+    filters = {
+        "supplier": supplier,
+        "item_code": item_code,
+        "status": "Approved",
+    }
+    approved = frappe.get_all(
+        "Supplier Quality Inspection",
+        filters=filters,
+        fields=["stage", "purchase_order"],
+    )
+    approved_set = set()
+    for row in approved:
+        if not purchase_order or not row.purchase_order or row.purchase_order == purchase_order:
+            approved_set.add(row.stage)
+
+    for req in prereq_stages:
+        if req not in approved_set:
+            frappe.throw(
+                _(
+                    "Cannot approve stage '{0}': prerequisite stage '{1}' has not been approved for {2}."
+                ).format(stage, req, item_code),
+                frappe.ValidationError,
+            )
+
+
+@frappe.whitelist(methods=["POST"])
+def create_quality_inspection(
+    supplier,
+    item_code,
+    stage,
+    purchase_order=None,
+    spec_notes=None,
+    photo_evidence=None,
+    revision=1,
+    supersedes=None,
+):
     """Create a new supplier quality inspection entry."""
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
 
     if stage not in QUALITY_STAGES:
-        frappe.throw(frappe._("Invalid quality stage '{0}'").format(stage), frappe.ValidationError)
+        frappe.throw(_("Invalid quality stage '{0}'").format(stage), frappe.ValidationError)
 
     doc = frappe.get_doc(
         {
@@ -42,6 +86,8 @@ def create_quality_inspection(supplier, item_code, stage, purchase_order=None, s
             "purchase_order": purchase_order,
             "stage": stage,
             "status": "Pending Review",
+            "revision": int(revision or 1),
+            "supersedes": supersedes,
             "inspector": user,
             "spec_measurements": spec_notes,
             "photo_evidence": photo_evidence,
@@ -50,15 +96,69 @@ def create_quality_inspection(supplier, item_code, stage, purchase_order=None, s
     return doc.as_dict()
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
+def revise_quality_inspection(inspection_name, spec_notes=None, photo_evidence=None):
+    """Create a new versioned revision of a rejected or pending inspection report."""
+    require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
+    user = get_current_user()
+
+    # Lock original inspection
+    rows = frappe.db.sql(
+        "SELECT name, supplier, item_code, purchase_order, stage, status, revision FROM `tabSupplier Quality Inspection` WHERE name = %s FOR UPDATE",
+        (inspection_name,),
+        as_dict=True,
+    )
+    if not rows:
+        frappe.throw(_("Inspection {0} does not exist.").format(inspection_name), frappe.DoesNotExistError)
+    curr = rows[0]
+    if curr.status == "Approved":
+        frappe.throw(_("Cannot revise an already approved inspection report."), frappe.ValidationError)
+
+    doc = frappe.get_doc("Supplier Quality Inspection", inspection_name)
+    doc.check_permission("write")
+
+    new_revision = (curr.revision or 1) + 1
+    new_doc = frappe.get_doc(
+        {
+            "doctype": "Supplier Quality Inspection",
+            "supplier": curr.supplier,
+            "item_code": curr.item_code,
+            "purchase_order": curr.purchase_order,
+            "stage": curr.stage,
+            "status": "Pending Review",
+            "revision": new_revision,
+            "supersedes": inspection_name,
+            "inspector": user,
+            "spec_measurements": spec_notes or doc.spec_measurements,
+            "photo_evidence": photo_evidence or doc.photo_evidence,
+            "comments": f"Revision {new_revision} superseding {inspection_name}",
+        }
+    ).insert()
+
+    return new_doc.as_dict()
+
+
+@frappe.whitelist(methods=["POST"])
 def approve_quality_gate(inspection_name, notes=None):
     """Approve a quality inspection gate. Critical gates require Administrator approval."""
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
 
+    # Row-lock transition
+    rows = frappe.db.sql(
+        "SELECT name, status, stage, supplier, item_code, purchase_order FROM `tabSupplier Quality Inspection` WHERE name = %s FOR UPDATE",
+        (inspection_name,),
+        as_dict=True,
+    )
+    if not rows:
+        frappe.throw(_("Inspection {0} does not exist.").format(inspection_name), frappe.DoesNotExistError)
+
+    current = rows[0]
+    if current.status == "Approved":
+        return frappe.get_doc("Supplier Quality Inspection", inspection_name).as_dict()
+
     doc = frappe.get_doc("Supplier Quality Inspection", inspection_name)
-    if doc.status == "Approved":
-        return doc.as_dict()
+    doc.check_permission("write")
 
     # High-security enforcement: Gate 4 (Production Go Ahead) & Gate 7 (Final Inspection)
     # require Administrator role.
@@ -66,6 +166,15 @@ def approve_quality_gate(inspection_name, notes=None):
         assert_can_approve_quality_gate("Production Go Ahead", user)
     elif "Final Inspection" in doc.stage:
         assert_can_approve_quality_gate("Final Inspection", user)
+
+    # Enforce strict 7-stage quality lifecycle ordering
+    check_stage_prerequisites(
+        stage=doc.stage,
+        supplier=doc.supplier,
+        item_code=doc.item_code,
+        purchase_order=doc.purchase_order,
+        current_inspection=doc.name,
+    )
 
     doc.status = "Approved"
     doc.approved_by = user
@@ -76,15 +185,25 @@ def approve_quality_gate(inspection_name, notes=None):
     return doc.as_dict()
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def reject_quality_gate(inspection_name, reason):
     """Reject a quality inspection gate with mandatory reason."""
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
     user = get_current_user()
     if not reason or not reason.strip():
-        frappe.throw(frappe._("Rejection requires a documented reason."), frappe.ValidationError)
+        frappe.throw(_("Rejection requires a documented reason."), frappe.ValidationError)
+
+    rows = frappe.db.sql(
+        "SELECT name, status, stage FROM `tabSupplier Quality Inspection` WHERE name = %s FOR UPDATE",
+        (inspection_name,),
+        as_dict=True,
+    )
+    if not rows:
+        frappe.throw(_("Inspection {0} does not exist.").format(inspection_name), frappe.DoesNotExistError)
 
     doc = frappe.get_doc("Supplier Quality Inspection", inspection_name)
+    doc.check_permission("write")
+
     doc.status = "Rejected"
     doc.approved_by = user
     doc.approval_date = now_datetime()
@@ -94,6 +213,69 @@ def reject_quality_gate(inspection_name, reason):
 
 
 @frappe.whitelist()
+def get_quality_review_bundle(supplier, item_code, purchase_order=None, gate="Production Go Ahead"):
+    """Retrieve comprehensive administrative review bundle for critical quality gates."""
+    require_role({ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
+
+    if "Production Go Ahead" in gate:
+        target_gate = "4. Production Go Ahead"
+        prereq_stages = QUALITY_STAGES[:3]
+    elif "Final Inspection" in gate:
+        target_gate = "7. Final Inspection"
+        prereq_stages = QUALITY_STAGES[:6]
+    else:
+        frappe.throw(_("Invalid gate '{0}'. Must be Production Go Ahead or Final Inspection.").format(gate))
+
+    filters = {
+        "supplier": supplier,
+        "item_code": item_code,
+    }
+    all_reports = frappe.get_all(
+        "Supplier Quality Inspection",
+        filters=filters,
+        fields=[
+            "name",
+            "stage",
+            "status",
+            "revision",
+            "supersedes",
+            "inspector",
+            "inspection_date",
+            "approved_by",
+            "approval_date",
+            "spec_measurements",
+            "photo_evidence",
+            "comments",
+            "purchase_order",
+            "creation",
+            "modified",
+        ],
+        order_by="creation asc, revision asc",
+    )
+
+    stage_reports = {}
+    approved_stages = set()
+    for r in all_reports:
+        if not purchase_order or not r.purchase_order or r.purchase_order == purchase_order:
+            stage_reports[r.stage] = r
+            if r.status == "Approved":
+                approved_stages.add(r.stage)
+
+    missing = [req for req in prereq_stages if req not in approved_stages]
+
+    return {
+        "gate": target_gate,
+        "supplier": supplier,
+        "item_code": item_code,
+        "purchase_order": purchase_order,
+        "ready_for_approval": len(missing) == 0,
+        "missing_prerequisites": missing,
+        "stage_reports": stage_reports,
+        "all_reports": all_reports,
+    }
+
+
+@frappe.whitelist(methods=["POST"])
 def record_return_quarantine(retailer, delivery_note, item_code, quantity, return_reason, photo_evidence=None):
     """Record an item intake into the quarantine warehouse for quality inspection."""
     require_role({ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER, ROLE_BUSINESS_ADMIN})
