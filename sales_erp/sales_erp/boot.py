@@ -63,7 +63,7 @@ def apply_runtime_patches():
         if not getattr(frappe.apps, "_isolation_patched", False):
             orig_get_apps = frappe.apps.get_apps
 
-            @frappe.whitelist()
+            @frappe.whitelist(allow_guest=True)
             @functools.wraps(orig_get_apps)
             def filtered_get_apps(*args, **kwargs):
                 apps = orig_get_apps(*args, **kwargs)
@@ -76,9 +76,9 @@ def apply_runtime_patches():
             frappe.apps.get_apps = filtered_get_apps
             if hasattr(frappe, "whitelisted"):
                 frappe.whitelisted.add(filtered_get_apps)
-            if hasattr(frappe, "guest_methods") and orig_get_apps in frappe.guest_methods:
+            if hasattr(frappe, "guest_methods"):
                 frappe.guest_methods.add(filtered_get_apps)
-            if hasattr(frappe, "xss_safe_methods") and orig_get_apps in frappe.xss_safe_methods:
+            if hasattr(frappe, "xss_safe_methods"):
                 frappe.xss_safe_methods.add(filtered_get_apps)
             frappe.apps._isolation_patched = True
     except Exception:
