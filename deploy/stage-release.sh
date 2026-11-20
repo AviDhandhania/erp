@@ -7,6 +7,9 @@ DESTINATION="$2"
 [[ ! -e $DESTINATION ]] || { echo 'Staging directory already exists.' >&2; exit 1; }
 [[ -f $SOURCE/release.json ]] || { echo 'A verified release manifest is required.' >&2; exit 1; }
 
+export LC_ALL="${LC_ALL:-C.UTF-8}"
+export LANG="${LANG:-C.UTF-8}"
+export PYTHONDONTWRITEBYTECODE=1
 export HOME="${HOME:-/home/frappe}"
 export USER="${USER:-frappe}"
 export LOGNAME="${LOGNAME:-frappe}"
@@ -18,7 +21,7 @@ mkdir -p "$UV_CACHE_DIR" "$UV_PYTHON_INSTALL_DIR" "$npm_config_cache" "$YARN_CAC
 
 mkdir -p "$DESTINATION/.runtime"
 cd "$DESTINATION"
-python3 - "$SOURCE/release.json" "$DESTINATION/.runtime/pins.env" <<'PY'
+python3 -B - "$SOURCE/release.json" "$DESTINATION/.runtime/pins.env" <<'PY'
 import json,sys,os
 from pathlib import Path
 sys.path.insert(0,str(Path(sys.argv[1]).parent/'deploy/release'))
@@ -59,7 +62,8 @@ if [[ $LOCKED == 1 ]]; then
     export UV_CONSTRAINT="$SOURCE/deploy/locks/python.txt"
     export PIP_CONSTRAINT="$UV_CONSTRAINT"
 fi
-cp -a "$SOURCE" "$DESTINATION/source"
+mkdir -p "$DESTINATION/source"
+tar -C "$SOURCE" --exclude='__pycache__' --exclude='*.pyc' -cf - . | tar -C "$DESTINATION/source" -xf -
 git -C "$DESTINATION/source" init -b main
 git -C "$DESTINATION/source" add .
 git -C "$DESTINATION/source" -c user.name=Installer -c user.email=installer@example.invalid commit -m 'Verified release source'

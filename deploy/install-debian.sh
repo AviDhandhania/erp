@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 umask 077
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+export PYTHONDONTWRITEBYTECODE=1
 [[ $EUID -eq 0 ]] || { echo 'Run inside the new container as root.' >&2; exit 1; }
 # shellcheck source=/dev/null
 . /etc/os-release
@@ -8,7 +11,7 @@ umask 077
 SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ ! -e /home/frappe/frappe-bench && ! -e /root/clothing-erp-credentials ]] || { echo 'An installation exists. Use clothing-erp update.' >&2; exit 1; }
 [[ -f $SOURCE/release.json ]] || { echo 'Use the published release installer, not a main-branch source snapshot.' >&2; exit 1; }
-VERSION="$(python3 - "$SOURCE" <<'PY'
+VERSION="$(python3 -B - "$SOURCE" <<'PY'
 import json,sys
 from pathlib import Path
 sys.path.insert(0, str(Path(sys.argv[1])/'deploy/release'))
@@ -39,8 +42,9 @@ id frappe >/dev/null 2>&1 || useradd --create-home --shell /bin/bash frappe
 chmod 755 /home/frappe
 install -d -o frappe -g frappe -m 755 /home/frappe/releases /home/frappe/.cache /home/frappe/.cache/uv /home/frappe/.cache/yarn /home/frappe/.cache/npm /home/frappe/.local /home/frappe/.local/share /home/frappe/.local/share/uv
 install -d -o root -g root -m 751 /home/frappe/shared
-# Verified source must be readable to the unprivileged build user.
-chmod o+rx /opt/clothing-erp-source
+# Verified source must be recursively readable and traversable by the unprivileged build user.
+find /opt/clothing-erp-source -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+chmod -R a+rX /opt/clothing-erp-source
 (
     cd /home/frappe && \
     runuser -u frappe -- env \

@@ -349,6 +349,7 @@ tar -C "$SOURCE_ROOT" --exclude=__pycache__ --exclude='*.pyc' -czf "$WORK/app.ta
 pct push "$CTID" "$WORK/app.tar.gz" /root/clothing-erp-source.tar.gz --perms 600
 pct exec "$CTID" -- mkdir -p /opt/clothing-erp-source
 pct exec "$CTID" -- tar -xzf /root/clothing-erp-source.tar.gz -C /opt/clothing-erp-source
+pct exec "$CTID" -- chmod -R a+rX /opt/clothing-erp-source
 
 # --- In-Guest Stack Installation ---
 msg_info "Executing automated in-container installation (MariaDB, Redis, Frappe, ERPNext, Apps, TLS)..."
