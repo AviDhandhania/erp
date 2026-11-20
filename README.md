@@ -8,36 +8,40 @@ Compliance**, **Insights**, and **Frappe Framework**, packaged as three purpose-
 It has its own source, version history and GitHub releases. Upstream ERPNext/Frappe
 repositories remain unchanged. Everyone uses one IP, login and native app launcher.
 
-## Install
+## Proxmox VE 1-Line Helper Script
 
-The source and release repository is private. Create a fine-grained GitHub token that has
-**Contents: Read-only** access to `AviDhandhania/erp`. On the Proxmox VE amd64 host, clone
-the repository without embedding the token in the remote URL, then run the bootstrap as
-root while passing the token only through the process environment:
+To automatically install Clothing ERP inside a new dedicated LXC container on a Proxmox VE (amd64) host, run this command in the Proxmox VE root shell:
 
 ```bash
-read -rsp 'GitHub read token: ' CLOTHING_ERP_GITHUB_TOKEN; echo
-export CLOTHING_ERP_GITHUB_TOKEN
-git -c credential.helper='!f() { test "$1" = get && printf "username=x-access-token\npassword=%s\n" "$CLOTHING_ERP_GITHUB_TOKEN"; }; f' \
-  clone --depth 1 https://github.com/AviDhandhania/erp.git
-sudo --preserve-env=CLOTHING_ERP_GITHUB_TOKEN bash erp/deploy/proxmox/bootstrap.sh
-unset CLOTHING_ERP_GITHUB_TOKEN
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/AviDhandhania/erp/main/deploy/proxmox/clothing-erp.sh)"
 ```
 
-The installer downloads the **latest published stable release**, checks its archive
-and manifest, independently verifies its declared provenance, and creates a new
-unprivileged Debian 13 LXC with the complete stack. The token is neither copied into the
-container nor stored by the installer. It prints `https://<container-IP>/` and how to
-retrieve the generated Administrator password. Replace the initial fallback certificate
-with an operator-managed certificate or the documented ACME configuration before entering
-real data, then finish the standard ERPNext company setup.
+Or using `wget`:
 
-Defaults: 4 CPU cores, 8 GiB RAM, 40 GiB disk, DHCP, `vmbr0`, `local-lvm` root storage
-and `local` template storage. Override only what differs on your host:
+```bash
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/AviDhandhania/erp/main/deploy/proxmox/clothing-erp.sh)"
+```
+
+The helper script follows Proxmox Community Scripts standards:
+- **Auto-Discovery**: Automatically queries the cluster for the next available CTID, scans active storage for maximum available space (`rootdir`), locates template storage (`vztmpl`), and auto-downloads the Debian standard template.
+- **Interactive Whiptail UI**: Offers a 1-click **Default Settings** install (4 vCPU, 8 GB RAM, 40 GB disk, DHCP, auto-CTID) and an **Advanced Settings** mode to customize resources, storage pools, bridge, and static IP.
+- **Complete In-Guest Stack**: Creates an unprivileged container with `features: nesting=1,keyctl=1`, provisions MariaDB (utf8mb4), Redis, Nginx TLS, Python 3.14, Node.js 24, Bench, Frappe v16.55.2, ERPNext v16.54.0, India Compliance v16.10.0, Insights v3.15.1, Sales ERP (`sales_erp`), Warehouse ERP (`warehouse_erp`), and Quality ERP (`quality_erp`).
+- **Hardened & Started**: Hardens Nginx TLS (ports 80 -> 443 redirect), enables and starts sandboxed systemd units (`web`, `socketio`, `worker`, `schedule`), verifies service health checks, and saves credentials in `/root/clothing-erp-credentials`.
+
+## Manual / Scripted Bootstrap
+
+Alternatively, you can run the bootstrap script directly on your Proxmox VE host:
+
+```bash
+git clone --depth 1 https://github.com/AviDhandhania/erp.git
+sudo bash erp/deploy/proxmox/clothing-erp.sh --default
+```
+
+Defaults: 4 CPU cores, 8 GiB RAM, 40 GiB disk, DHCP, `vmbr0`, auto-detected root storage and template storage. Override only what differs on your host:
 
 ```bash
 STORAGE=local-zfs BRIDGE=vmbr1 CTID=210 \
-  sudo --preserve-env=CLOTHING_ERP_GITHUB_TOKEN bash erp/deploy/proxmox/bootstrap.sh
+  sudo bash erp/deploy/proxmox/clothing-erp.sh --default
 ```
 
 To choose an older published release, set `CLOTHING_ERP_VERSION=v0.3.0`.

@@ -24,8 +24,12 @@ REQUIRED_EXTENSION_PINS = {
 
 
 def _github_token():
-    """Return the optional read-only credential for the private release repository."""
-    return os.environ.get("CLOTHING_ERP_GITHUB_TOKEN", "").strip()
+    """Return the optional read-only credential for the release repository."""
+    return (
+        os.environ.get("CLOTHING_ERP_GITHUB_TOKEN", "").strip()
+        or os.environ.get("GITHUB_TOKEN", "").strip()
+        or os.environ.get("GH_TOKEN", "").strip()
+    )
 
 
 def _request_headers(url, *, accept="application/vnd.github+json"):
@@ -41,6 +45,7 @@ def _request_headers(url, *, accept="application/vnd.github+json"):
         "github.com",
         "objects.githubusercontent.com",
         "github-releases.githubusercontent.com",
+        "release-assets.githubusercontent.com",
     }:
         headers["Authorization"] = f"Bearer {token}"
     return headers
@@ -143,9 +148,41 @@ def fetch_json(url):
 
 def release_assets(tag=None):
     # Latest means a published, stable GitHub Release, never the main branch.
-    release = fetch_json(
-        f"{API}/releases/tags/{tag}" if tag else f"{API}/releases/latest"
-    )
+    try:
+        release = fetch_json(
+            f"{API}/releases/tags/{tag}" if tag else f"{API}/releases/latest"
+        )
+    except urllib.error.HTTPError as err:
+        if err.code in (403, 404) and not _github_token():
+            # Fallback for unauthenticated access to public repository releases:
+            # Resolve the release tag via the public GitHub redirect
+            req = urllib.request.Request(
+                f"https://github.com/{REPOSITORY}/releases/tags/{tag}" if tag else f"https://github.com/{REPOSITORY}/releases/latest",
+                headers={"User-Agent": "clothing-erp-lifecycle"},
+            )
+            class NoRedirect(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+                    return None
+            opener = urllib.request.build_opener(NoRedirect)
+            resolved_url = None
+            try:
+                with opener.open(req, timeout=30) as resp:
+                    resolved_url = resp.url
+            except urllib.error.HTTPError as redir_err:
+                resolved_url = redir_err.headers.get("Location") or redir_err.url
+            if not resolved_url or "/releases/tag/" not in resolved_url:
+                raise
+            resolved_tag = resolved_url.split("/releases/tag/")[-1].strip("/")
+            version_tuple(resolved_tag)
+            base = f"https://github.com/{REPOSITORY}/releases/download/{resolved_tag}"
+            assets = {
+                "release.json": f"{base}/release.json",
+                "SHA256SUMS": f"{base}/SHA256SUMS",
+                f"clothing-erp-{resolved_tag}.tar.gz": f"{base}/clothing-erp-{resolved_tag}.tar.gz",
+            }
+            return resolved_tag, assets
+        raise
+
     if release["draft"] or release["prerelease"]:
         raise ValueError("Only published stable releases can be installed")
     version_tuple(release["tag_name"])

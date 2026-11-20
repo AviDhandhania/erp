@@ -12,6 +12,7 @@ ALLOWED_DOWNLOAD_DOMAINS = {
     "objects.githubusercontent.com",
     "github-releases.githubusercontent.com",
     "raw.githubusercontent.com",
+    "release-assets.githubusercontent.com",
 }
 
 

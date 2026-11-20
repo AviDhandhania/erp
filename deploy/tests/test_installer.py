@@ -29,6 +29,8 @@ elif name=='pveam' and args[0]=='available':
     if mode!='no-template': print('system debian-13-standard_13.1-1_amd64.tar.zst')
 elif name=='pct':
     if 'hostname' in args: print('10.0.0.50')
+    if 'getent' in args: sys.exit(0)
+    if 'awk' in args or 'cat' in args: print('Password: test-admin-password')
     if 'bash' in args and mode=='guest-failure': sys.exit(1)
 """
 
@@ -141,6 +143,82 @@ class TestInstaller(unittest.TestCase):
         result, calls = self.run_installer("no-template")
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(any(call[:2] == ["pct", "create"] for call in calls))
+
+
+class TestHelperScript(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        probe = subprocess.run(["unshare", "-Ur", "true"], capture_output=True)
+        if probe.returncode:
+            raise unittest.SkipTest("Unprivileged user namespaces unavailable")
+
+    def run_helper(self, mode="", **settings):
+        with tempfile.TemporaryDirectory() as directory:
+            tmp = Path(directory)
+            source = tmp / "source"
+            shutil.copytree(
+                ROOT,
+                source,
+                ignore=shutil.ignore_patterns(
+                    ".git",
+                    "dist",
+                    "__pycache__",
+                    ".venv",
+                    "env",
+                    "node_modules",
+                    ".env",
+                    "sites",
+                ),
+            )
+            shutil.copy2(
+                ROOT / "deploy/tests/fixtures/release.json", source / "release.json"
+            )
+            for name in ("pct", "pveam", "pvesh", "pvesm", "ip"):
+                path = tmp / name
+                path.write_text(STUB)
+                path.chmod(0o755)
+            env = (
+                os.environ
+                | {
+                    "PATH": f"{tmp}:" + os.environ["PATH"],
+                    "COMMAND_LOG": str(tmp / "calls.jsonl"),
+                    "TEST_MODE": mode,
+                }
+                | settings
+            )
+            result = subprocess.run(
+                ["unshare", "-Ur", "bash", str(source / "deploy/proxmox/clothing-erp.sh"), "--default"],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            calls = (
+                [
+                    json.loads(line)
+                    for line in (tmp / "calls.jsonl").read_text().splitlines()
+                ]
+                if (tmp / "calls.jsonl").exists()
+                else []
+            )
+            return result, calls
+
+    def test_helper_script_auto_discovery_and_creation(self):
+        result, calls = self.run_helper()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        create = next(call for call in calls if call[:2] == ["pct", "create"])
+        self.assertEqual(create[create.index("--unprivileged") + 1], "1")
+        self.assertEqual(create[create.index("--features") + 1], "nesting=1,keyctl=1")
+        self.assertIn("101", create)
+        self.assertIn("https://10.0.0.50/", result.stdout)
+        self.assertIn("CLOTHING ERP LXC PROVISIONED SUCCESSFULLY", result.stdout)
+        self.assertTrue(any("install-debian.sh" in " ".join(call) for call in calls))
+
+    def test_helper_script_rejects_in_use_vmid(self):
+        result, calls = self.run_helper("existing-vmid", CTID="101")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(call[:2] == ["pct", "create"] for call in calls))
+
 
 
 class TestPackage(unittest.TestCase):
