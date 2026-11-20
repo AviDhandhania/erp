@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Run on the Proxmox host. Installs only into a NEW unprivileged Debian 13 CT.
 set -Eeuo pipefail
-umask 077
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+umask 022
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-}")/../.." 2>/dev/null && pwd || echo "")"
 [[ -f $SOURCE_DIR/release.json ]] || { echo 'Use the published release bootstrap (a verified release.json is required).' >&2; exit 1; }
 CTID="${CTID:-}"
 STORAGE="${STORAGE:-local-lvm}"
@@ -55,6 +55,8 @@ TEMPLATE="$(pveam available --section system | awk '$2 ~ /^debian-13-standard_.*
 pveam download "$TEMPLATE_STORAGE" "$TEMPLATE"
 # Include only app source, never the development bench, services, data or credentials.
 tar -C "$SOURCE_DIR" --exclude=__pycache__ --exclude='*.pyc' -czf "$WORK/app.tar.gz" sales_erp warehouse_erp quality_erp deploy pyproject.toml VERSION README.md AGENTS.md license.txt work.md release.json
+mkdir -p /var/lib/lxc 2>/dev/null || true
+chmod 755 /var/lib/lxc 2>/dev/null || true
 pct create "$CTID" "$TEMPLATE_STORAGE:vztmpl/$TEMPLATE" \
     --hostname "$CT_HOSTNAME" --ostype debian --unprivileged 1 \
     --cores "$CORES" --memory "$MEMORY" --swap 1024 \

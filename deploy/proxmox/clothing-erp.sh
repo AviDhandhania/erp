@@ -6,7 +6,7 @@
 # or:
 #   bash -c "$(wget -qLO - https://raw.githubusercontent.com/AviDhandhania/erp/main/deploy/proxmox/clothing-erp.sh)"
 set -Eeuo pipefail
-umask 077
+umask 022
 
 # Color formatting
 YW='\033[33m'
@@ -236,7 +236,10 @@ trap 'rc=$?; rm -rf "$WORK"; if (( rc != 0 && CREATED )); then echo -e "\n${RD}I
 
 # --- Source Acquisition ---
 # If running inside a git clone, use it; otherwise clone the public repository
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
+SCRIPT_DIR=""
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
+fi
 SOURCE_ROOT=""
 if [[ -n "$SCRIPT_DIR" && -f "$SCRIPT_DIR/../../sales_erp/pyproject.toml" ]]; then
     SOURCE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -284,6 +287,22 @@ fi
 
 # --- Container Creation ---
 msg_info "Creating LXC Container ${BOLD}${CTID}${CL} (${CT_HOSTNAME})..."
+
+# Ensure standard permissions on /var/lib/lxc for unprivileged container namespace traversal
+mkdir -p /var/lib/lxc 2>/dev/null || true
+chmod 755 /var/lib/lxc 2>/dev/null || true
+
+# If a previous failed attempt left an unmanaged directory or broken state, clean it up
+if [[ -d "/var/lib/lxc/$CTID" ]] && ! pct status "$CTID" >/dev/null 2>&1; then
+    rm -rf "/var/lib/lxc/$CTID" 2>/dev/null || true
+fi
+if ! pct status "$CTID" >/dev/null 2>&1 && [[ ! -f "/etc/pve/lxc/${CTID}.conf" ]]; then
+    if command -v pvesm >/dev/null && pvesm list "$STORAGE" 2>/dev/null | grep -q "subvol-${CTID}-disk"; then
+        msg_info "Cleaning up orphaned storage volume subvol-${CTID}-disk-0 on $STORAGE..."
+        pvesm free "${STORAGE}:subvol-${CTID}-disk-0" >/dev/null 2>&1 || true
+    fi
+fi
+
 pct create "$CTID" "$TEMPLATE_STORAGE:vztmpl/$TEMPLATE" \
     --hostname "$CT_HOSTNAME" \
     --ostype debian \
