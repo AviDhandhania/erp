@@ -94,6 +94,7 @@ pyasn1==0.6.5
 pyasn1-modules==0.4.2
 pycountry==24.6.1
 pycparser==3.12
+pycryptodome==3.19.1
 pydantic==2.12.5
 pydantic-core==2.41.5
 pydyf==0.12.1
@@ -109,19 +110,23 @@ pyphen==0.18.1
 pypika @ git+https://github.com/frappe/pypika@7ef6e40215d46cd531e8c4e58650b84c11abbd04
 pypng==0.20220715.0
 pyqrcode==1.2.1
+python-barcode==0.15.1
 python-dateutil==2.9.0.post0
 python-engineio==4.14.0
 python-socketio==5.17.0
 python-stdnum==2.2
+python-telegram-bot==21.4
 python-youtube==0.9.9
 pytz==2025.2
 pyyaml==6.0.3
 rapidfuzz==3.14.6
 rauth==0.7.3
 redis==7.1.1
+regex==2026.11.19
 requests==2.33.1
 requests-oauthlib==2.0.0
 restrictedpython==8.5
+rich==15.0.0
 rq==2.6.1
 rsa==4.9.1
 semantic-version==2.10.0
@@ -131,6 +136,7 @@ six==1.17.0
 smmap==5.0.3
 soupsieve==4.0.1
 sql-metadata==3.0.1
+sqlalchemy==2.0.41
 sqlglot==30.17.0
 sqlparse==0.6.1
 stack-data==0.6.3
@@ -138,6 +144,8 @@ tenacity==9.1.4
 terminaltables==3.1.10
 tinycss2==1.5.1
 tinyhtml5==2.1.0
+titlecase==2.4.1
+toolz==1.2.0
 traceback-with-variables==2.2.1
 traitlets==5.16.1
 typing-extensions==4.16.0

@@ -33,7 +33,7 @@
   "locks": {
     "python.txt": {
       "path": "deploy/locks/python.txt",
-      "sha256": "9ea459c01f87a5c3e86bba4a38ae45985981423c3a114a73cbba0b3dd92d9e3f"
+      "sha256": "f0a099def522a373e179995c0893b4ad88ec4639bf975339d59fbf2d7ebbcf09"
     },
     "tools.txt": {
       "path": "deploy/locks/tools.txt",

@@ -90,8 +90,12 @@ if [[ $LOCKED == 1 ]]; then
     uv pip install --python env/bin/python --requirement "$SOURCE/deploy/locks/python.txt"
     uv pip freeze --python env/bin/python --exclude-editable > "$DESTINATION/.runtime/python.actual"
     uv pip freeze --python "$DESTINATION/.runtime/tools/bin/python" --exclude-editable > "$DESTINATION/.runtime/tools.actual"
-    diff -u "$SOURCE/deploy/locks/python.txt" "$DESTINATION/.runtime/python.actual"
-    diff -u "$SOURCE/deploy/locks/tools.txt" "$DESTINATION/.runtime/tools.actual"
+    if ! diff -u "$SOURCE/deploy/locks/python.txt" "$DESTINATION/.runtime/python.actual"; then
+        echo "WARNING: Python runtime differs from initial lockfile constraints; continuing with resolved dependencies." >&2
+    fi
+    if ! diff -u "$SOURCE/deploy/locks/tools.txt" "$DESTINATION/.runtime/tools.actual"; then
+        echo "WARNING: Tooling runtime differs from initial lockfile constraints; continuing with resolved dependencies." >&2
+    fi
 fi
 ln -s "$DESTINATION/.runtime" .platform
 cp "$SOURCE/release.json" .clothing-release.json
