@@ -271,7 +271,7 @@ if [[ ! -f "$SOURCE_ROOT/release.json" ]]; then
   "runtime": { "bench": "5.31.1", "node": "24.22.2", "python": "3.14.9", "uv": "0.13.7" },
   "archive": { "name": "clothing-erp-v0.3.1.tar.gz", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" },
   "locks": {
-    "python.txt": { "path": "deploy/locks/python.txt", "sha256": "5a7717412b8b9dd908bdafa48c7e1e6e4dee7163fe9e032b2c8a070c20874c03" },
+    "python.txt": { "path": "deploy/locks/python.txt", "sha256": "9ea459c01f87a5c3e86bba4a38ae45985981423c3a114a73cbba0b3dd92d9e3f" },
     "tools.txt": { "path": "deploy/locks/tools.txt", "sha256": "bb1ae2605571fa88c3c9600dd90da7ec6cf9b2953cbe05a14054aee8249bb990" }
   }
 }
