@@ -54,7 +54,7 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictNamespaces=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=no
-ReadWritePaths=/home/frappe/shared /home/frappe/frappe-bench/sites /run/clothing-erp /var/log
+ReadWritePaths=/home/frappe/shared /home/frappe/frappe-bench/sites /home/frappe/frappe-bench/logs /home/frappe/releases /run/clothing-erp /var/log
 
 [Install]
 WantedBy=multi-user.target

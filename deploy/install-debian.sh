@@ -22,6 +22,7 @@ PY
 exec > >(tee -a /var/log/clothing-erp-install.log) 2>&1
 trap 'echo "Install stopped at line $LINENO. The new CT and logs were preserved." >&2' ERR
 export DEBIAN_FRONTEND=noninteractive
+git config --global --add safe.directory "*"
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl git build-essential pkg-config \
     mariadb-server mariadb-client libmariadb-dev redis-server nginx chromium fonts-liberation fonts-noto-core \
@@ -59,7 +60,7 @@ chmod -R a+rX /opt/clothing-erp-source
 )
 ln -s "/home/frappe/releases/$VERSION/bench" /home/frappe/frappe-bench
 cd /home/frappe/frappe-bench
-export PATH="/home/frappe/frappe-bench/.platform/tools/bin:/home/frappe/frappe-bench/.platform/node/bin:/home/frappe/frappe-bench/.platform/bin:/usr/local/bin:/usr/bin:/bin"
+export PATH="/home/frappe/frappe-bench/.platform/tools/bin:/home/frappe/frappe-bench/.platform/node/bin:/home/frappe/frappe-bench/.platform/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 run_frappe() {
     (
         cd /home/frappe/frappe-bench && \
@@ -148,7 +149,7 @@ chmod 750 /home/frappe/shared/clothing.local/private || true
 chmod 750 /home/frappe/shared/clothing.local/private/files || true
 # Stable active symlink is the only path in nginx/systemd; each release owns its own code/env/assets.
 cp "$SOURCE/deploy/nginx.conf" /etc/nginx/sites-available/clothing-erp
-ln -s /etc/nginx/sites-available/clothing-erp /etc/nginx/sites-enabled/clothing-erp
+ln -sf /etc/nginx/sites-available/clothing-erp /etc/nginx/sites-enabled/clothing-erp
 rm -f /etc/nginx/sites-enabled/default
 chmod o+x /home/frappe
 python3 "$SOURCE/deploy/render-services.py" /etc/systemd/system

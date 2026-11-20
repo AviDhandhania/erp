@@ -15,6 +15,24 @@ RETAILER_TYPES = (
 
 def ensure_retailer_defaults():
     """Create stable leaf defaults without changing the site's Selling Settings."""
+    if not frappe.db.exists("Customer Group", "All Customer Groups"):
+        frappe.get_doc(
+            {
+                "doctype": "Customer Group",
+                "customer_group_name": "All Customer Groups",
+                "is_group": 1,
+                "parent_customer_group": "",
+            }
+        ).insert(ignore_permissions=True)
+    if not frappe.db.exists("Territory", "All Territories"):
+        frappe.get_doc(
+            {
+                "doctype": "Territory",
+                "territory_name": "All Territories",
+                "is_group": 1,
+                "parent_territory": "",
+            }
+        ).insert(ignore_permissions=True)
     if not frappe.db.exists("Customer Group", FALLBACK_CUSTOMER_GROUP):
         frappe.get_doc(
             {

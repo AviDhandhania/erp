@@ -7,6 +7,7 @@ DESTINATION="$2"
 [[ ! -e $DESTINATION ]] || { echo 'Staging directory already exists.' >&2; exit 1; }
 [[ -f $SOURCE/release.json ]] || { echo 'A verified release manifest is required.' >&2; exit 1; }
 
+git config --global --add safe.directory "*"
 export LC_ALL="${LC_ALL:-C.UTF-8}"
 export LANG="${LANG:-C.UTF-8}"
 export PYTHONDONTWRITEBYTECODE=1
@@ -82,6 +83,7 @@ bench get-app --branch "$INDIA_COMPLIANCE_REF" --skip-assets https://github.com/
 ln -s "$DESTINATION/source/sales_erp/sales_erp" apps/sales_erp
 ln -s "$DESTINATION/source/warehouse_erp/warehouse_erp" apps/warehouse_erp
 ln -s "$DESTINATION/source/quality_erp/quality_erp" apps/quality_erp
+[[ -f sites/apps.txt && -n "$(tail -c1 sites/apps.txt 2>/dev/null)" ]] && echo "" >> sites/apps.txt
 for app in sales_erp warehouse_erp quality_erp; do
     grep -qx "$app" sites/apps.txt || echo "$app" >> sites/apps.txt
 done
@@ -98,6 +100,8 @@ if [[ $LOCKED == 1 ]]; then
     fi
 fi
 ln -s "$DESTINATION/.runtime" .platform
+mkdir -p "$DESTINATION/bench/logs"
+ln -sf "$DESTINATION/bench/logs" "$DESTINATION/logs"
 cp "$SOURCE/release.json" .clothing-release.json
 (cd sites && "$DESTINATION/bench/env/bin/python" "$SOURCE/deploy/build_assets.py")
 # nginx can traverse and read public assets, never private site files.

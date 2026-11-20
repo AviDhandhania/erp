@@ -10,7 +10,8 @@ set -Eeuo pipefail
 exec /usr/bin/python3 /opt/clothing-erp/manager/lifecycle.py "$@"
 COMMAND
 chmod 755 /usr/local/bin/clothing-erp
-clothing-erp register
+ln -sf /usr/local/bin/clothing-erp /usr/bin/clothing-erp
+/usr/local/bin/clothing-erp register
 cat > /etc/cron.d/clothing-erp-backup <<'CRON'
 0 2 * * * root /usr/local/bin/clothing-erp backup >> /var/log/clothing-erp-backup.log 2>&1
 CRON

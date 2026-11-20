@@ -55,99 +55,207 @@ for host_pkg in git curl python3; do
     fi
 done
 
-# --- Auto-Discovery ---
-msg_info "Discovering Proxmox host environment and available resources..."
-
-# 1. CTID auto-discovery
-AUTO_CTID=""
-if command -v pvesh >/dev/null; then
-    AUTO_CTID="$(pvesh get /cluster/nextid 2>/dev/null || echo "")"
-fi
-if [[ -z "$AUTO_CTID" || ! "$AUTO_CTID" =~ ^[1-9][0-9]*$ ]]; then
-    for ((id=100; id<999; id++)); do
-        if ! pct status "$id" >/dev/null 2>&1 && ! qm status "$id" >/dev/null 2>&1; then
-            AUTO_CTID="$id"
-            break
-        fi
-    done
-fi
-[[ -n "$AUTO_CTID" ]] || { msg_error "Unable to discover an available CTID."; exit 1; }
-msg_ok "Next available CTID: ${BOLD}${AUTO_CTID}${CL}"
-
-# 2. Root storage auto-discovery (content: rootdir)
-AUTO_STORAGE=""
-if [[ -n "${STORAGE:-}" ]]; then
-    AUTO_STORAGE="$STORAGE"
-else
-    # Find active storage with rootdir content and maximum available space
-    AUTO_STORAGE="$(pvesm status -content rootdir 2>/dev/null | awk 'NR>1 && $3=="active" {print $1, $6}' | sort -k2 -nr | head -1 | awk '{print $1}')"
-    # Fallback to local-lvm or local-zfs if detected
-    if [[ -z "$AUTO_STORAGE" ]]; then
-        if pvesm status -storage local-lvm -content rootdir >/dev/null 2>&1; then
-            AUTO_STORAGE="local-lvm"
-        elif pvesm status -storage local-zfs -content rootdir >/dev/null 2>&1; then
-            AUTO_STORAGE="local-zfs"
-        else
-            AUTO_STORAGE="local"
-        fi
-    fi
-fi
-msg_ok "Detected Root Storage: ${BOLD}${AUTO_STORAGE}${CL}"
-
-# 3. Template storage auto-discovery (content: vztmpl)
-AUTO_TMPL_STORAGE=""
-if [[ -n "${TEMPLATE_STORAGE:-}" ]]; then
-    AUTO_TMPL_STORAGE="$TEMPLATE_STORAGE"
-else
-    if pvesm status -storage local -content vztmpl 2>/dev/null | awk 'NR>1 && $3=="active" {ok=1} END {exit !ok}'; then
-        AUTO_TMPL_STORAGE="local"
-    else
-        AUTO_TMPL_STORAGE="$(pvesm status -content vztmpl 2>/dev/null | awk 'NR>1 && $3=="active" {print $1}' | head -1)"
-    fi
-fi
-[[ -n "$AUTO_TMPL_STORAGE" ]] || AUTO_TMPL_STORAGE="local"
-msg_ok "Detected Template Storage: ${BOLD}${AUTO_TMPL_STORAGE}${CL}"
-
-# 4. Bridge auto-discovery
-AUTO_BRIDGE=""
-if [[ -n "${BRIDGE:-}" ]]; then
-    AUTO_BRIDGE="$BRIDGE"
-elif ip link show vmbr0 >/dev/null 2>&1; then
-    AUTO_BRIDGE="vmbr0"
-else
-    AUTO_BRIDGE="$(ip -o link show type bridge 2>/dev/null | awk -F': ' '{print $2}' | head -1)"
-    [[ -n "$AUTO_BRIDGE" ]] || AUTO_BRIDGE="vmbr0"
-fi
-msg_ok "Detected Network Bridge: ${BOLD}${AUTO_BRIDGE}${CL}"
-
-# --- Configuration & Dialog UI ---
-CTID="${CTID:-$AUTO_CTID}"
+# --- CLI Options & Flag Parsing ---
+CTID="${CTID:-}"
 CT_HOSTNAME="${CT_HOSTNAME:-clothing-erp}"
-STORAGE="${STORAGE:-$AUTO_STORAGE}"
-TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-$AUTO_TMPL_STORAGE}"
-BRIDGE="${BRIDGE:-$AUTO_BRIDGE}"
+STORAGE="${STORAGE:-}"
+TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-}"
+BRIDGE="${BRIDGE:-}"
 CT_IP="${CT_IP:-dhcp}"
 GATEWAY="${GATEWAY:-}"
 MEMORY="${MEMORY:-8192}"
 CORES="${CORES:-4}"
 DISK_GB="${DISK_GB:-40}"
 SWAP="${SWAP:-1024}"
+INTERACTIVE_FLAG=""
 
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -y|--yes|--default|--silent)
+            INTERACTIVE_FLAG=0
+            shift
+            ;;
+        --interactive)
+            INTERACTIVE_FLAG=1
+            shift
+            ;;
+        --id|--ctid)
+            CTID="$2"
+            shift 2
+            ;;
+        --hostname)
+            CT_HOSTNAME="$2"
+            shift 2
+            ;;
+        --storage)
+            STORAGE="$2"
+            shift 2
+            ;;
+        --template-storage|--tmpl-storage)
+            TEMPLATE_STORAGE="$2"
+            shift 2
+            ;;
+        --bridge)
+            BRIDGE="$2"
+            shift 2
+            ;;
+        --ip)
+            CT_IP="$2"
+            shift 2
+            ;;
+        --gateway|--gw)
+            GATEWAY="$2"
+            shift 2
+            ;;
+        --cores)
+            CORES="$2"
+            shift 2
+            ;;
+        --memory|--ram)
+            MEMORY="$2"
+            shift 2
+            ;;
+        --disk)
+            DISK_GB="$2"
+            shift 2
+            ;;
+        --swap)
+            SWAP="$2"
+            shift 2
+            ;;
+        -h|--help)
+            echo "Usage: bash clothing-erp.sh [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  -y, --yes, --default    Non-interactive installation using auto-detected defaults"
+            echo "  --id <CTID>             Container ID (default: next available ID >= 100)"
+            echo "  --hostname <NAME>       Container hostname (default: clothing-erp)"
+            echo "  --storage <POOL>        Storage pool for root disk (default: auto-detected)"
+            echo "  --tmpl-storage <POOL>   Storage pool for template (default: local or auto)"
+            echo "  --bridge <BRIDGE>       Network bridge interface (default: auto-detected)"
+            echo "  --ip <IP/CIDR>          Static IP (e.g. 192.168.1.100/24) or 'dhcp' (default)"
+            echo "  --gateway <IP>          Default gateway for static IP"
+            echo "  --cores <NUM>           Allocated CPU cores (default: 4)"
+            echo "  --memory <MB>           Allocated RAM in MB (default: 8192, min: 4096)"
+            echo "  --disk <GB>             Root disk size in GB (default: 40, min: 30)"
+            echo "  --swap <MB>             Swap size in MB (default: 1024)"
+            exit 0
+            ;;
+        *)
+            msg_warn "Unknown option: $1 (ignoring)"
+            shift
+            ;;
+    esac
+done
+
+# --- Auto-Discovery ---
+msg_info "Discovering Proxmox host environment and available resources..."
+
+# 1. CTID auto-discovery
+AUTO_CTID=""
+if [[ -n "$CTID" ]]; then
+    AUTO_CTID="$CTID"
+else
+    if command -v pvesh >/dev/null; then
+        AUTO_CTID="$(pvesh get /cluster/nextid 2>/dev/null || echo "")"
+    fi
+    if [[ -z "$AUTO_CTID" || ! "$AUTO_CTID" =~ ^[1-9][0-9]*$ ]]; then
+        for ((id=100; id<999; id++)); do
+            if ! pct status "$id" >/dev/null 2>&1 && ! qm status "$id" >/dev/null 2>&1; then
+                AUTO_CTID="$id"
+                break
+            fi
+        done
+    fi
+fi
+[[ -n "$AUTO_CTID" ]] || { msg_error "Unable to discover an available CTID."; exit 1; }
+CTID="$AUTO_CTID"
+msg_ok "Selected CTID: ${BOLD}${CTID}${CL}"
+
+# 2. Root storage auto-discovery (content: rootdir)
+AUTO_STORAGE=""
+if [[ -n "$STORAGE" ]]; then
+    AUTO_STORAGE="$STORAGE"
+else
+    # Find active storages supporting rootdir with sufficient space (at least DISK_GB GiB)
+    REQ_KIB="$((DISK_GB * 1024 * 1024))"
+    # Prioritize fast block/zfs pools (zfspool, lvmthin, btrfs) over directory storage
+    AUTO_STORAGE="$(pvesm status -content rootdir 2>/dev/null | awk -v req="$REQ_KIB" '
+        NR>1 && $3=="active" && $6>=req {
+            prio = ($2 ~ /zfspool|lvmthin|btrfs/) ? 1 : 2;
+            print prio, $6, $1
+        }' | sort -k1,1n -k2,2nr | head -1 | awk '{print $3}')"
+    # Fallback to standard names if needed
+    if [[ -z "$AUTO_STORAGE" ]]; then
+        for candidate in local-lvm local-zfs local; do
+            if pvesm status -storage "$candidate" -content rootdir 2>/dev/null | awk -v req="$REQ_KIB" 'NR>1 && $3=="active" && $6>=req {ok=1} END {exit !ok}'; then
+                AUTO_STORAGE="$candidate"
+                break
+            fi
+        done
+    fi
+    if [[ -z "$AUTO_STORAGE" ]]; then
+        # Pick any active storage supporting rootdir
+        AUTO_STORAGE="$(pvesm status -content rootdir 2>/dev/null | awk 'NR>1 && $3=="active" {print $1}' | head -1)"
+    fi
+fi
+[[ -n "$AUTO_STORAGE" ]] || { msg_error "No active storage found with rootdir support."; exit 1; }
+STORAGE="$AUTO_STORAGE"
+msg_ok "Selected Root Storage: ${BOLD}${STORAGE}${CL}"
+
+# 3. Template storage auto-discovery (content: vztmpl)
+AUTO_TMPL_STORAGE=""
+if [[ -n "$TEMPLATE_STORAGE" ]]; then
+    AUTO_TMPL_STORAGE="$TEMPLATE_STORAGE"
+else
+    if pvesm status -storage local -content vztmpl 2>/dev/null | awk 'NR>1 && $3=="active" {ok=1} END {exit !ok}'; then
+        AUTO_TMPL_STORAGE="local"
+    else
+        AUTO_TMPL_STORAGE="$(pvesm status -content vztmpl 2>/dev/null | awk 'NR>1 && $3=="active" {print $1, $6}' | sort -k2 -nr | head -1 | awk '{print $1}')"
+    fi
+fi
+[[ -n "$AUTO_TMPL_STORAGE" ]] || AUTO_TMPL_STORAGE="local"
+TEMPLATE_STORAGE="$AUTO_TMPL_STORAGE"
+msg_ok "Selected Template Storage: ${BOLD}${TEMPLATE_STORAGE}${CL}"
+
+# 4. Bridge auto-discovery
+AUTO_BRIDGE=""
+if [[ -n "$BRIDGE" ]]; then
+    AUTO_BRIDGE="$BRIDGE"
+else
+    # Check default gateway interface if it is a bridge
+    DEF_IF="$(ip route show default 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}' | head -1)"
+    if [[ -n "$DEF_IF" ]] && ip link show "$DEF_IF" type bridge >/dev/null 2>&1; then
+        AUTO_BRIDGE="$DEF_IF"
+    elif ip link show vmbr0 >/dev/null 2>&1; then
+        AUTO_BRIDGE="vmbr0"
+    else
+        # Find any active bridge, excluding Proxmox firewall internal bridges (fwbr*)
+        AUTO_BRIDGE="$(ip -o link show type bridge 2>/dev/null | awk -F': ' '{print $2}' | grep -v '^fwbr' | head -1)"
+        [[ -n "$AUTO_BRIDGE" ]] || AUTO_BRIDGE="vmbr0"
+    fi
+fi
+BRIDGE="$AUTO_BRIDGE"
+msg_ok "Selected Network Bridge: ${BOLD}${BRIDGE}${CL}"
+
+# --- Configuration & Dialog UI ---
 INTERACTIVE=0
-if [[ -t 0 ]] && command -v whiptail >/dev/null && [[ ! " $* " =~ " -y " ]] && [[ ! " $* " =~ " --default " ]] && [[ ! " $* " =~ " --silent " ]]; then
+if [[ "$INTERACTIVE_FLAG" == "1" ]]; then
+    INTERACTIVE=1
+elif [[ "$INTERACTIVE_FLAG" != "0" ]] && [[ -t 0 ]] && command -v whiptail >/dev/null; then
     INTERACTIVE=1
 fi
 
 if [[ $INTERACTIVE -eq 1 ]]; then
     PROMPT_MSG="Create a new Clothing ERP LXC container?\n\n"
     PROMPT_MSG+="Auto-detected defaults:\n"
-    PROMPT_MSG+="  • Container ID:  $AUTO_CTID\n"
+    PROMPT_MSG+="  • Container ID:  $CTID\n"
     PROMPT_MSG+="  • Hostname:      $CT_HOSTNAME\n"
     PROMPT_MSG+="  • CPU Cores:     $CORES vCPU\n"
     PROMPT_MSG+="  • Memory (RAM):  $MEMORY MB\n"
     PROMPT_MSG+="  • Disk Size:     $DISK_GB GB\n"
-    PROMPT_MSG+="  • Storage:       $AUTO_STORAGE\n"
-    PROMPT_MSG+="  • Network:       $AUTO_BRIDGE (DHCP)\n\n"
+    PROMPT_MSG+="  • Storage:       $STORAGE\n"
+    PROMPT_MSG+="  • Network:       $BRIDGE (DHCP)\n\n"
     PROMPT_MSG+="Select 'Yes' for 1-Click Default Installation, or 'No' for Advanced Customization."
 
     if whiptail --title "Clothing ERP LXC Installation" --yes-button "Default Settings" --no-button "Advanced Settings" --yesno "$PROMPT_MSG" 17 68; then
@@ -212,7 +320,11 @@ fi
 # --- Template Discovery / Download ---
 msg_info "Checking Debian LXC standard template..."
 TEMPLATE=""
-EXISTING_TMPL="$(pveam list "$TEMPLATE_STORAGE" 2>/dev/null | awk '$1 ~ /debian-(13|12)-standard_.*_amd64\.tar\.(zst|gz|xz)/ {print $1}' | tail -1 || echo '')"
+EXISTING_TMPL="$(pveam list "$TEMPLATE_STORAGE" 2>/dev/null | awk '$1 ~ /debian-13-standard_.*_amd64\.tar\.(zst|gz|xz)/ {print $1}' | sort -V | tail -1)"
+if [[ -z "$EXISTING_TMPL" ]]; then
+    EXISTING_TMPL="$(pveam list "$TEMPLATE_STORAGE" 2>/dev/null | awk '$1 ~ /debian-12-standard_.*_amd64\.tar\.(zst|gz|xz)/ {print $1}' | sort -V | tail -1)"
+fi
+
 if [[ -n "$EXISTING_TMPL" ]]; then
     TEMPLATE="${EXISTING_TMPL##*/}"
     msg_ok "Using cached template: ${TEMPLATE}"
@@ -235,7 +347,6 @@ CREATED=0
 trap 'rc=$?; rm -rf "$WORK"; if (( rc != 0 && CREATED )); then echo -e "\n${RD}Installation encountered an error.${CL} Container $CTID was preserved for diagnosis.\nInspect logs inside the CT at: /var/log/clothing-erp-install.log" >&2; fi' EXIT
 
 # --- Source Acquisition ---
-# If running inside a git clone, use it; otherwise clone the public repository
 SCRIPT_DIR=""
 if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
@@ -246,7 +357,13 @@ if [[ -n "$SCRIPT_DIR" && -f "$SCRIPT_DIR/../../sales_erp/pyproject.toml" ]]; th
     msg_info "Using local source tree at: $SOURCE_ROOT"
 else
     msg_info "Cloning Clothing ERP from public repository..."
-    git clone --depth 1 https://github.com/AviDhandhania/erp.git "$WORK/repo"
+    BRANCH="${CLOTHING_ERP_BRANCH:-main}"
+    if [[ -n "${CLOTHING_ERP_GITHUB_TOKEN:-}" ]]; then
+        git -c credential.helper='!f() { test "$1" = get && printf "username=x-access-token\npassword=%s\n" "$CLOTHING_ERP_GITHUB_TOKEN"; }; f' \
+            clone --depth 1 --branch "$BRANCH" https://github.com/AviDhandhania/erp.git "$WORK/repo"
+    else
+        git clone --depth 1 --branch "$BRANCH" https://github.com/AviDhandhania/erp.git "$WORK/repo"
+    fi
     SOURCE_ROOT="$WORK/repo"
 fi
 
@@ -256,30 +373,10 @@ if [[ ! -f "$SOURCE_ROOT/release.json" ]]; then
         cp "$SOURCE_ROOT/deploy/tests/fixtures/release.production.json" "$SOURCE_ROOT/release.json"
     elif [[ -f "$SOURCE_ROOT/deploy/tests/fixtures/release.json" ]]; then
         cp "$SOURCE_ROOT/deploy/tests/fixtures/release.json" "$SOURCE_ROOT/release.json"
-    else
-        cat > "$SOURCE_ROOT/release.json" << 'EOF'
-{
-  "schema": 1,
-  "platform": "debian13-native-v1",
-  "version": "v0.3.1",
-  "repository": "AviDhandhania/erp",
-  "source_commit": "61468e4695b28531102613d965d1d6a78cead888",
-  "frappe": { "ref": "v16.55.2", "commit": "3d1284c5fdb52207a516a49bbf2fd186cb43b3ab" },
-  "erpnext": { "ref": "v16.54.0", "commit": "495380b59c8701629f25089bd3807e6ddf7f26c6" },
-  "insights": { "ref": "v3.15.1", "commit": "c7dc954d8275756deb5ad24f7c35c3f3c2ca1a6c" },
-  "india_compliance": { "ref": "v16.10.0", "commit": "93eca2f553c04f6695e3d6103be8a4e6e6264d39" },
-  "runtime": { "bench": "5.31.1", "node": "24.22.2", "python": "3.14.9", "uv": "0.13.7" },
-  "archive": { "name": "clothing-erp-v0.3.1.tar.gz", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" },
-  "locks": {
-    "python.txt": { "path": "deploy/locks/python.txt", "sha256": "f0a099def522a373e179995c0893b4ad88ec4639bf975339d59fbf2d7ebbcf09" },
-    "tools.txt": { "path": "deploy/locks/tools.txt", "sha256": "bb1ae2605571fa88c3c9600dd90da7ec6cf9b2953cbe05a14054aee8249bb990" }
-  }
-}
-EOF
     fi
 fi
 
-# Ensure deploy/locks are populated from fixtures
+# Ensure deploy/locks are populated from fixtures if missing
 if [[ ! -d "$SOURCE_ROOT/deploy/locks" ]] && [[ -d "$SOURCE_ROOT/deploy/tests/fixtures/locks" ]]; then
     mkdir -p "$SOURCE_ROOT/deploy/locks"
     cp -a "$SOURCE_ROOT/deploy/tests/fixtures/locks/"* "$SOURCE_ROOT/deploy/locks/"
@@ -303,7 +400,7 @@ if ! pct status "$CTID" >/dev/null 2>&1 && [[ ! -f "/etc/pve/lxc/${CTID}.conf" ]
     fi
 fi
 
-pct create "$CTID" "$TEMPLATE_STORAGE:vztmpl/$TEMPLATE" \
+if ! pct create "$CTID" "$TEMPLATE_STORAGE:vztmpl/$TEMPLATE" \
     --hostname "$CT_HOSTNAME" \
     --ostype debian \
     --unprivileged 1 \
@@ -313,7 +410,20 @@ pct create "$CTID" "$TEMPLATE_STORAGE:vztmpl/$TEMPLATE" \
     --rootfs "$STORAGE:$DISK_GB" \
     --net0 "$NET" \
     --onboot 1 \
-    --features nesting=1,keyctl=1
+    --features nesting=1,keyctl=1 2>/dev/null; then
+    msg_warn "pct create with keyctl=1 failed; retrying with nesting=1 only..."
+    pct create "$CTID" "$TEMPLATE_STORAGE:vztmpl/$TEMPLATE" \
+        --hostname "$CT_HOSTNAME" \
+        --ostype debian \
+        --unprivileged 1 \
+        --cores "$CORES" \
+        --memory "$MEMORY" \
+        --swap "$SWAP" \
+        --rootfs "$STORAGE:$DISK_GB" \
+        --net0 "$NET" \
+        --onboot 1 \
+        --features nesting=1
+fi
 
 CREATED=1
 msg_ok "Created LXC Container ${BOLD}${CTID}${CL}"
@@ -328,6 +438,11 @@ fi
 # --- Container Startup ---
 msg_info "Starting container ${CTID}..."
 pct start "$CTID"
+
+# Fallback DNS if DHCP does not supply nameservers
+if ! pct exec "$CTID" -- grep -q "nameserver" /etc/resolv.conf 2>/dev/null; then
+    pct exec "$CTID" -- sh -c 'echo "nameserver 1.1.1.1" >> /etc/resolv.conf; echo "nameserver 8.8.8.8" >> /etc/resolv.conf'
+fi
 
 msg_info "Waiting for container networking and DNS resolution..."
 ready=0
@@ -389,7 +504,7 @@ echo -e "${BOLD}Management Commands (on Proxmox Host):${CL}"
 echo -e "  • Enter Container:         ${BL}pct enter ${CTID}${CL}"
 echo -e "  • View Credentials:        ${BL}pct exec ${CTID} -- cat /root/clothing-erp-credentials${CL}"
 echo -e "  • Check Service Status:    ${BL}pct exec ${CTID} -- clothing-erp status${CL}"
-echo -e "  • Check Health:            ${BL}pct exec ${CTID} -- clothing-erp check${CL}"
+echo -e "  • Check Health:            ${BL}pct exec ${CTID} -- /usr/local/bin/clothing-erp check${CL}"
 echo -e "  • Application Update:      ${BL}pct exec ${CTID} -- clothing-erp update${CL}"
 echo -e "${GN}══════════════════════════════════════════════════════════════════════════════${CL}"
 echo
