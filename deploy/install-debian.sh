@@ -22,12 +22,12 @@ PY
 exec > >(tee -a /var/log/clothing-erp-install.log) 2>&1
 trap 'echo "Install stopped at line $LINENO. The new CT and logs were preserved." >&2' ERR
 export DEBIAN_FRONTEND=noninteractive
-git config --global --add safe.directory "*"
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl git build-essential pkg-config \
     mariadb-server mariadb-client libmariadb-dev redis-server nginx chromium fonts-liberation fonts-noto-core \
     libffi-dev libssl-dev libjpeg62-turbo-dev zlib1g-dev libwebp-dev liblcms2-dev \
     libharfbuzz-dev libfribidi-dev libtiff-dev libopenjp2-7-dev cron xz-utils openssl file
+git config --global --add safe.directory "*"
 cat > /etc/mysql/mariadb.conf.d/60-clothing-erp.cnf <<'CNF'
 [mysqld]
 character-set-server=utf8mb4
