@@ -58,10 +58,13 @@ def apply_runtime_patches():
     """Patch get_apps and get_workspaces to guarantee strict operational app isolation."""
     ensure_module_app_mapped()
     try:
+        import functools
         import frappe.apps
         if not getattr(frappe.apps, "_isolation_patched", False):
             orig_get_apps = frappe.apps.get_apps
 
+            @frappe.whitelist()
+            @functools.wraps(orig_get_apps)
             def filtered_get_apps(*args, **kwargs):
                 apps = orig_get_apps(*args, **kwargs)
                 perm = get_user_operational_permitted_apps()
@@ -71,15 +74,23 @@ def apply_runtime_patches():
 
             filtered_get_apps._original = orig_get_apps
             frappe.apps.get_apps = filtered_get_apps
+            if hasattr(frappe, "whitelisted"):
+                frappe.whitelisted.add(filtered_get_apps)
+            if hasattr(frappe, "guest_methods") and orig_get_apps in frappe.guest_methods:
+                frappe.guest_methods.add(filtered_get_apps)
+            if hasattr(frappe, "xss_safe_methods") and orig_get_apps in frappe.xss_safe_methods:
+                frappe.xss_safe_methods.add(filtered_get_apps)
             frappe.apps._isolation_patched = True
     except Exception:
         pass
 
     try:
+        import functools
         import frappe.desk.desktop
         if not getattr(frappe.desk.desktop, "_isolation_patched", False):
             orig_get_workspaces = frappe.desk.desktop.get_workspaces
 
+            @functools.wraps(orig_get_workspaces)
             def filtered_get_workspaces(*args, **kwargs):
                 res = orig_get_workspaces(*args, **kwargs)
                 perm = get_user_operational_permitted_apps()
@@ -93,6 +104,8 @@ def apply_runtime_patches():
 
             filtered_get_workspaces._original = orig_get_workspaces
             frappe.desk.desktop.get_workspaces = filtered_get_workspaces
+            if hasattr(frappe, "whitelisted") and orig_get_workspaces in frappe.whitelisted:
+                frappe.whitelisted.add(filtered_get_workspaces)
             frappe.desk.desktop._isolation_patched = True
     except Exception:
         pass
