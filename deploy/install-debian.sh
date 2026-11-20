@@ -4,7 +4,7 @@ umask 077
 [[ $EUID -eq 0 ]] || { echo 'Run inside the new container as root.' >&2; exit 1; }
 # shellcheck source=/dev/null
 . /etc/os-release
-[[ $ID == debian && $VERSION_ID == 13 ]] || { echo 'Debian 13 is required.' >&2; exit 1; }
+[[ $ID == debian && ( $VERSION_ID == "12" || $VERSION_ID == "13" ) ]] || { echo 'Debian 12 or 13 is required.' >&2; exit 1; }
 SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ ! -e /home/frappe/frappe-bench && ! -e /root/clothing-erp-credentials ]] || { echo 'An installation exists. Use clothing-erp update.' >&2; exit 1; }
 [[ -f $SOURCE/release.json ]] || { echo 'Use the published release installer, not a main-branch source snapshot.' >&2; exit 1; }

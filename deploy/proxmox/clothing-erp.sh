@@ -249,7 +249,9 @@ fi
 
 # Ensure release.json is present in source root for installer validation
 if [[ ! -f "$SOURCE_ROOT/release.json" ]]; then
-    if [[ -f "$SOURCE_ROOT/deploy/tests/fixtures/release.json" ]]; then
+    if [[ -f "$SOURCE_ROOT/deploy/tests/fixtures/release.production.json" ]]; then
+        cp "$SOURCE_ROOT/deploy/tests/fixtures/release.production.json" "$SOURCE_ROOT/release.json"
+    elif [[ -f "$SOURCE_ROOT/deploy/tests/fixtures/release.json" ]]; then
         cp "$SOURCE_ROOT/deploy/tests/fixtures/release.json" "$SOURCE_ROOT/release.json"
     else
         cat > "$SOURCE_ROOT/release.json" << 'EOF'
@@ -258,16 +260,26 @@ if [[ ! -f "$SOURCE_ROOT/release.json" ]]; then
   "platform": "debian13-native-v1",
   "version": "v0.3.1",
   "repository": "AviDhandhania/erp",
-  "source_commit": "HEAD",
+  "source_commit": "61468e4695b28531102613d965d1d6a78cead888",
   "frappe": { "ref": "v16.55.2", "commit": "3d1284c5fdb52207a516a49bbf2fd186cb43b3ab" },
   "erpnext": { "ref": "v16.54.0", "commit": "495380b59c8701629f25089bd3807e6ddf7f26c6" },
-  "insights": { "ref": "v3.15.1", "commit": "4e1a0b323d9aa8c154af0d4e0c8685ed52000000" },
-  "india_compliance": { "ref": "v16.10.0", "commit": "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b" },
+  "insights": { "ref": "v3.15.1", "commit": "c7dc954d8275756deb5ad24f7c35c3f3c2ca1a6c" },
+  "india_compliance": { "ref": "v16.10.0", "commit": "93eca2f553c04f6695e3d6103be8a4e6e6264d39" },
   "runtime": { "bench": "5.31.1", "node": "24.22.2", "python": "3.14.9", "uv": "0.13.7" },
-  "archive": { "name": "clothing-erp-v0.3.1.tar.gz", "sha256": "0" }
+  "archive": { "name": "clothing-erp-v0.3.1.tar.gz", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" },
+  "locks": {
+    "python.txt": { "path": "deploy/locks/python.txt", "sha256": "5a7717412b8b9dd908bdafa48c7e1e6e4dee7163fe9e032b2c8a070c20874c03" },
+    "tools.txt": { "path": "deploy/locks/tools.txt", "sha256": "bb1ae2605571fa88c3c9600dd90da7ec6cf9b2953cbe05a14054aee8249bb990" }
+  }
 }
 EOF
     fi
+fi
+
+# Ensure deploy/locks are populated from fixtures
+if [[ ! -d "$SOURCE_ROOT/deploy/locks" ]] && [[ -d "$SOURCE_ROOT/deploy/tests/fixtures/locks" ]]; then
+    mkdir -p "$SOURCE_ROOT/deploy/locks"
+    cp -a "$SOURCE_ROOT/deploy/tests/fixtures/locks/"* "$SOURCE_ROOT/deploy/locks/"
 fi
 
 # --- Container Creation ---

@@ -219,6 +219,33 @@ class TestHelperScript(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(any(call[:2] == ["pct", "create"] for call in calls))
 
+    def test_helper_script_custom_resources_and_static_ip(self):
+        result, calls = self.run_helper(
+            CTID="205",
+            MEMORY="16384",
+            CORES="8",
+            DISK_GB="60",
+            CT_IP="192.168.1.50/24",
+            GATEWAY="192.168.1.1",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        create = next(call for call in calls if call[:2] == ["pct", "create"])
+        self.assertIn("205", create)
+        self.assertEqual(create[create.index("--cores") + 1], "8")
+        self.assertEqual(create[create.index("--memory") + 1], "16384")
+        self.assertTrue(any("ip=192.168.1.50/24" in arg and "gw=192.168.1.1" in arg for arg in create))
+
+    def test_helper_script_insufficient_resources_rejected(self):
+        result, calls = self.run_helper(MEMORY="2048")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(call[:2] == ["pct", "create"] for call in calls))
+
+    def test_helper_script_missing_storage_rejected(self):
+        result, calls = self.run_helper("missing-storage")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(call[:2] == ["pct", "create"] for call in calls))
+
+
 
 
 class TestPackage(unittest.TestCase):
