@@ -98,6 +98,7 @@ class Manager:
 
     def run(self, command, *, bench=None, as_frappe=False, **kwargs):
         command = list(map(str, command))
+        cwd = kwargs.pop("cwd", None) or (bench if bench else self.home)
         if bench:
             bench = Path(bench)
             runtime = bench / ".platform"
@@ -105,19 +106,50 @@ class Manager:
                 "PATH": f"{runtime}/tools/bin:{runtime}/node/bin:{runtime}/bin:/usr/local/bin:/usr/bin:/bin",
                 "FRAPPE_BENCH_ROOT": str(bench),
                 "SITES_PATH": str(bench / "sites"),
+                "HOME": str(self.home),
+                "USER": "frappe",
+                "LOGNAME": "frappe",
+                "UV_CACHE_DIR": str(self.home / ".cache/uv"),
+                "UV_PYTHON_INSTALL_DIR": str(self.home / ".local/share/uv/python"),
+                "npm_config_cache": str(self.home / ".cache/npm"),
+                "YARN_CACHE_FOLDER": str(self.home / ".cache/yarn"),
             }
             command = [
                 "env",
                 *[
                     f"{k}={v}"
                     for k, v in env.items()
-                    if k in ("PATH", "FRAPPE_BENCH_ROOT", "SITES_PATH")
+                    if k
+                    in (
+                        "PATH",
+                        "FRAPPE_BENCH_ROOT",
+                        "SITES_PATH",
+                        "HOME",
+                        "USER",
+                        "LOGNAME",
+                        "UV_CACHE_DIR",
+                        "UV_PYTHON_INSTALL_DIR",
+                        "npm_config_cache",
+                        "YARN_CACHE_FOLDER",
+                    )
                 ],
+                *command,
+            ]
+        elif as_frappe:
+            command = [
+                "env",
+                f"HOME={self.home}",
+                "USER=frappe",
+                "LOGNAME=frappe",
+                f"UV_CACHE_DIR={self.home}/.cache/uv",
+                f"UV_PYTHON_INSTALL_DIR={self.home}/.local/share/uv/python",
+                f"npm_config_cache={self.home}/.cache/npm",
+                f"YARN_CACHE_FOLDER={self.home}/.cache/yarn",
                 *command,
             ]
         if as_frappe:
             command = ["runuser", "-u", "frappe", "--", *command]
-        return subprocess.run(command, cwd=bench, check=True, **kwargs)
+        return subprocess.run(command, cwd=cwd, check=True, **kwargs)
 
     def bench(self, bench, *arguments, **kwargs):
         bench = Path(bench)

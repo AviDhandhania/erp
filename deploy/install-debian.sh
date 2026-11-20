@@ -36,15 +36,41 @@ CNF
 systemctl enable --now mariadb redis-server cron
 systemctl restart mariadb
 id frappe >/dev/null 2>&1 || useradd --create-home --shell /bin/bash frappe
-install -d -o frappe -g frappe -m 755 /home/frappe/releases
+chmod 755 /home/frappe
+install -d -o frappe -g frappe -m 755 /home/frappe/releases /home/frappe/.cache /home/frappe/.cache/uv /home/frappe/.cache/yarn /home/frappe/.cache/npm /home/frappe/.local /home/frappe/.local/share /home/frappe/.local/share/uv
 install -d -o root -g root -m 751 /home/frappe/shared
 # Verified source must be readable to the unprivileged build user.
 chmod o+rx /opt/clothing-erp-source
-runuser -u frappe -- bash "$SOURCE/deploy/stage-release.sh" "$SOURCE" "/home/frappe/releases/$VERSION"
+(
+    cd /home/frappe && \
+    runuser -u frappe -- env \
+        HOME=/home/frappe \
+        USER=frappe \
+        LOGNAME=frappe \
+        UV_CACHE_DIR=/home/frappe/.cache/uv \
+        UV_PYTHON_INSTALL_DIR=/home/frappe/.local/share/uv/python \
+        npm_config_cache=/home/frappe/.cache/npm \
+        YARN_CACHE_FOLDER=/home/frappe/.cache/yarn \
+        bash "$SOURCE/deploy/stage-release.sh" "$SOURCE" "/home/frappe/releases/$VERSION"
+)
 ln -s "/home/frappe/releases/$VERSION/bench" /home/frappe/frappe-bench
 cd /home/frappe/frappe-bench
 export PATH="/home/frappe/frappe-bench/.platform/tools/bin:/home/frappe/frappe-bench/.platform/node/bin:/home/frappe/frappe-bench/.platform/bin:/usr/local/bin:/usr/bin:/bin"
-run_frappe() { runuser -u frappe -- env PATH="$PATH" "$@"; }
+run_frappe() {
+    (
+        cd /home/frappe/frappe-bench && \
+        runuser -u frappe -- env \
+            HOME=/home/frappe \
+            USER=frappe \
+            LOGNAME=frappe \
+            PATH="$PATH" \
+            UV_CACHE_DIR=/home/frappe/.cache/uv \
+            UV_PYTHON_INSTALL_DIR=/home/frappe/.local/share/uv/python \
+            npm_config_cache=/home/frappe/.cache/npm \
+            YARN_CACHE_FOLDER=/home/frappe/.cache/yarn \
+            "$@"
+    )
+}
 run_frappe bench set-config -g redis_cache redis://127.0.0.1:6379/0
 run_frappe bench set-config -g redis_queue redis://127.0.0.1:6379/1
 run_frappe bench set-config -g redis_socketio redis://127.0.0.1:6379/1
@@ -76,8 +102,21 @@ GRANT ALL PRIVILEGES ON *.* TO 'clothing_installer'@'localhost' WITH GRANT OPTIO
 SQL
 cleanup() { mariadb -uroot -e "DROP USER IF EXISTS 'clothing_installer'@'localhost';"; }
 trap cleanup EXIT
-runuser -u frappe -- env PATH="$PATH" FRAPPE_DB_ROOT_PASSWORD="$DB_PASSWORD" FRAPPE_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
-    env/bin/python "$SOURCE/deploy/create_site.py"
+(
+    cd /home/frappe/frappe-bench && \
+    runuser -u frappe -- env \
+        HOME=/home/frappe \
+        USER=frappe \
+        LOGNAME=frappe \
+        PATH="$PATH" \
+        UV_CACHE_DIR=/home/frappe/.cache/uv \
+        UV_PYTHON_INSTALL_DIR=/home/frappe/.local/share/uv/python \
+        npm_config_cache=/home/frappe/.cache/npm \
+        YARN_CACHE_FOLDER=/home/frappe/.cache/yarn \
+        FRAPPE_DB_ROOT_PASSWORD="$DB_PASSWORD" \
+        FRAPPE_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+        env/bin/python "$SOURCE/deploy/create_site.py"
+)
 cleanup
 trap - EXIT
 run_frappe bench --site clothing.local install-app erpnext
@@ -93,7 +132,14 @@ run_frappe bench --site clothing.local set-config force_user_to_boot_to_password
 run_frappe bench --site clothing.local execute sales_erp.install.configure_launcher
 run_frappe bench --site clothing.local enable-scheduler
 mv sites/clothing.local /home/frappe/shared/clothing.local
-runuser -u frappe -- ln -s /home/frappe/shared/clothing.local sites/clothing.local
+(
+    cd /home/frappe/frappe-bench && \
+    runuser -u frappe -- env \
+        HOME=/home/frappe \
+        USER=frappe \
+        LOGNAME=frappe \
+        ln -s /home/frappe/shared/clothing.local sites/clothing.local
+)
 chmod 750 /home/frappe/shared/clothing.local/private || true
 chmod 750 /home/frappe/shared/clothing.local/private/files || true
 # Stable active symlink is the only path in nginx/systemd; each release owns its own code/env/assets.

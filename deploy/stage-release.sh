@@ -6,7 +6,18 @@ SOURCE="$(realpath "$1")"
 DESTINATION="$2"
 [[ ! -e $DESTINATION ]] || { echo 'Staging directory already exists.' >&2; exit 1; }
 [[ -f $SOURCE/release.json ]] || { echo 'A verified release manifest is required.' >&2; exit 1; }
+
+export HOME="${HOME:-/home/frappe}"
+export USER="${USER:-frappe}"
+export LOGNAME="${LOGNAME:-frappe}"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$HOME/.cache/uv}"
+export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$HOME/.local/share/uv/python}"
+export npm_config_cache="${npm_config_cache:-$HOME/.cache/npm}"
+export YARN_CACHE_FOLDER="${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}"
+mkdir -p "$UV_CACHE_DIR" "$UV_PYTHON_INSTALL_DIR" "$npm_config_cache" "$YARN_CACHE_FOLDER"
+
 mkdir -p "$DESTINATION/.runtime"
+cd "$DESTINATION"
 python3 - "$SOURCE/release.json" "$DESTINATION/.runtime/pins.env" <<'PY'
 import json,sys,os
 from pathlib import Path
