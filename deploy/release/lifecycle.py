@@ -21,6 +21,7 @@ import time
 import urllib.request
 
 from common import (
+    REPOSITORY,
     extract_archive,
     fetch_release,
     sha256,
@@ -653,7 +654,48 @@ class Manager:
             shutil.copy2(source / "deploy/release" / name, destination / name)
             (destination / name).chmod(0o644)
 
-    def update(self, manifest, source, *, app_only=False):
+    def update_from_git(self, branch="main"):
+        current = self.installed()
+        target = Path(current["bench"])
+        print(f"Fetching latest Clothing ERP apps from {branch}...", flush=True)
+        with tempfile.TemporaryDirectory(prefix="clothing-git-") as directory:
+            repo_dir = Path(directory) / "repo"
+            res = subprocess.run(
+                ["git", "clone", "--depth", "1", "--branch", branch, f"https://github.com/{REPOSITORY}.git", str(repo_dir)],
+                capture_output=True,
+                text=True,
+            )
+            if res.returncode != 0:
+                raise RuntimeError(f"Failed to clone repository: {res.stderr}")
+            clothing_apps = ("sales_erp", "warehouse_erp", "quality_erp")
+            for app in clothing_apps:
+                app_dest = target / "apps" / app
+                if app_dest.is_symlink():
+                    real_dest = app_dest.resolve()
+                    if real_dest.exists() and (repo_dir / app / app).exists():
+                        shutil.copytree(repo_dir / app / app, real_dest, dirs_exist_ok=True)
+                elif app_dest.is_dir() and (repo_dir / app / app).exists():
+                    shutil.copytree(repo_dir / app / app, app_dest / app, dirs_exist_ok=True)
+            if Path("/opt/clothing-erp-source").exists():
+                for app in clothing_apps:
+                    if (repo_dir / app).exists():
+                        shutil.copytree(repo_dir / app, Path("/opt/clothing-erp-source") / app, dirs_exist_ok=True)
+            self.deploy_manager(repo_dir)
+            self.bench(target, "migrate")
+            self.bench(target, "clear-cache")
+            self.start()
+            self.health(target, background=False)
+            commit = subprocess.run(
+                ["git", "-C", str(repo_dir), "rev-parse", "--short", "HEAD"],
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            print(f"Updated all Clothing ERP apps to git commit {commit}.", flush=True)
+
+    def update(self, manifest, source, *, app_only=False, git=False):
+        if git:
+            self.update_from_git()
+            return
         current = self.installed()
         if self.state.get("operation"):
             raise RuntimeError(
@@ -665,8 +707,12 @@ class Manager:
             old_version = version_tuple(previous_manifest["version"])
             new_version = version_tuple(manifest["version"])
             if new_version == old_version:
-                print("Already up to date")
-                return
+                try:
+                    self.update_from_git()
+                    return
+                except Exception:
+                    print("Already up to date")
+                    return
             if new_version < old_version:
                 raise RuntimeError(
                     "Use rollback --yes to restore an older release with its data"
@@ -859,6 +905,7 @@ def main():
         sub.add_argument("--version")
         if command == "update":
             sub.add_argument("--app-only", action="store_true")
+            sub.add_argument("--git", action="store_true")
     commands.add_parser("backup")
     for command in ("recover", "rollback"):
         commands.add_parser(command).add_argument(
@@ -938,7 +985,12 @@ def main():
                     print(" | ".join(details))
                     print("Update with: clothing-erp update")
                 else:
-                    manager.update(manifest, source, app_only=args.app_only)
+                    manager.update(
+                        manifest,
+                        source,
+                        app_only=args.app_only,
+                        git=getattr(args, "git", False),
+                    )
 
 
 if __name__ == "__main__":

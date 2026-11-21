@@ -10,14 +10,70 @@ from quality_erp.roles import (
 )
 
 
-def _ensure_custom_docperm(doctype, role, actions):
+def _sync_standard_docperms(doctype):
+    """If Custom DocPerm is used for a DocType, ensure all standard DocPerms from
+    doctype metadata are present so native roles (Purchase User, Purchase Manager,
+    System Manager, etc.) never lose their baseline permissions."""
+    if not frappe.db.exists("DocType", doctype):
+        return
+    standard_perms = frappe.get_all(
+        "DocPerm",
+        filters={"parent": doctype},
+        fields=[
+            "role", "permlevel", "read", "write", "create", "delete",
+            "submit", "cancel", "amend", "report", "export", "import",
+            "share", "print", "email", "select", "if_owner"
+        ],
+    )
+    if not standard_perms:
+        return
+
+    existing_custom = {
+        (d.role, d.permlevel, d.if_owner)
+        for d in frappe.get_all(
+            "Custom DocPerm",
+            filters={"parent": doctype},
+            fields=["role", "permlevel", "if_owner"],
+        )
+    }
+
+    for sp in standard_perms:
+        key = (sp.role, sp.permlevel, sp.if_owner)
+        if key not in existing_custom:
+            cd = frappe.new_doc("Custom DocPerm")
+            cd.parent = doctype
+            cd.parenttype = "DocType"
+            cd.parentfield = "permissions"
+            for field, val in sp.items():
+                if hasattr(cd, field):
+                    setattr(cd, field, val)
+            cd.insert(ignore_permissions=True)
+            existing_custom.add(key)
+        else:
+            existing_name = frappe.db.get_value(
+                "Custom DocPerm",
+                {"parent": doctype, "role": sp.role, "permlevel": sp.permlevel, "if_owner": sp.if_owner},
+            )
+            if existing_name:
+                doc = frappe.get_doc("Custom DocPerm", existing_name)
+                changed = False
+                for field, val in sp.items():
+                    if val and hasattr(doc, field) and not getattr(doc, field):
+                        setattr(doc, field, 1)
+                        changed = True
+                if changed:
+                    doc.save(ignore_permissions=True)
+
+
+def _ensure_custom_docperm(doctype, role, actions, permlevel=0):
     if not frappe.db.exists("DocType", doctype) or not frappe.db.exists("Role", role):
         return
+    _sync_standard_docperms(doctype)
     existing = frappe.get_all(
         "Custom DocPerm",
-        filters={"parent": doctype, "role": role, "permlevel": 0},
+        filters={"parent": doctype, "role": role, "permlevel": permlevel, "if_owner": 0},
         fields=["name"] + [f"{a}" for a in actions if a in {
-            "read", "write", "create", "submit", "cancel", "amend", "delete", "export", "report"
+            "read", "write", "create", "submit", "cancel", "amend", "delete", "export", "report", "print", "email", "share"
         }],
     )
     if existing:
@@ -36,7 +92,8 @@ def _ensure_custom_docperm(doctype, role, actions):
         "parenttype": "DocType",
         "parentfield": "permissions",
         "role": role,
-        "permlevel": 0,
+        "permlevel": permlevel,
+        "if_owner": 0,
     }
     for action in actions:
         values[action] = 1
@@ -68,10 +125,23 @@ def after_install():
                 }
             ).insert(ignore_permissions=True)
 
+    for dt in ("Supplier", "Purchase Order", "Quality Inspection"):
+        _sync_standard_docperms(dt)
+        _ensure_custom_docperm(
+            dt,
+            "System Manager",
+            ["read", "write", "create", "submit", "cancel", "amend", "delete", "export", "report", "print", "email", "share"],
+        )
+        _ensure_custom_docperm(
+            dt,
+            ROLE_BUSINESS_ADMIN,
+            ["read", "write", "create", "submit", "cancel", "amend", "delete", "export", "report", "print", "email", "share"],
+        )
+        for role_name in (ROLE_QUALITY_INSPECTOR, ROLE_QUALITY_MANAGER):
+            _ensure_custom_docperm(dt, role_name, ["read", "report", "print", "email"])
+
     for role in ALL_ROLES:
         name = role["role_name"]
-        for dt in ("Supplier", "Purchase Order", "Quality Inspection"):
-            _ensure_custom_docperm(dt, name, ["read"])
 
         if name == ROLE_BUSINESS_ADMIN:
             _ensure_custom_docperm(

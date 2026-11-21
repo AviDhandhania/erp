@@ -107,9 +107,14 @@ def has_warehouse_access(warehouse_name, user=None):
     return is_warehouse_manager(user) or (is_warehouse_operator(user) and warehouse_name in assigned_documents("Warehouse", user))
 
 def customer_has_permission(doc, user=None, ptype=None, **kwargs):
-    if not (get_user_roles(user) & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}) or is_clothing_admin(user):
+    user = get_current_user(user)
+    roles = get_user_roles(user)
+    if is_clothing_admin(user) or "System Manager" in roles:
         return True
-    return has_retailer_access(doc.name, user)
+    if not (roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}):
+        return True
+    name = doc if isinstance(doc, str) else getattr(doc, "name", None)
+    return has_retailer_access(name, user) if name else True
 
 def warehouse_has_permission(doc, user=None, ptype=None, **kwargs):
     return is_warehouse_manager(user)
@@ -120,7 +125,11 @@ def _assignment_conditions(doctype, role, manager_check, user):
     return "1=0"
 
 def get_salesperson_customer_conditions(user=None):
-    if not (get_user_roles(user) & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}) or is_clothing_admin(user):
+    user = get_current_user(user)
+    roles = get_user_roles(user)
+    if is_clothing_admin(user) or "System Manager" in roles:
+        return ""
+    if not (roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}):
         return ""
     territories = assigned_sales_territories(user)
     if not territories:
@@ -133,7 +142,11 @@ def get_operator_warehouse_conditions(user=None):
 
 
 def _sales_document_conditions(doctype, user=None):
-    if not (get_user_roles(user) & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}) or is_clothing_admin(user):
+    user = get_current_user(user)
+    roles = get_user_roles(user)
+    if is_clothing_admin(user) or "System Manager" in roles:
+        return ""
+    if not (roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}):
         return ""
     territories = assigned_sales_territories(user)
     if not territories:
@@ -347,12 +360,19 @@ def retailer_record_has_permission(doc, user=None, ptype=None, **kwargs):
 
 
 def operational_document_has_permission(doc, user=None, ptype=None, **kwargs):
+    if not doc:
+        return True
+    user = get_current_user(user)
     roles = get_user_roles(user)
-    if doc.doctype in ("Sales Order", "Delivery Note") and roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER} and not is_clothing_admin(user):
+    if is_clothing_admin(user) or "System Manager" in roles:
+        return True
+    if isinstance(doc, str):
+        return True
+    if doc.doctype in ("Sales Order", "Delivery Note") and roles & {ROLE_SALESPERSON, ROLE_SALES_MANAGER}:
         customer = doc.get("customer")
         if customer and not has_retailer_access(customer, user):
             return False
-    if doc.doctype in ("Pick List", "Delivery Note") and not is_warehouse_manager(user) and not is_clothing_admin(user):
+    if doc.doctype in ("Pick List", "Delivery Note") and not is_warehouse_manager(user):
         return False
     return True
 
