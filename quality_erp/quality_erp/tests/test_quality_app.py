@@ -46,7 +46,7 @@ class TestQualityERP(FrappeTestCase):
                 {
                     "doctype": "Supplier",
                     "supplier_name": self.supplier,
-                    "supplier_group": "All Supplier Groups",
+                    "supplier_group": "Raw Material",
                 }
             ).insert(ignore_permissions=True)
 

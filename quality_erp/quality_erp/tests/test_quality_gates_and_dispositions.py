@@ -84,7 +84,7 @@ class TestQualityGatesAndDispositions(FrappeTestCase):
             frappe.get_doc({
                 "doctype": "Supplier",
                 "supplier_name": name,
-                "supplier_group": "All Supplier Groups",
+                "supplier_group": "Raw Material",
             }).insert(ignore_permissions=True)
         return name
 

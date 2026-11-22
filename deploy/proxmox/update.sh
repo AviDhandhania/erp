@@ -84,6 +84,63 @@ fi
 BENCH_USER="$(stat -c '%U' "$BENCH_DIR")"
 msg_info "Found active bench at ${BOLD}${BENCH_DIR}${CL} (owned by ${BENCH_USER})"
 
+# 5. Update upstream applications (frappe, erpnext, insights, india_compliance)
+if [[ -f "$WORK_DIR/repo/deploy/versions.env" ]]; then
+    # shellcheck source=/dev/null
+    . "$WORK_DIR/repo/deploy/versions.env"
+fi
+
+update_upstream_app() {
+    local app_name="$1"
+    local target_ref="$2"
+    local default_remote_url="$3"
+    local app_dir="$BENCH_DIR/apps/$app_name"
+
+    if [[ -z "$target_ref" || ! -d "$app_dir" ]]; then
+        return 0
+    fi
+
+    local current_tag
+    current_tag="$(git -C "$app_dir" describe --tags --exact-match 2>/dev/null || git -C "$app_dir" describe --tags 2>/dev/null || true)"
+    if [[ "$current_tag" == "$target_ref"* ]]; then
+        msg_ok "Upstream app ${BOLD}${app_name}${CL} is already at ${target_ref}."
+        return 0
+    fi
+
+    msg_info "Checking upstream app ${BOLD}${app_name}${CL} (current: ${current_tag:-unknown}, target: ${BOLD}${target_ref}${CL})..."
+    local remote
+    remote="$(git -C "$app_dir" remote 2>/dev/null | head -1 || true)"
+    if [[ -z "$remote" ]]; then
+        remote="upstream"
+        git -C "$app_dir" remote add "$remote" "$default_remote_url"
+    fi
+
+    msg_info "Fetching and checking out ${BOLD}${target_ref}${CL} for ${BOLD}${app_name}${CL}..."
+    git -C "$app_dir" fetch --depth 1 "$remote" tag "$target_ref" 2>/dev/null || git -C "$app_dir" fetch "$remote" tag "$target_ref" 2>/dev/null || git -C "$app_dir" fetch --tags "$remote"
+    git -C "$app_dir" checkout "$target_ref" 2>/dev/null || git -C "$app_dir" checkout "tags/$target_ref"
+    chown -R "${BENCH_USER}:${BENCH_USER}" "$app_dir"
+    msg_ok "Upstream app ${BOLD}${app_name}${CL} updated to $(git -C "$app_dir" describe --tags --always 2>/dev/null || echo "$target_ref")."
+}
+
+update_upstream_app "frappe" "${FRAPPE_REF:-}" "https://github.com/frappe/frappe.git"
+update_upstream_app "erpnext" "${ERPNEXT_REF:-}" "https://github.com/frappe/erpnext.git"
+update_upstream_app "insights" "${INSIGHTS_REF:-}" "https://github.com/frappe/insights.git"
+update_upstream_app "india_compliance" "${INDIA_COMPLIANCE_REF:-}" "https://github.com/resilient-tech/india-compliance.git"
+
+# Sync python editable installs and dependencies
+msg_info "Syncing Python packages in bench environment..."
+su - "$BENCH_USER" -c "
+    export PATH=\"$BENCH_DIR/.platform/tools/bin:$BENCH_DIR/.platform/node/bin:$BENCH_DIR/.platform/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$PATH\"
+    export HOME=\"/home/$BENCH_USER\"
+    cd \"$BENCH_DIR\"
+    if command -v uv >/dev/null 2>&1; then
+        uv pip install --python \"$BENCH_DIR/env/bin/python\" -e apps/frappe -e apps/erpnext -e apps/insights -e apps/india_compliance 2>/dev/null || \
+        \"$BENCH_DIR/env/bin/pip\" install -e apps/frappe -e apps/erpnext -e apps/insights -e apps/india_compliance
+    else
+        \"$BENCH_DIR/env/bin/pip\" install -e apps/frappe -e apps/erpnext -e apps/insights -e apps/india_compliance
+    fi
+"
+
 # Copy files directly into installed apps if they are directories or targets of symlinks
 for app in sales_erp warehouse_erp quality_erp; do
     APP_TARGET="$BENCH_DIR/apps/$app"

@@ -31,6 +31,29 @@ def main():
     parser.add_argument("--apps", help="Comma-separated app subset for diagnostics")
     args = parser.parse_args()
 
+    import subprocess
+    from frappe import commands
+    import frappe.build
+
+    def safe_popen(command, *args, **kwargs):
+        output = kwargs.get("output", True)
+        cwd = kwargs.get("cwd")
+        shell = kwargs.get("shell", True)
+        env = kwargs.get("env")
+        if env:
+            env = dict(os.environ, **env)
+        return subprocess.Popen(
+            command,
+            stdout=None if output else subprocess.PIPE,
+            stderr=None if output else subprocess.PIPE,
+            shell=shell,
+            cwd=cwd,
+            env=env,
+        )
+
+    commands.popen = safe_popen
+    frappe.build.popen = safe_popen
+
     from frappe.commands import utils
     from frappe.gettext import translate
 

@@ -87,7 +87,7 @@ class TestQualityStageReports(FrappeTestCase):
             frappe.get_doc({
                 "doctype": "Supplier",
                 "supplier_name": self.supplier,
-                "supplier_group": "All Supplier Groups",
+                "supplier_group": "Raw Material",
             }).insert(ignore_permissions=True)
 
         if not frappe.db.exists("Item", self.item_code):
